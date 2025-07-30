@@ -1,0 +1,77 @@
+[
+  {
+    "Id": 1,
+    "items": [
+      {
+        "productId": 1,
+        "quantity": 1,
+        "price": 79.99,
+        "product": {
+          "title": "Wireless Bluetooth Headphones",
+          "images": ["https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&h=500&fit=crop"]
+        }
+      }
+    ],
+    "total": 86.39,
+    "shipping": {
+      "firstName": "John",
+      "lastName": "Doe",
+      "email": "john.doe@example.com",
+      "phone": "(555) 123-4567",
+      "address": "123 Main St",
+      "city": "New York",
+      "state": "NY",
+      "zipCode": "10001",
+      "country": "United States"
+    },
+    "payment": {
+      "method": "credit_card",
+      "last4": "4242"
+    },
+    "status": "confirmed",
+    "createdAt": "2024-03-15T10:30:00Z",
+    "updatedAt": "2024-03-15T10:30:00Z"
+  },
+  {
+    "Id": 2,
+    "items": [
+      {
+        "productId": 2,
+        "quantity": 1,
+        "price": 199.99,
+        "product": {
+          "title": "Smart Fitness Watch",
+          "images": ["https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&h=500&fit=crop"]
+        }
+      },
+      {
+        "productId": 7,
+        "quantity": 1,
+        "price": 49.99,
+        "product": {
+          "title": "Yoga Mat Premium",
+          "images": ["https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=500&h=500&fit=crop"]
+        }
+      }
+    ],
+    "total": 269.98,
+    "shipping": {
+      "firstName": "Jane",
+      "lastName": "Smith",
+      "email": "jane.smith@example.com",
+      "phone": "(555) 987-6543",
+      "address": "456 Oak Ave",
+      "city": "Los Angeles",
+      "state": "CA",
+      "zipCode": "90210",
+      "country": "United States"
+    },
+    "payment": {
+      "method": "credit_card",
+      "last4": "1234"
+    },
+    "status": "processing",
+    "createdAt": "2024-03-14T14:20:00Z",
+    "updatedAt": "2024-03-14T14:20:00Z"
+  }
+]

@@ -1,0 +1,100 @@
+@import 'react-toastify/dist/ReactToastify.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  body {
+    font-family: 'Inter', sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-gradient-to-r from-primary to-secondary text-white font-medium px-6 py-3 rounded-lg transition-all duration-200 hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg;
+  }
+  
+  .btn-secondary {
+    @apply bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 font-medium px-6 py-3 rounded-lg transition-all duration-200 hover:from-gray-200 hover:to-gray-300 hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow-md;
+  }
+  
+  .card {
+    @apply bg-surface rounded-lg shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02];
+  }
+  
+  .input-field {
+    @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 outline-none;
+  }
+  
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent;
+  }
+  
+  .price-text {
+    @apply text-primary font-bold text-lg;
+  }
+  
+  .sale-badge {
+    @apply bg-gradient-to-r from-accent to-red-500 text-white px-2 py-1 rounded-full text-xs font-medium;
+  }
+}
+
+/* Toast Customization */
+.Toastify__toast-container {
+  z-index: 9999;
+}
+
+.Toastify__toast {
+  border-radius: 12px;
+  font-family: 'Inter', sans-serif;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.Toastify__toast--success {
+  background: linear-gradient(135deg, #4CAF50, #45a049);
+}
+
+.Toastify__toast--error {
+  background: linear-gradient(135deg, #F44336, #d32f2f);
+}
+
+.Toastify__toast--info {
+  background: linear-gradient(135deg, #4A90E2, #357abd);
+}
+
+.Toastify__progress-bar {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, #4A90E2, #7B68EE);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(to bottom, #357abd, #6a5acd);
+}
