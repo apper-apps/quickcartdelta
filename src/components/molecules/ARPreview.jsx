@@ -73,10 +73,12 @@ const requestCameraAccess = async () => {
       }
       
 // Enhanced MediaDevices context preservation - multiple strategies to prevent "Illegal invocation"
-      // Strategy 1: Direct invocation to preserve native context
+      // Strategy 1: Preserve native context with proper async handling
       let stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ 
+        // Direct call with preserved context
+        const mediaDevices = navigator.mediaDevices;
+        stream = await mediaDevices.getUserMedia({ 
           video: { 
             facingMode: 'environment',
             width: { ideal: 1280 },
@@ -84,16 +86,34 @@ const requestCameraAccess = async () => {
           } 
         });
       } catch (contextError) {
-        // Strategy 2: Fallback with explicit context binding if direct invocation fails
-        if (contextError.message?.includes('Illegal invocation')) {
-          const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-          stream = await getUserMedia({ 
-            video: { 
-              facingMode: 'environment',
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
-            } 
-          });
+        // Strategy 2: Explicit binding fallback for context preservation
+        if (contextError.message?.includes('Illegal invocation') || contextError.name === 'TypeError') {
+          try {
+            const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+            stream = await getUserMedia({ 
+              video: { 
+                facingMode: 'environment',
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+              } 
+            });
+          } catch (bindError) {
+            // Strategy 3: Legacy getUserMedia fallback
+            if (navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia) {
+              const legacyGetUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+              stream = await new Promise((resolve, reject) => {
+                legacyGetUserMedia.call(navigator, {
+                  video: { 
+                    facingMode: 'environment',
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                  }
+                }, resolve, reject);
+              });
+            } else {
+              throw new Error('getUserMedia not supported in this browser');
+            }
+          }
         } else {
           throw contextError;
         }

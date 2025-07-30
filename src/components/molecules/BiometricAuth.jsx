@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'react-toastify';
-import ApperIcon from '@/components/ApperIcon';
-import Button from '@/components/atoms/Button';
+import React, { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { toast } from "react-toastify";
+import ApperIcon from "@/components/ApperIcon";
+import Error from "@/components/ui/Error";
+import Button from "@/components/atoms/Button";
 
 function BiometricAuth({ isOpen, onClose, onSuccess, type = "fingerprint" }) {
   const [isScanning, setIsScanning] = useState(false);
@@ -36,15 +37,82 @@ function BiometricAuth({ isOpen, onClose, onSuccess, type = "fingerprint" }) {
     }, 1000);
   };
 
-  const startScan = () => {
-    setIsScanning(true);
-    setProgress(0);
-    setScanResult(null);
+const [error, setError] = useState('');
+
+  const startScan = async () => {
+    try {
+      setIsScanning(true);
+      setProgress(0);
+      setScanResult(null);
+      setError('');
+      
+      // Check if WebAuthn is supported
+      if (!window.PublicKeyCredential) {
+        throw new Error('WebAuthn not supported in this browser');
+      }
+      
+      // Enhanced navigator API context preservation
+      let credential;
+      try {
+        // Strategy 1: Direct invocation with preserved context
+        const credentials = navigator.credentials;
+        credential = await credentials.create({
+          publicKey: {
+            challenge: new Uint8Array(32),
+            rp: { name: "QuickCart" },
+            user: {
+              id: new Uint8Array(16),
+              name: "user@quickcart.com",
+              displayName: "QuickCart User",
+            },
+            pubKeyCredParams: [{ alg: -7, type: "public-key" }],
+            authenticatorSelection: {
+              authenticatorAttachment: "platform",
+              userVerification: "required"
+            }
+          }
+        });
+      } catch (contextError) {
+        // Strategy 2: Explicit binding fallback
+        if (contextError.message?.includes('Illegal invocation') || contextError.name === 'TypeError') {
+          const createCredential = navigator.credentials.create.bind(navigator.credentials);
+          credential = await createCredential({
+            publicKey: {
+              challenge: new Uint8Array(32),
+              rp: { name: "QuickCart" },
+              user: {
+                id: new Uint8Array(16),
+                name: "user@quickcart.com",
+                displayName: "QuickCart User",
+              },
+              pubKeyCredParams: [{ alg: -7, type: "public-key" }],
+              authenticatorSelection: {
+                authenticatorAttachment: "platform",
+                userVerification: "required"
+              }
+            }
+          });
+        } else {
+          throw contextError;
+        }
+      }
+      
+      if (credential) {
+        handleScanComplete();
+      }
+    } catch (error) {
+      console.error('Biometric authentication failed:', error);
+      setError(error.message || 'Authentication failed');
+      setIsScanning(false);
+      setScanResult('error');
+      toast.error('Authentication failed. Please try again.');
+    }
   };
 
   const handleFallback = () => {
-    toast.info('Falling back to PIN authentication');
     onClose();
+    // This would typically trigger a PIN/password flow
+    toast.info('Please use your PIN to authenticate');
   };
 
   if (!isOpen) return null;
@@ -55,17 +123,20 @@ function BiometricAuth({ isOpen, onClose, onSuccess, type = "fingerprint" }) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+        className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
         onClick={onClose}
       >
         <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
+          initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.8, opacity: 0 }}
-          className="bg-white rounded-2xl p-8 max-w-sm mx-4 text-center"
-          onClick={e => e.stopPropagation()}
+          exit={{ scale: 0.9, opacity: 0 }}
+          className="bg-white rounded-2xl p-6 w-full max-w-sm text-center"
+          onClick={(e) => e.stopPropagation()}
         >
-          <h3 className="text-xl font-bold mb-2">Secure Authentication</h3>
+          <h3 className="text-xl font-semibold mb-2">
+            {type === 'fingerprint' ? 'Fingerprint' : 'Face ID'} Authentication
+          </h3>
+          
           <p className="text-gray-600 mb-6">
             {type === 'fingerprint' 
               ? 'Place your finger on the sensor to authenticate'
@@ -73,6 +144,9 @@ function BiometricAuth({ isOpen, onClose, onSuccess, type = "fingerprint" }) {
             }
           </p>
 
+          {error && (
+            <Error message={error} className="mb-4" />
+          )}
           {/* Biometric Scanner Visual */}
           <div className="mb-6 relative">
             <motion.div
