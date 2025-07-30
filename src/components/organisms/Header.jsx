@@ -12,9 +12,10 @@ import { toggleCart } from "@/store/cartSlice";
 
 const Header = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
+const dispatch = useDispatch();
   const cartItems = useSelector((state) => state.cart.items);
   const comparisonItems = useSelector((state) => state.comparison.items);
+  const wishlistItems = useSelector((state) => state.wishlist.items);
   const categories = [
     { name: "Electronics", path: "/category/electronics" },
     { name: "Clothing", path: "/category/clothing" },
@@ -57,9 +58,9 @@ const Header = () => {
               className="hidden sm:flex relative p-2 text-gray-600 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors duration-200"
             >
               <ApperIcon name="Heart" className="w-5 h-5" />
-              {useSelector((state) => state.wishlist.items).length > 0 && (
+{wishlistItems.length > 0 && (
                 <Badge variant="primary" className="absolute -top-1 -right-1 min-w-[20px] h-5 text-xs">
-                  {useSelector((state) => state.wishlist.items).length}
+                  {wishlistItems.length}
                 </Badge>
               )}
             </button>
