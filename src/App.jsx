@@ -11,6 +11,7 @@ import OrderConfirmation from "@/components/pages/OrderConfirmation";
 import Search from "@/components/pages/Search";
 import Compare from "@/components/pages/Compare";
 import Wishlist from "@/components/pages/Wishlist";
+import Loyalty from "@/components/pages/Loyalty";
 function App() {
   return (
     <Router>
@@ -26,6 +27,7 @@ function App() {
             <Route path="/search" element={<Search />} />
             <Route path="/compare" element={<Compare />} />
             <Route path="/wishlist" element={<Wishlist />} />
+            <Route path="/loyalty" element={<Loyalty />} />
           </Routes>
         </Layout>
         <ToastContainer

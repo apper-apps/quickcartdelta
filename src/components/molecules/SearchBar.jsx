@@ -77,20 +77,77 @@ const SearchBar = ({ className = "" }) => {
     navigate(`/product/${product.Id}`);
   };
 
+const [isListening, setIsListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+
+  useEffect(() => {
+    setSpeechSupported('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
+  }, []);
+
+  const startVoiceSearch = () => {
+    if (!speechSupported) {
+      alert('Voice search is not supported in your browser');
+      return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      dispatch(setQuery(transcript));
+      handleSearch(transcript);
+      setIsListening(false);
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.start();
+  };
+
   return (
     <div ref={searchRef} className={`relative ${className}`}>
       <Input
         ref={inputRef}
         type="text"
-        placeholder="Search products..."
+        placeholder="Search products or try voice search..."
         value={query}
         onChange={handleInputChange}
         onKeyPress={handleKeyPress}
         onFocus={() => dispatch(openSearch())}
         icon="Search"
         iconPosition="left"
-        className="pr-12"
+        className="pr-20"
       />
+      
+      {speechSupported && (
+        <button
+          onClick={startVoiceSearch}
+          disabled={isListening}
+          className={`absolute right-12 top-1/2 transform -translate-y-1/2 p-2 rounded-lg transition-colors duration-200 ${
+            isListening 
+              ? 'text-red-500 bg-red-50 animate-pulse' 
+              : 'text-gray-500 hover:text-primary hover:bg-primary/10'
+          }`}
+          title="Voice Search"
+        >
+          <ApperIcon name={isListening ? "MicOff" : "Mic"} className="w-4 h-4" />
+        </button>
+      )}
       
       <button
         onClick={() => handleSearch()}

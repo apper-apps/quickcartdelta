@@ -178,36 +178,80 @@ const OrderConfirmation = () => {
         </motion.div>
 
         {/* Tracking Information */}
-        <motion.div
+<motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           className="card p-6 mb-6"
         >
-          <h3 className="font-semibold mb-4">Tracking Information</h3>
-          <div className="space-y-4">
+          <h3 className="font-semibold mb-4">Live Tracking & Delivery</h3>
+          
+          {/* Progress Steps */}
+          <div className="space-y-4 mb-6">
             <div className="flex items-center gap-3 text-success">
               <ApperIcon name="CheckCircle" className="w-5 h-5" />
               <span>Order confirmed</span>
+              <span className="text-xs text-gray-500 ml-auto">2 min ago</span>
             </div>
-            <div className="flex items-center gap-3 text-gray-400">
+            <div className="flex items-center gap-3 text-primary">
               <ApperIcon name="Package" className="w-5 h-5" />
               <span>Order being prepared</span>
+              <span className="text-xs text-gray-500 ml-auto">In progress</span>
             </div>
             <div className="flex items-center gap-3 text-gray-400">
               <ApperIcon name="Truck" className="w-5 h-5" />
               <span>Out for delivery</span>
+              <span className="text-xs text-gray-500 ml-auto">Est. 2-3 hours</span>
             </div>
             <div className="flex items-center gap-3 text-gray-400">
               <ApperIcon name="Home" className="w-5 h-5" />
               <span>Delivered</span>
+              <span className="text-xs text-gray-500 ml-auto">Est. today</span>
+            </div>
+          </div>
+
+          {/* Live GPS Tracking Placeholder */}
+          <div className="bg-gray-100 rounded-lg p-4 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-medium">Live GPS Tracking</h4>
+              <Button size="sm" variant="outline">
+                <ApperIcon name="MapPin" className="w-4 h-4 mr-1" />
+                View Map
+              </Button>
+            </div>
+            <div className="bg-white rounded-lg p-6 text-center">
+              <ApperIcon name="Map" className="w-12 h-12 mx-auto text-gray-400 mb-2" />
+              <p className="text-sm text-gray-600">
+                Interactive map will show here once your order ships
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Get real-time location updates and ETA notifications
+              </p>
+            </div>
+          </div>
+
+          {/* Delivery Information */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="p-3 bg-blue-50 rounded-lg">
+              <div className="flex items-center gap-2 mb-1">
+                <ApperIcon name="Clock" className="w-4 h-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-800">Estimated Delivery</span>
+              </div>
+              <p className="text-sm text-blue-700">Today, 3:00 PM - 6:00 PM</p>
+            </div>
+            <div className="p-3 bg-green-50 rounded-lg">
+              <div className="flex items-center gap-2 mb-1">
+                <ApperIcon name="Phone" className="w-4 h-4 text-green-600" />
+                <span className="text-sm font-medium text-green-800">Delivery Contact</span>
+              </div>
+              <p className="text-sm text-green-700">SMS alerts enabled</p>
             </div>
           </div>
           
           <div className="mt-4 p-3 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-800">
               <ApperIcon name="Info" className="w-4 h-4 inline mr-1" />
-              You'll receive an email with tracking details once your order ships.
+              You'll receive real-time notifications and can track your delivery driver live once shipped.
             </p>
           </div>
         </motion.div>

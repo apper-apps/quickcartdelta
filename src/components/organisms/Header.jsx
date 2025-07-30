@@ -99,6 +99,32 @@ whileTap={{ scale: 0.95 }}
             </button>
 
             {/* User Menu */}
+{/* Language & Currency Selector */}
+            <div className="hidden lg:flex items-center gap-2">
+              <select className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/20">
+                <option value="en">EN</option>
+                <option value="es">ES</option>
+                <option value="fr">FR</option>
+                <option value="de">DE</option>
+              </select>
+              <select className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/20">
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+                <option value="CAD">CAD</option>
+              </select>
+            </div>
+
+            {/* Loyalty Points */}
+            <button
+              onClick={() => navigate("/loyalty")}
+              className="hidden md:flex items-center gap-2 px-3 py-2 text-sm bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 rounded-lg hover:from-yellow-200 hover:to-yellow-300 transition-colors duration-200"
+            >
+              <ApperIcon name="Star" className="w-4 h-4" />
+              <span className="font-medium">250 pts</span>
+            </button>
+
+            {/* User Menu */}
             <div className="hidden sm:flex items-center gap-2">
               <Button variant="ghost" size="sm" icon="User">
                 Account

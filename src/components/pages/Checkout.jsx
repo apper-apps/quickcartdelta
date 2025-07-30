@@ -302,13 +302,37 @@ const finalTotal = total + shippingCost + tax;
             )}
 
             {/* Step 2: Payment Information */}
-            {activeStep === 2 && (
+{activeStep === 2 && (
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 className="card p-6"
               >
                 <h2 className="text-xl font-semibold mb-6">Payment Information</h2>
+
+                {/* Digital Wallet Options */}
+                <div className="mb-6">
+                  <h3 className="text-sm font-medium text-gray-700 mb-3">Quick Payment Options</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <button className="flex items-center justify-center gap-2 p-3 border-2 border-gray-200 rounded-lg hover:border-primary transition-colors duration-200">
+                      <ApperIcon name="Smartphone" className="w-5 h-5" />
+                      <span className="font-medium">Apple Pay</span>
+                    </button>
+                    <button className="flex items-center justify-center gap-2 p-3 border-2 border-gray-200 rounded-lg hover:border-primary transition-colors duration-200">
+                      <ApperIcon name="Chrome" className="w-5 h-5" />
+                      <span className="font-medium">Google Pay</span>
+                    </button>
+                    <button className="flex items-center justify-center gap-2 p-3 border-2 border-gray-200 rounded-lg hover:border-primary transition-colors duration-200">
+                      <ApperIcon name="Smartphone" className="w-5 h-5" />
+                      <span className="font-medium">Samsung Pay</span>
+                    </button>
+                  </div>
+                  <div className="flex items-center my-4">
+                    <hr className="flex-1 border-gray-300" />
+                    <span className="px-3 text-sm text-gray-500">or pay with card</span>
+                    <hr className="flex-1 border-gray-300" />
+                  </div>
+                </div>
 
                 <Input
                   label="Cardholder Name"
@@ -349,6 +373,23 @@ const finalTotal = total + shippingCost + tax;
                     maxLength="4"
                     required
                   />
+                </div>
+
+                {/* Loyalty Points Usage */}
+                <div className="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <ApperIcon name="Star" className="w-5 h-5 text-yellow-600" />
+                      <span className="font-medium text-yellow-800">Use Loyalty Points</span>
+                    </div>
+                    <span className="text-sm text-yellow-700">Available: 250 points</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input type="checkbox" id="usePoints" className="rounded" />
+                    <label htmlFor="usePoints" className="text-sm text-yellow-700">
+                      Use 200 points for $20.00 discount
+                    </label>
+                  </div>
                 </div>
 
                 <div className="flex justify-between">
