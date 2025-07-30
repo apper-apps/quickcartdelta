@@ -3,12 +3,15 @@ import cartReducer from "./cartSlice";
 import searchReducer from "./searchSlice";
 import comparisonReducer from "./comparisonSlice";
 import wishlistReducer from "./wishlistSlice";
+import browsingReducer from "./browsingSlice";
+
 export const store = configureStore({
   reducer: {
     cart: cartReducer,
     search: searchReducer,
-comparison: comparisonReducer,
+    comparison: comparisonReducer,
     wishlist: wishlistReducer,
+    browsing: browsingReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

@@ -8,7 +8,7 @@ import Badge from "@/components/atoms/Badge";
 import Loading from "@/components/ui/Loading";
 import Error from "@/components/ui/Error";
 import ApperIcon from "@/components/ApperIcon";
-
+import RecommendationCarousel from "@/components/organisms/RecommendationCarousel";
 const Home = () => {
   const [featuredProducts, setFeaturedProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -164,7 +164,7 @@ const Home = () => {
         </motion.div>
       </section>
 
-      {/* Featured Products */}
+{/* Featured Products */}
       <section id="featured-products" className="container mx-auto px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -189,6 +189,21 @@ const Home = () => {
         </motion.div>
       </section>
 
+      {/* Personalized Recommendations */}
+      <section className="bg-gray-50 py-12">
+        <div className="container mx-auto px-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+          >
+            <RecommendationCarousel 
+              title="Recommended for You"
+              className="mb-0"
+            />
+          </motion.div>
+        </div>
+      </section>
       {/* Newsletter CTA */}
       <section className="bg-gradient-to-r from-primary to-secondary">
         <div className="container mx-auto px-4 py-16">

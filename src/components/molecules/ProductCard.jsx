@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { toggleWishlist } from "@/store/wishlistSlice";
 import { addToComparison, removeFromComparison } from "@/store/comparisonSlice";
+import { addToHistory } from "@/store/browsingSlice";
 import { toast } from "react-toastify";
 import { motion } from "framer-motion";
 import ApperIcon from "@/components/ApperIcon";
@@ -17,6 +18,7 @@ const ProductCard = ({ product, className = "" }) => {
   const comparisonItems = useSelector((state) => state.comparison.items);
   const isInWishlist = wishlistItems.some(item => item.Id === product.Id);
   const isInComparison = comparisonItems.some(item => item.Id === product.Id);
+  
   const handleAddToCart = (e) => {
     e.stopPropagation();
     dispatch(addToCart({ product, quantity: 1 }));
@@ -36,12 +38,15 @@ const ProductCard = ({ product, className = "" }) => {
       toast.success(`${product.title} added to comparison`);
     }
   };
-const handleWishlistToggle = (e) => {
+
+  const handleWishlistToggle = (e) => {
     e.stopPropagation();
     dispatch(toggleWishlist(product));
   };
 
   const handleCardClick = () => {
+    // Track product view for recommendations
+    dispatch(addToHistory(product.Id));
     navigate(`/product/${product.Id}`);
   };
 

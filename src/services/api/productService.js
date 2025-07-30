@@ -1,6 +1,5 @@
 import productsData from "@/services/mockData/products.json";
 import categoriesData from "@/services/mockData/categories.json";
-
 class ProductService {
   constructor() {
     this.products = [...productsData];
@@ -16,7 +15,6 @@ class ProductService {
     await this.delay();
     return [...this.products];
   }
-
 async getById(id) {
     await this.delay();
     const product = this.products.find(p => p.Id === id);
@@ -97,8 +95,7 @@ async getById(id) {
     this.products[index] = { ...this.products[index], ...productData };
     return { ...this.products[index] };
   }
-
-  async delete(id) {
+async delete(id) {
     await this.delay();
     const index = this.products.findIndex(p => p.Id === id);
     if (index === -1) {
@@ -107,6 +104,116 @@ async getById(id) {
     this.products.splice(index, 1);
     return true;
   }
-}
 
-export const productService = new ProductService();
+  async getBrowsingRecommendations(currentProductId = null, browsingHistory = [], cartItems = []) {
+    await this.delay();
+    
+    const recommendations = new Set();
+    const maxRecommendations = 8;
+    
+    // Get product categories from browsing history and cart
+    const viewedCategories = new Set();
+    const cartCategories = new Set();
+    
+    // Analyze browsing history
+    browsingHistory.forEach(productId => {
+      const product = this.products.find(p => p.Id === productId);
+      if (product) {
+        viewedCategories.add(product.category);
+      }
+    });
+    
+    // Analyze cart contents
+    cartItems.forEach(item => {
+      cartCategories.add(item.category);
+    });
+    
+    // Get current product category if provided
+    let currentCategory = null;
+    if (currentProductId) {
+      const currentProduct = this.products.find(p => p.Id === currentProductId);
+      if (currentProduct) {
+        currentCategory = currentProduct.category;
+      }
+    }
+    
+    // Priority 1: Same category as current product (if on product detail page)
+    if (currentCategory) {
+      const sameCategory = this.products
+        .filter(p => p.category === currentCategory && p.Id !== currentProductId)
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, 4);
+      
+      sameCategory.forEach(product => recommendations.add(product));
+    }
+    
+    // Priority 2: Products from categories in cart
+    cartCategories.forEach(category => {
+      if (recommendations.size >= maxRecommendations) return;
+      
+      const categoryProducts = this.products
+        .filter(p => p.category === category && 
+                    !Array.from(recommendations).some(r => r.Id === p.Id) &&
+                    p.Id !== currentProductId)
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, 2);
+      
+      categoryProducts.forEach(product => {
+        if (recommendations.size < maxRecommendations) {
+          recommendations.add(product);
+        }
+      });
+    });
+    
+    // Priority 3: Products from browsed categories
+    viewedCategories.forEach(category => {
+      if (recommendations.size >= maxRecommendations) return;
+      
+      const categoryProducts = this.products
+        .filter(p => p.category === category && 
+                    !Array.from(recommendations).some(r => r.Id === p.Id) &&
+                    p.Id !== currentProductId)
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, 2);
+      
+      categoryProducts.forEach(product => {
+        if (recommendations.size < maxRecommendations) {
+          recommendations.add(product);
+        }
+      });
+    });
+    
+    // Priority 4: Featured products to fill remaining slots
+    if (recommendations.size < maxRecommendations) {
+      const featuredProducts = this.products
+        .filter(p => p.featured && 
+                    !Array.from(recommendations).some(r => r.Id === p.Id) &&
+                    p.Id !== currentProductId)
+        .sort((a, b) => b.rating - a.rating);
+      
+      featuredProducts.forEach(product => {
+        if (recommendations.size < maxRecommendations) {
+          recommendations.add(product);
+        }
+      });
+    }
+    
+    // Priority 5: High-rated products to fill any remaining slots
+    if (recommendations.size < maxRecommendations) {
+      const highRatedProducts = this.products
+        .filter(p => p.rating >= 4.3 && 
+                    !Array.from(recommendations).some(r => r.Id === p.Id) &&
+                    p.Id !== currentProductId)
+        .sort((a, b) => b.rating - a.rating);
+      
+      highRatedProducts.forEach(product => {
+        if (recommendations.size < maxRecommendations) {
+          recommendations.add(product);
+        }
+      });
+    }
+    
+    return Array.from(recommendations).map(product => ({ ...product }));
+return Array.from(recommendations).map(product => ({ ...product }));
+  }
+}

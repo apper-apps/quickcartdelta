@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { toggleWishlist } from "@/store/wishlistSlice";
 import { addToComparison, removeFromComparison } from "@/store/comparisonSlice";
+import { addToHistory } from "@/store/browsingSlice";
 import { toast } from "react-toastify";
 import { AnimatePresence, motion } from "framer-motion";
 import { productService } from "@/services/api/productService";
@@ -14,16 +15,24 @@ import Cart from "@/components/pages/Cart";
 import Badge from "@/components/atoms/Badge";
 import Button from "@/components/atoms/Button";
 import { addToCart } from "@/store/cartSlice";
+import RecommendationCarousel from "@/components/organisms/RecommendationCarousel";
 
 const ProductDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
   
-  const wishlistItems = useSelector((state) => state.wishlist.items);
+const wishlistItems = useSelector((state) => state.wishlist.items);
   const comparisonItems = useSelector((state) => state.comparison.items);
   const isInWishlist = wishlistItems.some(item => item.Id === parseInt(id));
   const isInComparison = comparisonItems.some(item => item.Id === parseInt(id));
+
+  // Track product viewing for recommendations
+  useEffect(() => {
+    if (product && product.Id) {
+      dispatch(addToHistory(product.Id));
+    }
+  }, [product, dispatch]);
   
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -387,7 +396,7 @@ const handleWishlistToggle = () => {
                     <h4 className="font-medium text-blue-900 mb-2">Express Shipping</h4>
                     <p className="text-blue-700">$9.99 - Delivered in 1-2 business days.</p>
                   </div>
-                  <div className="p-4 bg-purple-50 rounded-lg">
+<div className="p-4 bg-purple-50 rounded-lg">
                     <h4 className="font-medium text-purple-900 mb-2">Same Day Delivery</h4>
                     <p className="text-purple-700">$19.99 - Available in select areas. Order by 2PM.</p>
                   </div>
@@ -395,6 +404,16 @@ const handleWishlistToggle = () => {
               )}
             </motion.div>
           </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Product Recommendations */}
+      <div className="bg-gray-50 py-12">
+        <div className="container mx-auto px-4">
+          <RecommendationCarousel 
+            title="You might also like"
+            currentProductId={product?.Id}
+          />
         </div>
       </div>
     </div>
