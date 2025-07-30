@@ -1,5 +1,7 @@
 import productsData from "@/services/mockData/products.json";
 import categoriesData from "@/services/mockData/categories.json";
+import React from "react";
+import Error from "@/components/ui/Error";
 
 // Enhanced product service with AR/3D capabilities
 class ProductService {
@@ -261,7 +263,25 @@ return Array.from(recommendations).map(product => ({ ...product }));
       alertType: 'price_drop'
     }));
     
-    return priceDrops;
+return priceDrops;
+  }
+
+  async searchByBarcode(barcode) {
+    await this.delay();
+    // Mock barcode lookup - in real app, this would query by barcode field
+    const mockBarcodeMap = {
+      '1234567890123': 1,
+      '9876543210987': 2,
+      '4567890123456': 3
+    };
+    
+    const productId = mockBarcodeMap[barcode];
+    if (productId) {
+      const product = this.products.find(p => p.Id === productId);
+      return product ? [product] : [];
+    }
+    
+    return [];
   }
 }
 

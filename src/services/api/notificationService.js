@@ -32,8 +32,10 @@ class NotificationService {
         case 'sms':
           console.log(`📱 SMS sent to ${alertData.userPhone}`);
           break;
-        case 'whatsapp':
+case 'whatsapp':
           console.log(`💬 WhatsApp message sent to ${alertData.userPhone}`);
+          // In real app, integrate with WhatsApp Business API
+          await this.sendWhatsAppMessage(alertData.userPhone, `🛍️ Price Alert: ${alertData.productName} is now $${alertData.newPrice}! Shop now: ${alertData.productUrl}`);
           break;
         case 'push':
           if ('serviceWorker' in navigator && 'PushManager' in window) {
@@ -165,7 +167,55 @@ class NotificationService {
       }
     ];
 
-    return notifications.slice(0, limit);
+return notifications.slice(0, limit);
+  }
+
+  async sendWhatsAppMessage(phoneNumber, message) {
+    // Mock WhatsApp Business API integration
+    await this.delay(1000);
+    console.log(`📱 WhatsApp API: Sending to ${phoneNumber}: ${message}`);
+    
+    // In real implementation:
+    // const response = await fetch('https://graph.facebook.com/v18.0/YOUR_PHONE_NUMBER_ID/messages', {
+    //   method: 'POST',
+    //   headers: {
+    //     'Authorization': `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+    //     'Content-Type': 'application/json'
+    //   },
+    //   body: JSON.stringify({
+    //     messaging_product: 'whatsapp',
+    //     to: phoneNumber,
+    //     text: { body: message }
+    //   })
+    // });
+    
+    return { success: true, messageId: `wa_${Date.now()}` };
+  }
+
+  async sendWhatsAppCatalog(phoneNumber, products) {
+    await this.delay(1000);
+    console.log(`📱 WhatsApp Catalog: Sending to ${phoneNumber} with ${products.length} products`);
+    
+    // Mock catalog message with product list
+    const catalogMessage = {
+      type: 'interactive',
+      interactive: {
+        type: 'product_list',
+        header: { type: 'text', text: '🛍️ Our Products' },
+        body: { text: 'Browse our latest collection:' },
+        action: {
+          catalog_id: 'YOUR_CATALOG_ID',
+          sections: [{
+            title: 'Featured Products',
+            product_items: products.slice(0, 10).map(product => ({
+              product_retailer_id: product.Id.toString()
+            }))
+          }]
+        }
+      }
+    };
+    
+    return { success: true, catalogId: 'catalog_' + Date.now() };
   }
 }
 

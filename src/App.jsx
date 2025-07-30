@@ -1,18 +1,22 @@
 import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { Route, Router, Routes } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
+import "@/index.css";
 import Layout from "@/components/organisms/Layout";
-import Home from "@/components/pages/Home";
-import Category from "@/components/pages/Category";
-import ProductDetail from "@/components/pages/ProductDetail";
-import Cart from "@/components/pages/Cart";
+import Search from "@/components/pages/Search";
+import Loyalty from "@/components/pages/Loyalty";
+import Wishlist from "@/components/pages/Wishlist";
 import Checkout from "@/components/pages/Checkout";
 import OrderConfirmation from "@/components/pages/OrderConfirmation";
-import Search from "@/components/pages/Search";
+import Home from "@/components/pages/Home";
+import ProductDetail from "@/components/pages/ProductDetail";
+import Category from "@/components/pages/Category";
 import Compare from "@/components/pages/Compare";
-import Wishlist from "@/components/pages/Wishlist";
-import Loyalty from "@/components/pages/Loyalty";
-function App() {
+import Cart from "@/components/pages/Cart";
+import POS from "@/components/pages/POS";
+import MarketplaceIntegration from "@/components/pages/MarketplaceIntegration";
+
+function AppComponent() {
   return (
     <Router>
       <div className="min-h-screen bg-background">
@@ -28,6 +32,8 @@ function App() {
             <Route path="/compare" element={<Compare />} />
             <Route path="/wishlist" element={<Wishlist />} />
             <Route path="/loyalty" element={<Loyalty />} />
+            <Route path="/pos" element={<POS />} />
+            <Route path="/marketplace" element={<MarketplaceIntegration />} />
           </Routes>
         </Layout>
         <ToastContainer
@@ -47,4 +53,4 @@ function App() {
   );
 }
 
-export default App;
+export default AppComponent;

@@ -1,17 +1,26 @@
 import React from "react";
-import { useSelector, useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { closeCart, clearCart } from "@/store/cartSlice";
-import { motion, AnimatePresence } from "framer-motion";
-import Button from "@/components/atoms/Button";
+import { AnimatePresence, motion } from "framer-motion";
+import ApperIcon from "@/components/ApperIcon";
 import CartItem from "@/components/molecules/CartItem";
 import Empty from "@/components/ui/Empty";
-import ApperIcon from "@/components/ApperIcon";
+import Cart from "@/components/pages/Cart";
+import Badge from "@/components/atoms/Badge";
+import Button from "@/components/atoms/Button";
+import { 
+  clearCart, 
+  closeCart, 
+  disableSplitBill, 
+  enableSplitBill, 
+  saveCustomerTab, 
+  loadCustomerTab 
+} from "@/store/cartSlice";
 
 const CartDrawer = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-const { items, total, isOpen, itemCount, discount, dynamicPricing } = useSelector((state) => state.cart);
+  const { items, total, isOpen, itemCount, discount, dynamicPricing, pos } = useSelector((state) => state.cart);
   
   const discountAmount = discount.isValid ? (total * discount.percentage) / 100 : 0;
   const discountedTotal = total - discountAmount;
@@ -46,11 +55,19 @@ const { items, total, isOpen, itemCount, discount, dynamicPricing } = useSelecto
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
             className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-xl z-50 flex flex-col"
           >
-            {/* Header */}
+{/* Header */}
             <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-lg font-semibold">
-                Shopping Cart ({itemCount})
-              </h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold">
+                  {pos.mode ? 'POS Cart' : 'Shopping Cart'} ({itemCount})
+                </h2>
+                {pos.offlineMode && (
+                  <Badge variant="warning" className="text-xs">
+                    <ApperIcon name="WifiOff" size={12} className="mr-1" />
+                    Offline
+                  </Badge>
+                )}
+              </div>
               <button
                 onClick={() => dispatch(closeCart())}
                 className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors duration-200"
@@ -58,6 +75,69 @@ const { items, total, isOpen, itemCount, discount, dynamicPricing } = useSelecto
                 <ApperIcon name="X" className="w-5 h-5" />
               </button>
             </div>
+
+            {/* POS Controls */}
+            {pos.mode && (
+              <div className="p-4 border-b bg-gray-50 space-y-3">
+                {/* Split Bill Toggle */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Split Bill</span>
+                  <Button
+                    variant={pos.splitBill.enabled ? "primary" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      if (pos.splitBill.enabled) {
+                        dispatch(disableSplitBill());
+                      } else {
+                        const customers = prompt('Enter customer names (comma-separated):');
+                        if (customers) {
+                          dispatch(enableSplitBill(customers.split(',').map(name => name.trim())));
+                        }
+                      }
+                    }}
+                    icon="Users"
+                  >
+                    {pos.splitBill.enabled ? 'Enabled' : 'Enable'}
+                  </Button>
+                </div>
+
+                {/* Customer Tab Management */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Customer Tab</span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const customerName = prompt('Enter customer name:');
+                        if (customerName) {
+                          const customerId = `tab_${Date.now()}`;
+                          dispatch(saveCustomerTab({ customerId, customerName }));
+                        }
+                      }}
+                      icon="Save"
+                    >
+                      Save Tab
+                    </Button>
+                    {Object.keys(pos.customerTabs).length > 0 && (
+                      <select
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            dispatch(loadCustomerTab(e.target.value));
+                          }
+                        }}
+                        className="px-2 py-1 border border-gray-300 rounded text-sm"
+                      >
+                        <option value="">Load Tab</option>
+                        {Object.entries(pos.customerTabs).map(([id, tab]) => (
+                          <option key={id} value={id}>{tab.name}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Content */}
             <div className="flex-1 overflow-auto">
@@ -73,9 +153,23 @@ const { items, total, isOpen, itemCount, discount, dynamicPricing } = useSelecto
                 </div>
               ) : (
                 <div className="p-4 space-y-4">
+                  {/* Split Bill Customer Assignment */}
+                  {pos.splitBill.enabled && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                      <h4 className="text-sm font-medium text-blue-800 mb-2">Split Bill Customers:</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {pos.splitBill.customers.map((customer, idx) => (
+                          <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                            {customer}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <AnimatePresence>
                     {items.map((item) => (
-                      <CartItem key={item.Id} item={item} />
+                      <CartItem key={item.Id} item={item} showCustomerAssignment={pos.splitBill.enabled} />
                     ))}
                   </AnimatePresence>
                 </div>
@@ -127,9 +221,9 @@ const { items, total, isOpen, itemCount, discount, dynamicPricing } = useSelecto
                     size="md"
                     onClick={handleCheckout}
                     className="w-full"
-                    icon="CreditCard"
+                    icon={pos.mode ? "Receipt" : "CreditCard"}
                   >
-                    Checkout
+                    {pos.mode ? 'Process Payment' : 'Checkout'}
                   </Button>
                   
                   <div className="flex gap-3">
@@ -155,11 +249,13 @@ const { items, total, isOpen, itemCount, discount, dynamicPricing } = useSelecto
                   </div>
                 </div>
 
-                {/* Free shipping notice */}
-                <div className="text-center text-sm text-gray-600 bg-green-50 p-3 rounded-lg">
-                  <ApperIcon name="Truck" className="w-4 h-4 inline mr-1" />
-                  Free shipping on orders over $50
-                </div>
+                {/* Free shipping notice - hide in POS mode */}
+                {!pos.mode && (
+                  <div className="text-center text-sm text-gray-600 bg-green-50 p-3 rounded-lg">
+                    <ApperIcon name="Truck" className="w-4 h-4 inline mr-1" />
+                    Free shipping on orders over $50
+                  </div>
+                )}
               </div>
             )}
           </motion.div>

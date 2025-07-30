@@ -27,11 +27,27 @@ initialState: {
       personalizedDiscount: 0,
       tierDiscount: 0,
       bulkDiscount: 0
+    },
+    pos: {
+      mode: false,
+      offlineMode: false,
+      pendingSyncs: [],
+      customerTabs: {},
+      currentCustomer: null,
+      splitBill: {
+        enabled: false,
+        customers: [],
+        itemAssignments: {}
+      },
+      receipt: {
+        number: null,
+        printed: false
+      }
     }
   },
-  reducers: {
+reducers: {
     addToCart: (state, action) => {
-      const { product, quantity = 1 } = action.payload;
+      const { product, quantity = 1, customerId = null } = action.payload;
       const existingItem = state.items.find(item => item.Id === product.Id);
       
       if (existingItem) {
@@ -40,10 +56,20 @@ initialState: {
         state.items.push({
           ...product,
           quantity,
+          customerId,
         });
       }
       
       cartSlice.caseReducers.calculateTotals(state);
+      
+      // Store offline if POS mode and offline
+      if (state.pos.mode && state.pos.offlineMode) {
+        state.pos.pendingSyncs.push({
+          type: 'ADD_TO_CART',
+          data: { product, quantity, customerId },
+          timestamp: Date.now()
+        });
+      }
     },
     removeFromCart: (state, action) => {
       const productId = action.payload;
@@ -68,6 +94,12 @@ initialState: {
       state.items = [];
       state.total = 0;
       state.itemCount = 0;
+      // Reset split bill when clearing cart
+      state.pos.splitBill = {
+        enabled: false,
+        customers: [],
+        itemAssignments: {}
+      };
 },
     toggleCart: (state) => {
       state.isOpen = !state.isOpen;
@@ -161,6 +193,80 @@ applyDiscount: (state, action) => {
         isValid: false
       };
     },
+
+    // POS-specific actions
+    togglePOSMode: (state) => {
+      state.pos.mode = !state.pos.mode;
+    },
+
+    setOfflineMode: (state, action) => {
+      state.pos.offlineMode = action.payload;
+    },
+
+    saveCustomerTab: (state, action) => {
+      const { customerId, customerName } = action.payload;
+      state.pos.customerTabs[customerId] = {
+        name: customerName,
+        items: [...state.items],
+        total: state.total,
+        savedAt: Date.now()
+      };
+      // Clear current cart after saving tab
+      state.items = [];
+      state.total = 0;
+      state.itemCount = 0;
+    },
+
+    loadCustomerTab: (state, action) => {
+      const customerId = action.payload;
+      const tab = state.pos.customerTabs[customerId];
+      if (tab) {
+        state.items = [...tab.items];
+        state.pos.currentCustomer = customerId;
+        cartSlice.caseReducers.calculateTotals(state);
+      }
+    },
+
+    deleteCustomerTab: (state, action) => {
+      const customerId = action.payload;
+      delete state.pos.customerTabs[customerId];
+    },
+
+    enableSplitBill: (state, action) => {
+      const customers = action.payload;
+      state.pos.splitBill = {
+        enabled: true,
+        customers,
+        itemAssignments: {}
+      };
+    },
+
+    assignItemToCustomer: (state, action) => {
+      const { itemId, customerId } = action.payload;
+      state.pos.splitBill.itemAssignments[itemId] = customerId;
+    },
+
+    disableSplitBill: (state) => {
+      state.pos.splitBill = {
+        enabled: false,
+        customers: [],
+        itemAssignments: {}
+      };
+    },
+
+    syncOfflineData: (state) => {
+      // Clear pending syncs after successful sync
+      state.pos.pendingSyncs = [];
+    },
+
+    generateReceipt: (state, action) => {
+      const receiptNumber = action.payload || `RCP-${Date.now()}`;
+      state.pos.receipt = {
+        number: receiptNumber,
+        printed: false
+      };
+    },
+
 calculateTotals: (state) => {
       state.total = state.items.reduce((total, item) => total + (item.price * item.quantity), 0);
       state.itemCount = state.items.reduce((count, item) => count + item.quantity, 0);
@@ -190,6 +296,16 @@ export const {
   savePaymentMethod,
   enableOneClick,
   applyDynamicPricing,
+  togglePOSMode,
+  setOfflineMode,
+  saveCustomerTab,
+  loadCustomerTab,
+  deleteCustomerTab,
+  enableSplitBill,
+  assignItemToCustomer,
+  disableSplitBill,
+  syncOfflineData,
+  generateReceipt,
 } = cartSlice.actions;
 
 export default cartSlice.reducer;

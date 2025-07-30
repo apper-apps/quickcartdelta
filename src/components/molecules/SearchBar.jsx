@@ -79,9 +79,12 @@ const SearchBar = ({ className = "" }) => {
 
 const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [cameraSupported, setCameraSupported] = useState(false);
 
   useEffect(() => {
     setSpeechSupported('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
+    setCameraSupported(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
   }, []);
 
   const startVoiceSearch = () => {
@@ -119,21 +122,80 @@ const [isListening, setIsListening] = useState(false);
     recognition.start();
   };
 
+  const startBarcodeScanning = async () => {
+    if (!cameraSupported) {
+      alert('Camera access is not supported in your browser');
+      return;
+    }
+
+    try {
+      setIsScanning(true);
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' } // Use back camera
+      });
+      
+      // Create video element for barcode scanning
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.autoplay = true;
+      video.playsInline = true;
+      
+      // Simple barcode detection using camera (in real app, use a barcode library)
+      // For demo, we'll simulate scanning after 3 seconds
+      setTimeout(async () => {
+        const mockBarcode = '1234567890123'; // Simulated barcode
+        stream.getTracks().forEach(track => track.stop());
+        setIsScanning(false);
+        
+        // Search for product by barcode
+        const products = await productService.searchByBarcode(mockBarcode);
+        if (products.length > 0) {
+          dispatch(setQuery(products[0].name));
+          handleSearch(products[0].name);
+        } else {
+          alert('No product found for this barcode');
+        }
+      }, 3000);
+      
+    } catch (error) {
+      console.error('Camera access denied:', error);
+      alert('Camera access denied. Please allow camera permission to scan barcodes.');
+      setIsScanning(false);
+    }
+  };
+
   return (
-    <div ref={searchRef} className={`relative ${className}`}>
+<div ref={searchRef} className={`relative ${className}`}>
       <Input
         ref={inputRef}
         type="text"
-        placeholder="Search products or try voice search..."
+        placeholder="Search products, use voice, or scan barcode..."
         value={query}
         onChange={handleInputChange}
         onKeyPress={handleKeyPress}
         onFocus={() => dispatch(openSearch())}
         icon="Search"
         iconPosition="left"
-        className="pr-20"
+        className="pr-32"
       />
       
+      {/* Barcode Scanner Button */}
+      {cameraSupported && (
+        <button
+          onClick={startBarcodeScanning}
+          disabled={isScanning}
+          className={`absolute right-24 top-1/2 transform -translate-y-1/2 p-2 rounded-lg transition-colors duration-200 ${
+            isScanning 
+              ? 'text-blue-500 bg-blue-50 animate-pulse' 
+              : 'text-gray-500 hover:text-primary hover:bg-primary/10'
+          }`}
+          title="Scan Barcode/QR"
+        >
+          <ApperIcon name={isScanning ? "Camera" : "QrCode"} className="w-4 h-4" />
+        </button>
+      )}
+      
+      {/* Voice Search Button */}
       {speechSupported && (
         <button
           onClick={startVoiceSearch}

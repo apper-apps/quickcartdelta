@@ -89,8 +89,7 @@ class OrderService {
     }
     return { ...order };
   }
-
-  async create(orderData) {
+async create(orderData) {
     await this.delay();
     const maxId = Math.max(...this.orders.map(o => o.Id));
     const newOrder = {
@@ -98,10 +97,42 @@ class OrderService {
       Id: maxId + 1,
       status: "confirmed",
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      posMode: orderData.posMode || false,
+      receiptNumber: orderData.receiptNumber || null,
+      splitBill: orderData.splitBill || null,
+      offlineCreated: orderData.offlineCreated || false
     };
     this.orders.push(newOrder);
+    
+    // Store offline if POS mode
+    if (orderData.posMode && !navigator.onLine) {
+      localStorage.setItem('pendingPOSOrders', JSON.stringify([
+        ...(JSON.parse(localStorage.getItem('pendingPOSOrders') || '[]')),
+        newOrder
+      ]));
+    }
+    
     return { ...newOrder };
+  }
+
+  async syncOfflineOrders() {
+    const pendingOrders = JSON.parse(localStorage.getItem('pendingPOSOrders') || '[]');
+    const syncedOrders = [];
+    
+    for (const order of pendingOrders) {
+      try {
+        // Attempt to sync with backend
+        const syncedOrder = await this.create({ ...order, offlineCreated: false });
+        syncedOrders.push(syncedOrder);
+      } catch (error) {
+        console.error('Failed to sync order:', order.Id, error);
+      }
+    }
+    
+    // Clear synced orders from local storage
+    localStorage.removeItem('pendingPOSOrders');
+    return syncedOrders;
   }
 
   async update(id, orderData) {
