@@ -215,3 +215,6 @@ async delete(id) {
 return Array.from(recommendations).map(product => ({ ...product }));
   }
 }
+
+// Export singleton instance
+export const productService = new ProductService();
