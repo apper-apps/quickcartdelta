@@ -1,23 +1,55 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "react-toastify";
 import ApperIcon from "@/components/ApperIcon";
 import Error from "@/components/ui/Error";
 import Button from "@/components/atoms/Button";
 
-function BiometricAuth({ isOpen, onClose, onSuccess, type = 'fingerprint' }) {
+function BiometricAuth({ isOpen, onClose, onSuccess, title = "Biometric Authentication" }) {
   const [isScanning, setIsScanning] = useState(false)
   const [scanProgress, setScanProgress] = useState(0)
+  const [isSupported, setIsSupported] = useState(false)
   const [error, setError] = useState(null)
-  const [isSupported, setIsSupported] = useState(true)
-  const [authMethod, setAuthMethod] = useState(type)
+  const [scanType, setScanType] = useState('fingerprint') // 'fingerprint', 'face', 'voice'
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    checkSupport()
+    
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+async function checkSupport() {
+    try {
+      if (!window.PublicKeyCredential) {
+        setIsSupported(false)
+        return
+      }
+
+      const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+      if (mountedRef.current) {
+        setIsSupported(available)
+      }
+    } catch (error) {
+      console.warn('Biometric support check failed:', error)
+      if (mountedRef.current) {
+        setIsSupported(false)
+      }
+    }
+  }
 
   function handleScanComplete() {
+    setIsScanning(false)
     setScanProgress(100)
+    toast.success('Authentication successful!')
     setTimeout(() => {
-      onSuccess()
-      onClose()
-      toast.success('Authentication successful!')
+      if (mountedRef.current) {
+        onSuccess()
+        onClose()
+      }
     }, 500)
   }
 
@@ -151,10 +183,10 @@ function BiometricAuth({ isOpen, onClose, onSuccess, type = 'fingerprint' }) {
             />
           ) : (
             <div className="text-center">
-              <div className="relative mb-6">
+<div className="relative mb-6">
                 <div className="w-24 h-24 mx-auto bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center">
                   <ApperIcon 
-                    name={authMethod === 'face' ? "Scan" : "Fingerprint"} 
+                    name={scanType === 'face' ? "Scan" : "Fingerprint"} 
                     size={40} 
                     className="text-white" 
                   />
@@ -169,15 +201,14 @@ function BiometricAuth({ isOpen, onClose, onSuccess, type = 'fingerprint' }) {
                   />
                 )}
               </div>
-
-              <h3 className="text-xl font-bold mb-2">
-                {authMethod === 'face' ? 'Face Authentication' : 'Fingerprint Authentication'}
+<h3 className="text-xl font-bold mb-2">
+                {scanType === 'face' ? 'Face Authentication' : 'Fingerprint Authentication'}
               </h3>
               
               <p className="text-gray-600 mb-6">
                 {isScanning
-                  ? `Scanning ${authMethod}... Please don't move.`
-                  : `Place your ${authMethod === 'face' ? 'face in view' : 'finger on the sensor'} to authenticate.`
+                  ? `Scanning ${scanType}... Please don't move.`
+                  : `Place your ${scanType === 'face' ? 'face in view' : 'finger on the sensor'} to authenticate.`
                 }
               </p>
 
@@ -196,9 +227,9 @@ function BiometricAuth({ isOpen, onClose, onSuccess, type = 'fingerprint' }) {
               )}
 
               <div className="flex flex-col gap-3">
-                {!isScanning ? (
+{!isScanning ? (
                   <Button onClick={startScan} className="btn-primary">
-                    Start {authMethod === 'face' ? 'Face' : 'Fingerprint'} Scan
+                    Start {scanType === 'face' ? 'Face' : 'Fingerprint'} Scan
                   </Button>
                 ) : (
                   <Button 
@@ -212,13 +243,13 @@ function BiometricAuth({ isOpen, onClose, onSuccess, type = 'fingerprint' }) {
                   </Button>
                 )}
 
-                <div className="flex gap-2">
+<div className="flex gap-2">
                   <Button
-                    onClick={() => setAuthMethod(authMethod === 'face' ? 'fingerprint' : 'face')}
+                    onClick={() => setScanType(scanType === 'face' ? 'fingerprint' : 'face')}
                     className="btn-secondary flex-1 text-sm"
                     disabled={isScanning}
                   >
-                    Switch to {authMethod === 'face' ? 'Fingerprint' : 'Face'}
+                    Switch to {scanType === 'face' ? 'Fingerprint' : 'Face'}
                   </Button>
                   <Button onClick={handleFallback} className="btn-secondary flex-1 text-sm">
                     Use Password

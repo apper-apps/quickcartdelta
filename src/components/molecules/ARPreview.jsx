@@ -32,7 +32,7 @@ function ARPreview({ product, isOpen, onClose }) {
     }
   }
 
-  async function requestCameraAccess() {
+async function requestCameraAccess() {
     try {
       setIsLoading(true)
       setError(null)
@@ -42,8 +42,10 @@ function ARPreview({ product, isOpen, onClose }) {
         throw new Error('Camera access not supported in this browser')
       }
       
-      // Use arrow function to preserve context and avoid "Illegal invocation"
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // Explicitly bind getUserMedia to preserve context and prevent "Illegal invocation"
+      const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices)
+      
+      const stream = await getUserMedia({
         video: {
           facingMode: cameraView,
           width: { ideal: 1280 },
@@ -51,9 +53,15 @@ function ARPreview({ product, isOpen, onClose }) {
         }
       })
       
-      if (videoRef.current) {
+      // Check if component is still mounted before updating state
+      if (videoRef.current && stream) {
         videoRef.current.srcObject = stream
-        await videoRef.current.play()
+        try {
+          await videoRef.current.play()
+        } catch (playError) {
+          console.warn('Video play failed:', playError)
+          // Continue anyway, stream is still valid
+        }
       }
       
       setStream(stream)
