@@ -8,11 +8,20 @@ class LoyaltyService {
       signup: 100
     };
     
-    this.tierBenefits = {
-      Bronze: { multiplier: 1, freeShipping: false },
-      Silver: { multiplier: 1.25, freeShipping: false },
-      Gold: { multiplier: 1.5, freeShipping: true },
-      Platinum: { multiplier: 2, freeShipping: true }
+this.tierBenefits = {
+      Bronze: { multiplier: 1, freeShipping: false, discount: 0, arAccess: false },
+      Silver: { multiplier: 1.25, freeShipping: false, discount: 5, arAccess: true },
+      Gold: { multiplier: 1.5, freeShipping: true, discount: 10, arAccess: true },
+      Platinum: { multiplier: 2, freeShipping: true, discount: 15, arAccess: true },
+      Diamond: { multiplier: 2.5, freeShipping: true, discount: 20, arAccess: true }
+    };
+
+    this.cartAbandonmentTracking = new Map();
+    this.dynamicDiscounts = {
+      cartAbandoner: 10,
+      firstTime: 15,
+      returning: 5,
+      bulkOrder: 8
     };
   }
 
@@ -25,6 +34,93 @@ async calculateEarnedPoints(orderTotal, tier = "Bronze") {
     const basePoints = Math.floor(orderTotal * this.pointsRates.purchase);
     const multiplier = this.tierBenefits[tier]?.multiplier || 1;
     return Math.floor(basePoints * multiplier);
+  }
+
+  async calculateDynamicDiscount(userId, orderTotal, tier = "Bronze") {
+    await this.delay();
+    let discount = 0;
+    
+    // Tier-based discount
+    discount += this.tierBenefits[tier]?.discount || 0;
+    
+    // Cart abandonment discount
+    if (this.cartAbandonmentTracking.has(userId)) {
+      const abandonmentData = this.cartAbandonmentTracking.get(userId);
+      if (Date.now() - abandonmentData.timestamp > 24 * 60 * 60 * 1000) { // 24 hours
+        discount += this.dynamicDiscounts.cartAbandoner;
+        this.cartAbandonmentTracking.delete(userId);
+      }
+    }
+    
+    // Bulk order discount
+    if (orderTotal > 200) {
+      discount += this.dynamicDiscounts.bulkOrder;
+    }
+    
+    return Math.min(discount, 25); // Max 25% discount
+  }
+
+  trackCartAbandonment(userId, cartItems) {
+    this.cartAbandonmentTracking.set(userId, {
+      timestamp: Date.now(),
+      items: cartItems,
+      total: cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    });
+  }
+
+  async generateReferralCode(userId) {
+    await this.delay();
+    const code = `REF${userId.toUpperCase()}${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+    return {
+      code,
+      url: `${window.location.origin}?ref=${code}`,
+      reward: 100, // points for successful referral
+      expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+    };
+  }
+
+  async spinWheel(userId, tier = "Bronze") {
+    await this.delay();
+    const prizes = [
+      { type: 'points', value: 50, probability: 0.3 },
+      { type: 'discount', value: 10, probability: 0.25 },
+      { type: 'points', value: 100, probability: 0.2 },
+      { type: 'discount', value: 15, probability: 0.15 },
+      { type: 'freeShipping', value: 1, probability: 0.08 },
+      { type: 'discount', value: 25, probability: 0.02 }
+    ];
+
+    // Higher tier users get better odds
+    const tierMultiplier = this.tierBenefits[tier]?.multiplier || 1;
+    
+    const random = Math.random() / tierMultiplier;
+    let cumulative = 0;
+    
+    for (const prize of prizes) {
+      cumulative += prize.probability;
+      if (random <= cumulative) {
+        return {
+          type: prize.type,
+          value: prize.value,
+          message: this.getPrizeMessage(prize.type, prize.value)
+        };
+      }
+    }
+    
+    return prizes[0]; // Fallback
+  }
+
+  getPrizeMessage(type, value) {
+    switch (type) {
+      case 'points':
+        return `Congratulations! You won ${value} loyalty points!`;
+      case 'discount':
+        return `Amazing! You got ${value}% off your next purchase!`;
+      case 'freeShipping':
+        return `Fantastic! You earned free shipping on your next order!`;
+      default:
+        return `You won a prize worth ${value}!`;
+    }
   }
 
   async getPointsHistory(userId = "user1") {
@@ -143,13 +239,14 @@ async calculateEarnedPoints(orderTotal, tier = "Bronze") {
     return 'RWD' + Math.random().toString(36).substr(2, 9).toUpperCase();
   }
 
-  async getTierProgress(currentPoints) {
+async getTierProgress(currentPoints) {
     await this.delay();
     const tiers = [
-      { name: "Bronze", minPoints: 0, maxPoints: 499 },
-      { name: "Silver", minPoints: 500, maxPoints: 999 },
-      { name: "Gold", minPoints: 1000, maxPoints: 1999 },
-      { name: "Platinum", minPoints: 2000, maxPoints: Infinity }
+      { name: "Bronze", minPoints: 0, maxPoints: 499, color: "#CD7F32", icon: "Award" },
+      { name: "Silver", minPoints: 500, maxPoints: 999, color: "#C0C0C0", icon: "Medal" },
+      { name: "Gold", minPoints: 1000, maxPoints: 1999, color: "#FFD700", icon: "Crown" },
+      { name: "Platinum", minPoints: 2000, maxPoints: 4999, color: "#E5E4E2", icon: "Gem" },
+      { name: "Diamond", minPoints: 5000, maxPoints: Infinity, color: "#B9F2FF", icon: "Diamond" }
     ];
     
     const currentTier = tiers.find(tier => 
@@ -164,7 +261,8 @@ async calculateEarnedPoints(orderTotal, tier = "Bronze") {
       pointsToNext: nextTier ? nextTier.minPoints - currentPoints : 0,
       progressPercent: nextTier 
         ? ((currentPoints - currentTier.minPoints) / (nextTier.minPoints - currentTier.minPoints)) * 100
-        : 100
+        : 100,
+      benefits: this.tierBenefits[currentTier?.name] || this.tierBenefits.Bronze
     };
   }
 

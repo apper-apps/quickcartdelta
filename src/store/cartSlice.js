@@ -10,7 +10,23 @@ initialState: {
     discount: {
       code: "",
       percentage: 0,
-      isValid: false
+      isValid: false,
+      type: "manual" // manual, dynamic, loyalty, referral
+    },
+    abandonment: {
+      tracked: false,
+      timestamp: null,
+      reminderSent: false
+    },
+    checkout: {
+      biometricEnabled: false,
+      savedPayments: [],
+      oneClickEnabled: false
+    },
+    dynamicPricing: {
+      personalizedDiscount: 0,
+      tierDiscount: 0,
+      bulkDiscount: 0
     }
   },
   reducers: {
@@ -62,28 +78,79 @@ initialState: {
     closeCart: (state) => {
       state.isOpen = false;
     },
-    applyDiscount: (state, action) => {
-      const code = action.payload;
+applyDiscount: (state, action) => {
+      const { code, type = "manual" } = action.payload;
       // Mock discount validation - in real app, this would call a service
       const validCodes = {
         'WELCOME25': 25,
         'FREESHIP': 0, // Special case for free shipping
         'FLASH50': 50,
         'WEEKEND30': 30,
-        'SAVE20': 20
+        'SAVE20': 20,
+        'VIP15': 15,
+        'ABANDONER10': 10,
+        'REFERRAL20': 20
       };
       
       if (validCodes.hasOwnProperty(code)) {
         state.discount = {
           code: code,
           percentage: validCodes[code],
-          isValid: true
+          isValid: true,
+          type
         };
       } else {
         state.discount = {
           code: "",
           percentage: 0,
-          isValid: false
+          isValid: false,
+          type: "manual"
+        };
+      }
+    },
+
+    trackAbandonment: (state) => {
+      if (state.items.length > 0 && !state.abandonment.tracked) {
+        state.abandonment = {
+          tracked: true,
+          timestamp: Date.now(),
+          reminderSent: false
+        };
+      }
+    },
+
+    enableBiometric: (state, action) => {
+      state.checkout.biometricEnabled = action.payload;
+    },
+
+    savePaymentMethod: (state, action) => {
+      const payment = action.payload;
+      const exists = state.checkout.savedPayments.find(p => p.id === payment.id);
+      if (!exists) {
+        state.checkout.savedPayments.push(payment);
+      }
+    },
+
+    enableOneClick: (state, action) => {
+      state.checkout.oneClickEnabled = action.payload;
+    },
+
+    applyDynamicPricing: (state, action) => {
+      const { personalizedDiscount, tierDiscount, bulkDiscount } = action.payload;
+      state.dynamicPricing = {
+        personalizedDiscount: personalizedDiscount || 0,
+        tierDiscount: tierDiscount || 0,
+        bulkDiscount: bulkDiscount || 0
+      };
+      
+      // Auto-apply best dynamic discount
+      const totalDynamicDiscount = Math.max(personalizedDiscount, tierDiscount, bulkDiscount);
+      if (totalDynamicDiscount > state.discount.percentage) {
+        state.discount = {
+          code: "DYNAMIC",
+          percentage: totalDynamicDiscount,
+          isValid: true,
+          type: "dynamic"
         };
       }
     },
@@ -94,9 +161,15 @@ initialState: {
         isValid: false
       };
     },
-    calculateTotals: (state) => {
+calculateTotals: (state) => {
       state.total = state.items.reduce((total, item) => total + (item.price * item.quantity), 0);
       state.itemCount = state.items.reduce((count, item) => count + item.quantity, 0);
+      
+      // Track abandonment when cart has items
+      if (state.items.length > 0 && !state.abandonment.tracked) {
+        state.abandonment.tracked = true;
+        state.abandonment.timestamp = Date.now();
+      }
     },
   },
 });
@@ -112,6 +185,11 @@ export const {
   applyDiscount,
   removeDiscount,
   calculateTotals,
+  trackAbandonment,
+  enableBiometric,
+  savePaymentMethod,
+  enableOneClick,
+  applyDynamicPricing,
 } = cartSlice.actions;
 
 export default cartSlice.reducer;

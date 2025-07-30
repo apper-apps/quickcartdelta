@@ -1,21 +1,24 @@
-import React, { useState } from "react";
-import { useSelector, useDispatch } from "react-redux";
+import React, { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { clearCart } from "@/store/cartSlice";
 import { toast } from "react-toastify";
 import { motion } from "framer-motion";
 import { orderService } from "@/services/api/orderService";
-import Button from "@/components/atoms/Button";
-import Input from "@/components/atoms/Input";
-import CartItem from "@/components/molecules/CartItem";
 import ApperIcon from "@/components/ApperIcon";
+import CartItem from "@/components/molecules/CartItem";
+import Loyalty from "@/components/pages/Loyalty";
+import Input from "@/components/atoms/Input";
+import Button from "@/components/atoms/Button";
+import { clearCart } from "@/store/cartSlice";
 
 const Checkout = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { items, total, itemCount } = useSelector((state) => state.cart);
+const { items, total, itemCount, discount, checkout } = useSelector((state) => state.cart);
 
   const [loading, setLoading] = useState(false);
+  const [biometricOpen, setBiometricOpen] = useState(false);
+  const [showSpinWheel, setShowSpinWheel] = useState(false);
   const [formData, setFormData] = useState({
     // Shipping Information
     firstName: "",
@@ -37,14 +40,19 @@ const Checkout = () => {
     // Options
     saveInfo: false,
     sameAsShipping: true,
+    usePoints: false,
+    pointsToUse: 0,
   });
-
   const [errors, setErrors] = useState({});
   const [activeStep, setActiveStep] = useState(1);
 
   const shippingCost = total >= 50 ? 0 : 9.99;
-  const tax = total * 0.08;
-const finalTotal = total + shippingCost + tax;
+const discountAmount = discount.isValid ? (total * discount.percentage) / 100 : 0;
+  const discountedTotal = total - discountAmount;
+  const pointsDiscount = formData.usePoints ? (formData.pointsToUse * 0.1) : 0; // 10 cents per point
+  const afterPointsTotal = discountedTotal - pointsDiscount;
+  const tax = afterPointsTotal * 0.08;
+  const finalTotal = afterPointsTotal + shippingCost + tax;
 
   // Redirect if cart is empty - moved to useEffect to prevent setState during render
   React.useEffect(() => {
@@ -115,7 +123,7 @@ const finalTotal = total + shippingCost + tax;
     
     if (!validateStep(2)) return;
     
-    setLoading(true);
+setLoading(true);
     
     try {
       const orderData = {
@@ -124,6 +132,8 @@ const finalTotal = total + shippingCost + tax;
           quantity: item.quantity,
           price: item.price
         })),
+        discount: discount.isValid ? discount : null,
+        pointsUsed: formData.usePoints ? formData.pointsToUse : 0,
         total: finalTotal,
         shipping: {
           firstName: formData.firstName,
@@ -309,6 +319,25 @@ const finalTotal = total + shippingCost + tax;
                 className="card p-6"
               >
                 <h2 className="text-xl font-semibold mb-6">Payment Information</h2>
+{/* One-Click Checkout */}
+                {checkout.oneClickEnabled && checkout.savedPayments.length > 0 && (
+                  <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
+                    <h3 className="font-medium text-green-800 mb-3 flex items-center gap-2">
+                      <ApperIcon name="Zap" size={16} />
+                      One-Click Checkout
+                    </h3>
+                    <Button
+                      onClick={() => setBiometricOpen(true)}
+                      className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
+                    >
+                      <ApperIcon name="Fingerprint" className="mr-2" size={16} />
+                      Pay with Biometric Authentication
+                    </Button>
+                    <p className="text-xs text-green-700 mt-2">
+                      Use saved payment method with fingerprint or Face ID
+                    </p>
+                  </div>
+                )}
 
                 {/* Digital Wallet Options */}
                 <div className="mb-6">
@@ -384,11 +413,36 @@ const finalTotal = total + shippingCost + tax;
                     </div>
                     <span className="text-sm text-yellow-700">Available: 250 points</span>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <input type="checkbox" id="usePoints" className="rounded" />
-                    <label htmlFor="usePoints" className="text-sm text-yellow-700">
-                      Use 200 points for $20.00 discount
-                    </label>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <input 
+                        type="checkbox" 
+                        id="usePoints" 
+                        className="rounded"
+                        checked={formData.usePoints}
+                        onChange={(e) => setFormData({...formData, usePoints: e.target.checked, pointsToUse: e.target.checked ? 200 : 0})}
+                      />
+                      <label htmlFor="usePoints" className="text-sm text-yellow-700">
+                        Use loyalty points for discount
+                      </label>
+                    </div>
+                    {formData.usePoints && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-yellow-700">Points to use:</span>
+                        <input
+                          type="range"
+                          min="0"
+                          max="250"
+                          step="10"
+                          value={formData.pointsToUse}
+                          onChange={(e) => setFormData({...formData, pointsToUse: parseInt(e.target.value)})}
+                          className="flex-1"
+                        />
+                        <span className="text-sm font-medium text-yellow-800">
+                          {formData.pointsToUse} pts = ${(formData.pointsToUse * 0.1).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -476,11 +530,25 @@ const finalTotal = total + shippingCost + tax;
           <div className="card p-6 sticky top-24">
             <h2 className="text-xl font-semibold mb-6">Order Summary</h2>
             
-            <div className="space-y-4">
+<div className="space-y-4">
               <div className="flex justify-between">
                 <span>Subtotal ({itemCount} items)</span>
                 <span className="font-medium">${total.toFixed(2)}</span>
               </div>
+              
+              {discount.isValid && discountAmount > 0 && (
+                <div className="flex justify-between text-success">
+                  <span>Discount ({discount.percentage}% off):</span>
+                  <span>-${discountAmount.toFixed(2)}</span>
+                </div>
+              )}
+              
+              {formData.usePoints && pointsDiscount > 0 && (
+                <div className="flex justify-between text-yellow-600">
+                  <span>Points Used ({formData.pointsToUse} pts):</span>
+                  <span>-${pointsDiscount.toFixed(2)}</span>
+                </div>
+              )}
 
               <div className="flex justify-between">
                 <span>Shipping</span>

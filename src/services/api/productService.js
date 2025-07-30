@@ -1,5 +1,7 @@
 import productsData from "@/services/mockData/products.json";
 import categoriesData from "@/services/mockData/categories.json";
+
+// Enhanced product service with AR/3D capabilities
 class ProductService {
   constructor() {
     this.products = [...productsData];
@@ -213,6 +215,53 @@ async delete(id) {
       });
     }
 return Array.from(recommendations).map(product => ({ ...product }));
+  }
+
+  async getARCapability(productId) {
+    await this.delay();
+    const product = await this.getById(productId);
+    
+    if (!product) return null;
+    
+    // Mock AR capability based on category
+    const arCapableCategories = ['electronics', 'furniture', 'clothing', 'home-garden'];
+    const hasAR = arCapableCategories.some(cat => 
+      product.category.toLowerCase().includes(cat.replace('-', '')) ||
+      product.tags?.some(tag => tag.toLowerCase().includes(cat.replace('-', '')))
+    );
+    
+    return {
+      hasAR,
+      has3D: hasAR,
+      arFeatures: hasAR ? ['360_view', 'size_visualization', 'room_placement'] : [],
+      modelUrl: hasAR ? `/models/${productId}.glb` : null,
+      instructions: hasAR ? [
+        'Tap to place in your space',
+        'Pinch to resize',
+        'Drag to rotate',
+        'Walk around to view from all angles'
+      ] : null
+    };
+  }
+
+  async trackPriceDrops(products) {
+    await this.delay();
+    
+    // Mock price drop detection
+    const priceDrops = products.filter(product => {
+      // Simulate price changes - in real app would compare with historical data
+      const hasDiscount = product.discount && product.discount > 0;
+      const randomDrop = Math.random() < 0.1; // 10% chance of price drop
+      return hasDiscount || randomDrop;
+    }).map(product => ({
+      productId: product.Id,
+      previousPrice: product.price * 1.2, // Mock previous price
+      currentPrice: product.price,
+      dropPercentage: Math.round((1 - product.price / (product.price * 1.2)) * 100),
+      alertType: 'price_drop'
+    }));
+    
+    return priceDrops;
   }
 }
 

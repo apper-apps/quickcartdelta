@@ -11,8 +11,10 @@ import ApperIcon from "@/components/ApperIcon";
 const CartDrawer = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { items, total, isOpen, itemCount } = useSelector((state) => state.cart);
-
+const { items, total, isOpen, itemCount, discount, dynamicPricing } = useSelector((state) => state.cart);
+  
+  const discountAmount = discount.isValid ? (total * discount.percentage) / 100 : 0;
+  const discountedTotal = total - discountAmount;
   const handleCheckout = () => {
     dispatch(closeCart());
     navigate("/checkout");
@@ -81,12 +83,41 @@ const CartDrawer = () => {
             </div>
 
             {/* Footer */}
-            {items.length > 0 && (
+{items.length > 0 && (
               <div className="border-t p-6 space-y-4">
+                {/* Dynamic Pricing Alert */}
+                {(dynamicPricing.personalizedDiscount > 0 || dynamicPricing.tierDiscount > 0) && (
+                  <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-yellow-800">
+                      <ApperIcon name="Zap" size={16} />
+                      <span className="text-sm font-medium">
+                        Special pricing applied! Save ${Math.max(dynamicPricing.personalizedDiscount, dynamicPricing.tierDiscount).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Subtotal */}
-                <div className="flex items-center justify-between text-lg font-semibold">
-                  <span>Subtotal:</span>
-                  <span className="gradient-text">${total.toFixed(2)}</span>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span>Subtotal:</span>
+                    <span className={discount.isValid ? "line-through text-gray-500" : "gradient-text font-semibold"}>
+                      ${total.toFixed(2)}
+                    </span>
+                  </div>
+                  
+                  {discount.isValid && (
+                    <>
+                      <div className="flex items-center justify-between text-success">
+                        <span className="text-sm">Discount ({discount.percentage}% off):</span>
+                        <span className="font-medium">-${discountAmount.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-lg font-semibold">
+                        <span>Total:</span>
+                        <span className="gradient-text">${discountedTotal.toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Actions */}

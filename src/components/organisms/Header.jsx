@@ -13,9 +13,10 @@ import { toggleCart } from "@/store/cartSlice";
 const Header = () => {
   const navigate = useNavigate();
 const dispatch = useDispatch();
-  const cartItems = useSelector((state) => state.cart.items);
+const cartItems = useSelector((state) => state.cart.items);
   const comparisonItems = useSelector((state) => state.comparison.items);
   const wishlistItems = useSelector((state) => state.wishlist.items);
+  const [loyaltyData, setLoyaltyData] = useState({ points: 250, tier: "Gold" });
   const categories = [
     { name: "Electronics", path: "/category/electronics" },
     { name: "Clothing", path: "/category/clothing" },
@@ -115,15 +116,23 @@ whileTap={{ scale: 0.95 }}
               </select>
             </div>
 
-            {/* Loyalty Points */}
+            {/* Enhanced Loyalty Points */}
             <button
               onClick={() => navigate("/loyalty")}
-              className="hidden md:flex items-center gap-2 px-3 py-2 text-sm bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 rounded-lg hover:from-yellow-200 hover:to-yellow-300 transition-colors duration-200"
+              className="hidden md:flex items-center gap-2 px-3 py-2 text-sm bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 rounded-lg hover:from-yellow-200 hover:to-yellow-300 transition-colors duration-200 border border-yellow-300"
             >
-              <ApperIcon name="Star" className="w-4 h-4" />
-              <span className="font-medium">250 pts</span>
+              <div className="flex items-center gap-1">
+                <ApperIcon 
+                  name={loyaltyData.tier === "Diamond" ? "Diamond" : loyaltyData.tier === "Platinum" ? "Gem" : loyaltyData.tier === "Gold" ? "Crown" : "Star"} 
+                  className="w-4 h-4" 
+                  style={{ color: loyaltyData.tier === "Diamond" ? "#B9F2FF" : loyaltyData.tier === "Platinum" ? "#E5E4E2" : loyaltyData.tier === "Gold" ? "#FFD700" : "#C0C0C0" }}
+                />
+                <div className="flex flex-col items-start">
+                  <span className="font-medium text-xs">{loyaltyData.points} pts</span>
+                  <span className="text-xs opacity-75">{loyaltyData.tier}</span>
+                </div>
+              </div>
             </button>
-
             {/* User Menu */}
             <div className="hidden sm:flex items-center gap-2">
               <Button variant="ghost" size="sm" icon="User">
