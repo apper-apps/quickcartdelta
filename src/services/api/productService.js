@@ -212,8 +212,6 @@ async delete(id) {
         }
       });
     }
-    
-    return Array.from(recommendations).map(product => ({ ...product }));
 return Array.from(recommendations).map(product => ({ ...product }));
   }
 }
