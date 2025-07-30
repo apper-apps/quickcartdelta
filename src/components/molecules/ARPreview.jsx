@@ -72,15 +72,19 @@ const requestCameraAccess = async () => {
         throw new Error('MediaDevices API not supported in this browser');
       }
       
-      // Fix MediaDevices context issue - call method directly on parent object
-      // This prevents "Illegal invocation" errors by maintaining proper context
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      // Fix MediaDevices context issue - explicitly bind context to prevent "Illegal invocation"
+      // This ensures the method maintains proper 'this' binding to the MediaDevices object
+      const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      const stream = await getUserMedia({ 
         video: { 
           facingMode: 'environment',
           width: { ideal: 1280 },
           height: { ideal: 720 }
         } 
       });
+      
+      // Check if component is still mounted before updating state
+      if (!containerRef.current) return;
       
       setCameraStream(stream);
       setCameraPermission('granted');
@@ -94,6 +98,9 @@ const requestCameraAccess = async () => {
     } catch (err) {
       console.error('Camera access error:', err);
       
+      // Check if component is still mounted before updating state
+      if (!containerRef.current) return;
+      
       if (err.name === 'NotAllowedError') {
         setError('Camera access denied. Please enable camera permissions to use AR features.');
         setCameraPermission('denied');
@@ -101,8 +108,10 @@ const requestCameraAccess = async () => {
         setError('No camera found. Please connect a camera to use AR features.');
       } else if (err.name === 'NotReadableError') {
         setError('Camera is already in use by another application.');
-      } else if (err.name === 'TypeError' && err.message.includes('Illegal invocation')) {
-        setError('Camera API error. Please refresh the page and try again.');
+      } else if (err.name === 'TypeError' && (err.message.includes('Illegal invocation') || err.message.includes('getUserMedia'))) {
+        // Enhanced detection for context binding issues
+        setError('Camera API context error. Please refresh the page and try again.');
+        console.warn('MediaDevices context binding failed - this may be due to browser security restrictions');
       } else if (err.message === 'MediaDevices API not supported in this browser') {
         setError('AR features are not supported in this browser. Please use a modern browser.');
       } else {
