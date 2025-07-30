@@ -72,50 +72,46 @@ const requestCameraAccess = async () => {
         throw new Error('MediaDevices API not supported in this browser');
       }
       
-// Enhanced MediaDevices context preservation - multiple strategies to prevent "Illegal invocation"
-      // Strategy 1: Preserve native context with proper async handling
+// Context-safe getUserMedia with React-specific safeguards
       let stream;
+      
+      // Ensure we're outside React's synthetic event context
+      await new Promise(resolve => setTimeout(resolve, 0));
+      
       try {
-        // Direct call with preserved context
-        const mediaDevices = navigator.mediaDevices;
-        stream = await mediaDevices.getUserMedia({ 
+        // Bind getUserMedia to preserve native context - React-safe approach
+        const getUserMediaBound = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+        
+        stream = await getUserMediaBound({ 
           video: { 
             facingMode: 'environment',
             width: { ideal: 1280 },
             height: { ideal: 720 }
           } 
         });
-      } catch (contextError) {
-        // Strategy 2: Explicit binding fallback for context preservation
-        if (contextError.message?.includes('Illegal invocation') || contextError.name === 'TypeError') {
-          try {
-            const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-            stream = await getUserMedia({ 
-              video: { 
-                facingMode: 'environment',
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
-              } 
+      } catch (error) {
+        // Fallback for legacy browsers or context issues
+        if (error.name === 'TypeError' && error.message.includes('Illegal invocation')) {
+          // Use legacy getUserMedia if context binding fails
+          const legacyGetUserMedia = navigator.getUserMedia || 
+                                   navigator.webkitGetUserMedia || 
+                                   navigator.mozGetUserMedia;
+          
+          if (legacyGetUserMedia) {
+            stream = await new Promise((resolve, reject) => {
+              legacyGetUserMedia.call(navigator, {
+                video: { 
+                  facingMode: 'environment',
+                  width: { ideal: 1280 },
+                  height: { ideal: 720 }
+                }
+              }, resolve, reject);
             });
-          } catch (bindError) {
-            // Strategy 3: Legacy getUserMedia fallback
-            if (navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia) {
-              const legacyGetUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
-              stream = await new Promise((resolve, reject) => {
-                legacyGetUserMedia.call(navigator, {
-                  video: { 
-                    facingMode: 'environment',
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
-                  }
-                }, resolve, reject);
-              });
-            } else {
-              throw new Error('getUserMedia not supported in this browser');
-            }
+          } else {
+            throw new Error('Camera access not supported in this browser');
           }
         } else {
-          throw contextError;
+          throw error;
         }
       }
       
