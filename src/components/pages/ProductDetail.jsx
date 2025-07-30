@@ -24,6 +24,16 @@ const ProductDetail = () => {
   
 const wishlistItems = useSelector((state) => state.wishlist.items);
   const comparisonItems = useSelector((state) => state.comparison.items);
+  
+  // State declarations - must be before useEffect hooks that reference them
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(0);
+  const [quantity, setQuantity] = useState(1);
+  const [activeTab, setActiveTab] = useState("description");
+  
+  // Derived state calculations
   const isInWishlist = wishlistItems.some(item => item.Id === parseInt(id));
   const isInComparison = comparisonItems.some(item => item.Id === parseInt(id));
 
@@ -33,13 +43,6 @@ const wishlistItems = useSelector((state) => state.wishlist.items);
       dispatch(addToHistory(product.Id));
     }
   }, [product, dispatch]);
-  
-  const [product, setProduct] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [selectedImage, setSelectedImage] = useState(0);
-  const [quantity, setQuantity] = useState(1);
-  const [activeTab, setActiveTab] = useState("description");
 
   const handleCompareToggle = () => {
     if (isInComparison) {
