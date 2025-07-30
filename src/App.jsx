@@ -10,6 +10,7 @@ import Checkout from "@/components/pages/Checkout";
 import OrderConfirmation from "@/components/pages/OrderConfirmation";
 import Search from "@/components/pages/Search";
 import Compare from "@/components/pages/Compare";
+import Wishlist from "@/components/pages/Wishlist";
 function App() {
   return (
     <Router>
@@ -24,6 +25,7 @@ function App() {
             <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} />
             <Route path="/search" element={<Search />} />
             <Route path="/compare" element={<Compare />} />
+            <Route path="/wishlist" element={<Wishlist />} />
           </Routes>
         </Layout>
         <ToastContainer

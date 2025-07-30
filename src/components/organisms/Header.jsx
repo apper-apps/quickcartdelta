@@ -52,8 +52,16 @@ const Header = () => {
             </button>
 
             {/* Wishlist */}
-            <button className="hidden sm:flex p-2 text-gray-600 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors duration-200">
+<button 
+              onClick={() => navigate("/wishlist")}
+              className="hidden sm:flex relative p-2 text-gray-600 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors duration-200"
+            >
               <ApperIcon name="Heart" className="w-5 h-5" />
+              {useSelector((state) => state.wishlist.items).length > 0 && (
+                <Badge variant="primary" className="absolute -top-1 -right-1 min-w-[20px] h-5 text-xs">
+                  {useSelector((state) => state.wishlist.items).length}
+                </Badge>
+              )}
             </button>
 
             {/* Cart */}

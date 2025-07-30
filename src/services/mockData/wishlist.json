@@ -1,0 +1,24 @@
+[
+  {
+    "Id": 1,
+    "productId": 1,
+    "productTitle": "Wireless Bluetooth Headphones",
+    "productImage": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&h=500&fit=crop",
+    "currentPrice": 79.99,
+    "originalPrice": 99.99,
+    "addedAt": "2024-01-15T08:00:00Z",
+    "priceDropAlert": false,
+    "category": "electronics"
+  },
+  {
+    "Id": 2,
+    "productId": 5,
+    "productTitle": "Indoor Plant Collection",
+    "productImage": "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=500&h=500&fit=crop",
+    "currentPrice": 89.99,
+    "originalPrice": 89.99,
+    "addedAt": "2024-02-05T11:20:00Z",
+    "priceDropAlert": false,
+    "category": "home-garden"
+  }
+]

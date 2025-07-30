@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
+import { toggleWishlist } from "@/store/wishlistSlice";
 import { addToComparison, removeFromComparison } from "@/store/comparisonSlice";
 import { toast } from "react-toastify";
 import { motion } from "framer-motion";
@@ -12,9 +13,10 @@ import { addToCart } from "@/store/cartSlice";
 const ProductCard = ({ product, className = "" }) => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const wishlistItems = useSelector((state) => state.wishlist.items);
   const comparisonItems = useSelector((state) => state.comparison.items);
+  const isInWishlist = wishlistItems.some(item => item.Id === product.Id);
   const isInComparison = comparisonItems.some(item => item.Id === product.Id);
-
   const handleAddToCart = (e) => {
     e.stopPropagation();
     dispatch(addToCart({ product, quantity: 1 }));
@@ -33,6 +35,10 @@ const ProductCard = ({ product, className = "" }) => {
       dispatch(addToComparison(product));
       toast.success(`${product.title} added to comparison`);
     }
+  };
+const handleWishlistToggle = (e) => {
+    e.stopPropagation();
+    dispatch(toggleWishlist(product));
   };
 
   const handleCardClick = () => {
@@ -71,10 +77,15 @@ const ProductCard = ({ product, className = "" }) => {
           />
         </button>
         <button 
-          className="p-2 bg-white/80 backdrop-blur-sm rounded-full hover:bg-white hover:scale-110 transition-all duration-200"
-          onClick={(e) => e.stopPropagation()}
+className="p-2 bg-white/80 backdrop-blur-sm rounded-full hover:bg-white hover:scale-110 transition-all duration-200"
+          onClick={handleWishlistToggle}
         >
-          <ApperIcon name="Heart" className="w-4 h-4 text-gray-600" />
+          <ApperIcon 
+            name="Heart" 
+            className={`w-4 h-4 transition-colors duration-200 ${
+              isInWishlist ? 'text-red-500 fill-current' : 'text-gray-600'
+            }`} 
+          />
         </button>
       </div>
 

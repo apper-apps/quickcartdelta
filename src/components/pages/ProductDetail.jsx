@@ -1,22 +1,28 @@
-import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { addToCart } from "@/store/cartSlice";
+import { toggleWishlist } from "@/store/wishlistSlice";
 import { addToComparison, removeFromComparison } from "@/store/comparisonSlice";
 import { toast } from "react-toastify";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { productService } from "@/services/api/productService";
-import Button from "@/components/atoms/Button";
-import Badge from "@/components/atoms/Badge";
+import ApperIcon from "@/components/ApperIcon";
 import Loading from "@/components/ui/Loading";
 import Error from "@/components/ui/Error";
-import ApperIcon from "@/components/ApperIcon";
+import Home from "@/components/pages/Home";
+import Cart from "@/components/pages/Cart";
+import Badge from "@/components/atoms/Badge";
+import Button from "@/components/atoms/Button";
+import { addToCart } from "@/store/cartSlice";
+
 const ProductDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
   
+  const wishlistItems = useSelector((state) => state.wishlist.items);
   const comparisonItems = useSelector((state) => state.comparison.items);
+  const isInWishlist = wishlistItems.some(item => item.Id === parseInt(id));
   const isInComparison = comparisonItems.some(item => item.Id === parseInt(id));
   
   const [product, setProduct] = useState(null);
@@ -39,10 +45,15 @@ const ProductDetail = () => {
       toast.success("Added to comparison");
     }
   };
+const handleWishlistToggle = () => {
+    if (product) {
+      dispatch(toggleWishlist(product));
+    }
+  };
+
   useEffect(() => {
     loadProduct();
   }, [id]);
-
   const loadProduct = async () => {
     try {
       setLoading(true);
@@ -267,8 +278,14 @@ const ProductDetail = () => {
               >
                 {isInComparison ? "Remove Compare" : "Add to Compare"}
               </Button>
-              <Button variant="outline" size="md" icon="Heart" className="flex-1">
-                Add to Wishlist
+<Button 
+                variant="outline" 
+                size="md" 
+                icon="Heart" 
+                className={`flex-1 ${isInWishlist ? 'text-red-500 border-red-200 bg-red-50' : ''}`}
+                onClick={handleWishlistToggle}
+              >
+                {isInWishlist ? 'Remove from Wishlist' : 'Add to Wishlist'}
               </Button>
               <Button variant="outline" size="md" icon="Share2" className="flex-1">
                 Share
