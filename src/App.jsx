@@ -9,13 +9,13 @@ import Cart from "@/components/pages/Cart";
 import Checkout from "@/components/pages/Checkout";
 import OrderConfirmation from "@/components/pages/OrderConfirmation";
 import Search from "@/components/pages/Search";
-
+import Compare from "@/components/pages/Compare";
 function App() {
   return (
     <Router>
       <div className="min-h-screen bg-background">
         <Layout>
-          <Routes>
+<Routes>
             <Route path="/" element={<Home />} />
             <Route path="/category/:category" element={<Category />} />
             <Route path="/product/:id" element={<ProductDetail />} />
@@ -23,6 +23,7 @@ function App() {
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} />
             <Route path="/search" element={<Search />} />
+            <Route path="/compare" element={<Compare />} />
           </Routes>
         </Layout>
         <ToastContainer

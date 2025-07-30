@@ -1,21 +1,38 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { useDispatch } from "react-redux";
-import { addToCart } from "@/store/cartSlice";
+import { useDispatch, useSelector } from "react-redux";
+import { addToComparison, removeFromComparison } from "@/store/comparisonSlice";
 import { toast } from "react-toastify";
 import { motion } from "framer-motion";
-import Button from "@/components/atoms/Button";
-import Badge from "@/components/atoms/Badge";
 import ApperIcon from "@/components/ApperIcon";
+import Badge from "@/components/atoms/Badge";
+import Button from "@/components/atoms/Button";
+import { addToCart } from "@/store/cartSlice";
 
 const ProductCard = ({ product, className = "" }) => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const comparisonItems = useSelector((state) => state.comparison.items);
+  const isInComparison = comparisonItems.some(item => item.Id === product.Id);
 
   const handleAddToCart = (e) => {
     e.stopPropagation();
     dispatch(addToCart({ product, quantity: 1 }));
     toast.success(`${product.title} added to cart!`);
+  };
+
+  const handleCompareToggle = () => {
+    if (isInComparison) {
+      dispatch(removeFromComparison(product.Id));
+      toast.info(`${product.title} removed from comparison`);
+    } else {
+      if (comparisonItems.length >= 4) {
+        toast.warning("You can only compare up to 4 products");
+        return;
+      }
+      dispatch(addToComparison(product));
+      toast.success(`${product.title} added to comparison`);
+    }
   };
 
   const handleCardClick = () => {
@@ -39,13 +56,27 @@ const ProductCard = ({ product, className = "" }) => {
         </Badge>
       )}
       
-      {/* Wishlist Button */}
-      <button 
-        className="absolute top-2 right-2 z-10 p-2 bg-white/80 backdrop-blur-sm rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-white hover:scale-110"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <ApperIcon name="Heart" className="w-4 h-4 text-gray-600" />
-      </button>
+{/* Action Buttons */}
+      <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
+        <button 
+          className="p-2 bg-white/80 backdrop-blur-sm rounded-full hover:bg-white hover:scale-110 transition-all duration-200"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleCompareToggle();
+          }}
+        >
+          <ApperIcon 
+            name="GitCompare" 
+            className={`w-4 h-4 ${isInComparison ? "text-primary" : "text-gray-600"}`} 
+          />
+        </button>
+        <button 
+          className="p-2 bg-white/80 backdrop-blur-sm rounded-full hover:bg-white hover:scale-110 transition-all duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ApperIcon name="Heart" className="w-4 h-4 text-gray-600" />
+        </button>
+      </div>
 
       {/* Product Image */}
       <div className="aspect-square mb-4 overflow-hidden rounded-lg bg-gray-100">

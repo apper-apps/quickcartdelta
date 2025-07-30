@@ -17,13 +17,35 @@ class ProductService {
     return [...this.products];
   }
 
-  async getById(id) {
+async getById(id) {
     await this.delay();
     const product = this.products.find(p => p.Id === id);
     if (!product) {
       throw new Error("Product not found");
     }
     return { ...product };
+  }
+
+  async getByIds(ids) {
+    await this.delay();
+    const products = this.products.filter(p => ids.includes(p.Id));
+    return products.map(product => ({ ...product }));
+  }
+
+  async getComparableProducts(productId) {
+    await this.delay();
+    const product = this.products.find(p => p.Id === productId);
+    if (!product) {
+      throw new Error("Product not found");
+    }
+    
+    // Return products in same category excluding the current product
+    const comparableProducts = this.products
+      .filter(p => p.category === product.category && p.Id !== productId)
+      .slice(0, 8)
+      .map(product => ({ ...product }));
+    
+    return comparableProducts;
   }
 
   async getByCategory(category) {

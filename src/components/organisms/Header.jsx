@@ -1,18 +1,20 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useSelector, useDispatch } from "react-redux";
-import { toggleCart } from "@/store/cartSlice";
-import SearchBar from "@/components/molecules/SearchBar";
-import Button from "@/components/atoms/Button";
-import Badge from "@/components/atoms/Badge";
+import { useDispatch, useSelector } from "react-redux";
+import { AnimatePresence, motion } from "framer-motion";
 import ApperIcon from "@/components/ApperIcon";
-import { motion } from "framer-motion";
+import SearchBar from "@/components/molecules/SearchBar";
+import CartDrawer from "@/components/organisms/CartDrawer";
+import Badge from "@/components/atoms/Badge";
+import Button from "@/components/atoms/Button";
+import { setCategory, setQuery } from "@/store/searchSlice";
+import { toggleCart } from "@/store/cartSlice";
 
 const Header = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { itemCount } = useSelector((state) => state.cart);
-
+  const cartItems = useSelector((state) => state.cart.items);
+  const comparisonItems = useSelector((state) => state.comparison.items);
   const categories = [
     { name: "Electronics", path: "/category/electronics" },
     { name: "Clothing", path: "/category/clothing" },
@@ -56,23 +58,36 @@ const Header = () => {
 
             {/* Cart */}
             <motion.button
-              whileTap={{ scale: 0.95 }}
+whileTap={{ scale: 0.95 }}
               onClick={() => dispatch(toggleCart())}
               className="relative p-2 text-gray-600 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors duration-200"
             >
               <ApperIcon name="ShoppingCart" className="w-5 h-5" />
-              {itemCount > 0 && (
+              {cartItems.length > 0 && (
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   className="absolute -top-1 -right-1"
                 >
                   <Badge variant="primary" className="min-w-[20px] h-5 text-xs">
-                    {itemCount}
+                    {cartItems.length}
                   </Badge>
                 </motion.div>
               )}
             </motion.button>
+
+            {/* Comparison */}
+            <button
+              onClick={() => navigate("/compare")}
+              className="relative p-2 text-gray-600 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors duration-200"
+            >
+              <ApperIcon name="GitCompare" className="w-5 h-5" />
+              {comparisonItems.length > 0 && (
+                <Badge variant="primary" className="absolute -top-1 -right-1 min-w-[20px] h-5 text-xs">
+                  {comparisonItems.length}
+                </Badge>
+              )}
+            </button>
 
             {/* User Menu */}
             <div className="hidden sm:flex items-center gap-2">
@@ -81,26 +96,31 @@ const Header = () => {
               </Button>
             </div>
           </div>
-        </div>
+</div>
 
         {/* Navigation - Desktop */}
-        <nav className="hidden lg:flex items-center gap-6 py-3 border-t border-gray-100">
-          {categories.map((category) => (
+        <nav className="hidden md:flex items-center justify-center py-3 border-t border-gray-100">
+          <div className="flex items-center space-x-8">
+            {categories.map((category) => (
+              <Link
+                key={category.name}
+                to={category.path}
+                className="text-sm font-medium text-gray-600 hover:text-primary transition-colors duration-200"
+                onClick={() => {
+                  dispatch(setCategory(category.name.toLowerCase()));
+                  dispatch(setQuery(""));
+                }}
+              >
+                {category.name}
+              </Link>
+            ))}
             <Link
-              key={category.name}
-              to={category.path}
-              className="text-sm text-gray-600 hover:text-primary transition-colors duration-200 relative group"
+              to="/deals"
+              className="text-sm font-medium text-accent hover:text-red-600 transition-colors duration-200"
             >
-              {category.name}
-              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-primary to-secondary group-hover:w-full transition-all duration-300" />
+              🔥 Hot Deals
             </Link>
-          ))}
-          <Link
-            to="/deals"
-            className="text-sm font-medium text-accent hover:text-red-600 transition-colors duration-200"
-          >
-            🔥 Hot Deals
-          </Link>
+          </div>
         </nav>
 
         {/* Search Bar - Mobile */}
@@ -108,6 +128,9 @@ const Header = () => {
           <SearchBar />
         </div>
       </div>
+
+      {/* Cart Drawer */}
+      <CartDrawer />
     </header>
   );
 };

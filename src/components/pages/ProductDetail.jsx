@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { addToCart } from "@/store/cartSlice";
+import { addToComparison, removeFromComparison } from "@/store/comparisonSlice";
 import { toast } from "react-toastify";
 import { motion, AnimatePresence } from "framer-motion";
 import { productService } from "@/services/api/productService";
@@ -10,11 +11,13 @@ import Badge from "@/components/atoms/Badge";
 import Loading from "@/components/ui/Loading";
 import Error from "@/components/ui/Error";
 import ApperIcon from "@/components/ApperIcon";
-
 const ProductDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  
+  const comparisonItems = useSelector((state) => state.comparison.items);
+  const isInComparison = comparisonItems.some(item => item.Id === parseInt(id));
   
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -23,6 +26,19 @@ const ProductDetail = () => {
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState("description");
 
+  const handleCompareToggle = () => {
+    if (isInComparison) {
+      dispatch(removeFromComparison(product.Id));
+      toast.success("Removed from comparison");
+    } else {
+      if (comparisonItems.length >= 4) {
+        toast.error("Maximum 4 products can be compared");
+        return;
+      }
+      dispatch(addToComparison(product));
+      toast.success("Added to comparison");
+    }
+  };
   useEffect(() => {
     loadProduct();
   }, [id]);
@@ -241,7 +257,16 @@ const ProductDetail = () => {
               Buy Now
             </Button>
             
-            <div className="flex gap-3">
+<div className="flex gap-3">
+              <Button 
+                variant={isInComparison ? "primary" : "outline"} 
+                size="md" 
+                icon="GitCompare" 
+                onClick={handleCompareToggle}
+                className="flex-1"
+              >
+                {isInComparison ? "Remove Compare" : "Add to Compare"}
+              </Button>
               <Button variant="outline" size="md" icon="Heart" className="flex-1">
                 Add to Wishlist
               </Button>
