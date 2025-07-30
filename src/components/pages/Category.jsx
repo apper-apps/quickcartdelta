@@ -8,14 +8,14 @@ import Error from "@/components/ui/Error";
 
 const Category = () => {
   const { category } = useParams();
-  const [products, setProducts] = useState([]);
+const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sortBy, setSortBy] = useState("featured");
   const [viewMode, setViewMode] = useState("grid");
   const [categories, setCategories] = useState([]);
-
+  const [brands, setBrands] = useState([]);
   useEffect(() => {
     loadCategoryData();
   }, [category]);
@@ -25,14 +25,19 @@ const Category = () => {
       setLoading(true);
       setError(null);
       
-      const [productsData, categoriesData] = await Promise.all([
+const [productsData, categoriesData, allProducts] = await Promise.all([
         productService.getByCategory(category),
-        productService.getCategories()
+        productService.getCategories(),
+        productService.getAll()
       ]);
       
       setProducts(productsData);
       setFilteredProducts(productsData);
       setCategories(categoriesData.map(cat => cat.name));
+      
+      // Extract brands from all products for filter options
+      const uniqueBrands = [...new Set(allProducts.map(p => p.brand).filter(Boolean))].sort();
+      setBrands(uniqueBrands);
     } catch (err) {
       setError("Failed to load category products");
       console.error("Category page error:", err);
@@ -41,13 +46,20 @@ const Category = () => {
     }
   };
 
-  const handleFilterChange = (filters) => {
+const handleFilterChange = (filters) => {
     let filtered = [...products];
 
     // Filter by categories
     if (filters.categories.length > 0) {
       filtered = filtered.filter(product => 
         filters.categories.includes(product.category)
+      );
+    }
+
+    // Filter by brands
+    if (filters.brands && filters.brands.length > 0) {
+      filtered = filtered.filter(product => 
+        filters.brands.includes(product.brand)
       );
     }
 
@@ -61,6 +73,41 @@ const Category = () => {
     if (filters.minRating > 0) {
       filtered = filtered.filter(product => 
         product.rating >= filters.minRating
+      );
+    }
+
+    // Filter by availability
+    if (filters.availability && filters.availability.length > 0) {
+      filtered = filtered.filter(product => {
+        if (filters.availability.includes('In Stock') && product.stock > 0) return true;
+        if (filters.availability.includes('Out of Stock') && product.stock === 0) return true;
+        if (filters.availability.includes('Pre-order') && product.preOrder) return true;
+        return false;
+      });
+    }
+
+    // Filter by sale only
+    if (filters.saleOnly) {
+      filtered = filtered.filter(product => 
+        product.salePrice && product.salePrice < product.price
+      );
+    }
+
+    // Filter by minimum discount
+    if (filters.minDiscount > 0) {
+      filtered = filtered.filter(product => {
+        if (product.salePrice) {
+          const discount = ((product.price - product.salePrice) / product.price) * 100;
+          return discount >= filters.minDiscount;
+        }
+        return false;
+      });
+    }
+
+    // Filter by condition
+    if (filters.condition && filters.condition.length > 0) {
+      filtered = filtered.filter(product => 
+        filters.condition.includes(product.condition || 'New')
       );
     }
 
@@ -85,12 +132,15 @@ const Category = () => {
 
       <div className="flex gap-8">
         {/* Filter Sidebar */}
-        <FilterSidebar
+<FilterSidebar
           categories={categories}
+          brands={brands}
           priceRange={[0, 1000]}
           minRating={0}
           onFilterChange={handleFilterChange}
           className="w-64 flex-shrink-0"
+          totalProducts={products.length}
+          filteredCount={filteredProducts.length}
         />
 
         {/* Main Content */}

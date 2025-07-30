@@ -8,8 +8,18 @@ initialState: {
     results: [],
     isOpen: false,
     recentSearches: [],
+    filters: {
+      categories: [],
+      brands: [],
+      priceRange: [0, 1000],
+      minRating: 0,
+      availability: [],
+      saleOnly: false,
+      condition: [],
+      minDiscount: 0
+    }
   },
-  reducers: {
+reducers: {
     setQuery: (state, action) => {
       state.query = action.payload;
 },
@@ -37,6 +47,38 @@ initialState: {
     clearRecentSearches: (state) => {
       state.recentSearches = [];
     },
+    setFilters: (state, action) => {
+      state.filters = { ...state.filters, ...action.payload };
+    },
+    updateFilter: (state, action) => {
+      const { filterType, value } = action.payload;
+      state.filters[filterType] = value;
+    },
+    resetFilters: (state) => {
+      state.filters = {
+        categories: [],
+        brands: [],
+        priceRange: [0, 1000],
+        minRating: 0,
+        availability: [],
+        saleOnly: false,
+        condition: [],
+        minDiscount: 0
+      };
+    },
+    toggleFilter: (state, action) => {
+      const { filterType, value } = action.payload;
+      if (Array.isArray(state.filters[filterType])) {
+        const currentFilters = state.filters[filterType];
+        if (currentFilters.includes(value)) {
+          state.filters[filterType] = currentFilters.filter(item => item !== value);
+        } else {
+          state.filters[filterType] = [...currentFilters, value];
+        }
+      } else {
+        state.filters[filterType] = !state.filters[filterType];
+      }
+    }
   },
 });
 
@@ -48,6 +90,10 @@ export const {
   closeSearch,
   addRecentSearch,
   clearRecentSearches,
+  setFilters,
+  updateFilter,
+  resetFilters,
+  toggleFilter
 } = searchSlice.actions;
 
 export default searchSlice.reducer;

@@ -16,24 +16,34 @@ export default function Search() {
   const dispatch = useDispatch();
   const { query, results } = useSelector((state) => state.search);
   
-  const [filteredResults, setFilteredResults] = useState([]);
+const [filteredResults, setFilteredResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [sortBy, setSortBy] = useState("relevance");
   const [viewMode, setViewMode] = useState("grid");
   const [categories, setCategories] = useState([]);
-
+  const [brands, setBrands] = useState([]);
   useEffect(() => {
     const q = searchParams.get("q");
     if (q && q !== query) {
       dispatch(setQuery(q));
       performSearch(q);
-    }
+}
   }, [searchParams, dispatch, query]);
-
   useEffect(() => {
-    loadCategories();
+loadCategories();
+    loadBrands();
   }, []);
+
+  const loadBrands = async () => {
+    try {
+      const products = await productService.getAll();
+      const uniqueBrands = [...new Set(products.map(p => p.brand).filter(Boolean))].sort();
+      setBrands(uniqueBrands);
+    } catch (err) {
+      console.error('Failed to load brands:', err);
+    }
+  };
 
   useEffect(() => {
     setFilteredResults(results);
@@ -69,13 +79,20 @@ export default function Search() {
     }
   };
 
-  const handleFilterChange = (filters) => {
+const handleFilterChange = (filters) => {
     let filtered = [...results];
 
     // Filter by categories
     if (filters.categories.length > 0) {
       filtered = filtered.filter(product => 
         filters.categories.includes(product.category)
+      );
+    }
+
+    // Filter by brands
+    if (filters.brands && filters.brands.length > 0) {
+      filtered = filtered.filter(product => 
+        filters.brands.includes(product.brand)
       );
     }
 
@@ -89,6 +106,41 @@ export default function Search() {
     if (filters.minRating > 0) {
       filtered = filtered.filter(product => 
         product.rating >= filters.minRating
+      );
+    }
+
+    // Filter by availability
+    if (filters.availability && filters.availability.length > 0) {
+      filtered = filtered.filter(product => {
+        if (filters.availability.includes('In Stock') && product.stock > 0) return true;
+        if (filters.availability.includes('Out of Stock') && product.stock === 0) return true;
+        if (filters.availability.includes('Pre-order') && product.preOrder) return true;
+        return false;
+      });
+    }
+
+    // Filter by sale only
+    if (filters.saleOnly) {
+      filtered = filtered.filter(product => 
+        product.salePrice && product.salePrice < product.price
+      );
+    }
+
+    // Filter by minimum discount
+    if (filters.minDiscount > 0) {
+      filtered = filtered.filter(product => {
+        if (product.salePrice) {
+          const discount = ((product.price - product.salePrice) / product.price) * 100;
+          return discount >= filters.minDiscount;
+        }
+        return false;
+      });
+    }
+
+    // Filter by condition  
+    if (filters.condition && filters.condition.length > 0) {
+      filtered = filtered.filter(product => 
+        filters.condition.includes(product.condition || 'New')
       );
     }
 
@@ -129,12 +181,15 @@ export default function Search() {
       {query ? (
         <div className="flex gap-8">
           {/* Filter Sidebar */}
-          <FilterSidebar
+<FilterSidebar
             categories={categories}
+            brands={brands}
             priceRange={[0, 1000]}
             minRating={0}
             onFilterChange={handleFilterChange}
             className="w-64 flex-shrink-0"
+            totalProducts={results.length}
+            filteredCount={filteredResults.length}
           />
 
           {/* Search Results */}
