@@ -67,9 +67,14 @@ const requestCameraAccess = async () => {
       setIsLoading(true);
       setError(null);
       
-      // Fix MediaDevices binding issue - ensure proper context
-      const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-      const stream = await getUserMedia({ 
+      // Check if MediaDevices API is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('MediaDevices API not supported in this browser');
+      }
+      
+      // Fix MediaDevices context issue - call method directly on parent object
+      // This prevents "Illegal invocation" errors by maintaining proper context
+      const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           facingMode: 'environment',
           width: { ideal: 1280 },
@@ -98,6 +103,8 @@ const requestCameraAccess = async () => {
         setError('Camera is already in use by another application.');
       } else if (err.name === 'TypeError' && err.message.includes('Illegal invocation')) {
         setError('Camera API error. Please refresh the page and try again.');
+      } else if (err.message === 'MediaDevices API not supported in this browser') {
+        setError('AR features are not supported in this browser. Please use a modern browser.');
       } else {
         setError('Unable to access camera. Please check your camera settings.');
       }

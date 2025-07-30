@@ -1,5 +1,7 @@
 import productsData from "@/services/mockData/products.json";
 import categoriesData from "@/services/mockData/categories.json";
+import React from "react";
+import Error from "@/components/ui/Error";
 
 // Enhanced product service with AR/3D capabilities
 class ProductService {
@@ -175,7 +177,7 @@ async getBrowsingRecommendations(currentProductId = null, browsingHistory = [], 
         .sort((a, b) => b.rating - a.rating)
         .slice(0, 2);
       
-      categoryProducts.forEach(product => {
+categoryProducts.forEach(product => {
         if (recommendations.size < maxRecommendations) {
           recommendations.add(product);
         }
@@ -207,12 +209,57 @@ async getBrowsingRecommendations(currentProductId = null, browsingHistory = [], 
       
       highRatedProducts.forEach(product => {
         if (recommendations.size < maxRecommendations) {
-recommendations.add(product);
+          recommendations.add(product);
         }
       });
     }
     
     return Array.from(recommendations).map(product => ({ ...product }));
+  }
+
+  async checkCameraAvailability() {
+    try {
+      // Enhanced MediaDevices API availability check
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        return { available: false, reason: 'not_supported' };
+      }
+      
+      // Check for secure context (HTTPS required for camera access)
+      if (!window.isSecureContext) {
+        return { available: false, reason: 'insecure_context' };
+      }
+      
+      // Use direct method call to prevent context binding issues
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        } 
+      });
+      
+      // Immediately stop the stream after checking availability
+      stream.getTracks().forEach(track => track.stop());
+      
+      return { available: true };
+    } catch (error) {
+      console.warn('Camera availability check failed:', error);
+      
+      // Enhanced error categorization
+      let reason = 'unknown';
+      if (error.name === 'NotAllowedError') {
+        reason = 'permission_denied';
+      } else if (error.name === 'NotFoundError') {
+        reason = 'no_camera';
+      } else if (error.name === 'NotReadableError') {
+        reason = 'camera_in_use';
+      } else if (error.name === 'TypeError' && error.message.includes('Illegal invocation')) {
+        reason = 'api_error';
+      }
+      
+      return { available: false, reason };
+    }
+  }
   }
 
   async getARCapability(productId) {
@@ -263,28 +310,6 @@ recommendations.add(product);
     }
   }
 
-async checkCameraAvailability() {
-    try {
-      // Check if mediaDevices API is available
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        return { available: false, reason: 'Camera API not supported' };
-      }
-      
-      // Fix MediaDevices binding issue - ensure proper context
-      const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-      
-      // Try to get camera stream briefly to check availability
-      const stream = await getUserMedia({ video: true });
-      
-      // Immediately stop all tracks
-      stream.getTracks().forEach(track => track.stop());
-      
-      return { available: true };
-    } catch (error) {
-      console.error('Camera availability check failed:', error);
-      return { available: false, reason: error.message };
-    }
-  }
 
   async trackPriceDrops(products) {
     await this.delay();
