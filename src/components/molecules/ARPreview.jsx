@@ -72,16 +72,32 @@ const requestCameraAccess = async () => {
         throw new Error('MediaDevices API not supported in this browser');
       }
       
-      // Fix MediaDevices context issue - explicitly bind context to prevent "Illegal invocation"
-      // This ensures the method maintains proper 'this' binding to the MediaDevices object
-      const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-      const stream = await getUserMedia({ 
-        video: { 
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        } 
-      });
+// Enhanced MediaDevices context preservation - multiple strategies to prevent "Illegal invocation"
+      // Strategy 1: Direct invocation to preserve native context
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          } 
+        });
+      } catch (contextError) {
+        // Strategy 2: Fallback with explicit context binding if direct invocation fails
+        if (contextError.message?.includes('Illegal invocation')) {
+          const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+          stream = await getUserMedia({ 
+            video: { 
+              facingMode: 'environment',
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            } 
+          });
+        } else {
+          throw contextError;
+        }
+      }
       
       // Check if component is still mounted before updating state
       if (!containerRef.current) return;
