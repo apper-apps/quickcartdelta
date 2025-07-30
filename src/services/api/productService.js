@@ -214,36 +214,78 @@ async delete(id) {
         if (recommendations.size < maxRecommendations) {
           recommendations.add(product);
         }
-      });
+});
     }
-return Array.from(recommendations).map(product => ({ ...product }));
+    
+    return Array.from(recommendations).map(product => ({ ...product }));
   }
 
   async getARCapability(productId) {
     await this.delay();
-    const product = await this.getById(productId);
-    
-    if (!product) return null;
-    
-    // Mock AR capability based on category
-    const arCapableCategories = ['electronics', 'furniture', 'clothing', 'home-garden'];
-    const hasAR = arCapableCategories.some(cat => 
-      product.category.toLowerCase().includes(cat.replace('-', '')) ||
-      product.tags?.some(tag => tag.toLowerCase().includes(cat.replace('-', '')))
-    );
-    
-    return {
-      hasAR,
-      has3D: hasAR,
-      arFeatures: hasAR ? ['360_view', 'size_visualization', 'room_placement'] : [],
-      modelUrl: hasAR ? `/models/${productId}.glb` : null,
-      instructions: hasAR ? [
-        'Tap to place in your space',
-        'Pinch to resize',
-        'Drag to rotate',
-        'Walk around to view from all angles'
-      ] : null
-    };
+    try {
+      const product = await this.getById(productId);
+      
+      if (!product) return null;
+      
+      // Check camera availability
+      const cameraAvailable = await this.checkCameraAvailability();
+      
+      // Mock AR capability based on category
+      const arCapableCategories = ['electronics', 'furniture', 'clothing', 'home-garden'];
+      const hasAR = arCapableCategories.some(cat => 
+        product.category.toLowerCase().includes(cat.replace('-', '')) ||
+        product.tags?.some(tag => tag.toLowerCase().includes(cat.replace('-', '')))
+      );
+      
+      return {
+        hasAR: hasAR && cameraAvailable,
+        has3D: hasAR, // 3D view doesn't require camera
+        cameraRequired: hasAR,
+        cameraAvailable,
+        arFeatures: hasAR ? ['360_view', 'size_visualization', 'room_placement'] : [],
+        modelUrl: hasAR ? `/models/${productId}.glb` : null,
+        instructions: hasAR ? [
+          'Allow camera access for AR features',
+          'Tap to place in your space',
+          'Pinch to resize',
+          'Drag to rotate',
+          'Walk around to view from all angles'
+        ] : null,
+        fallbackMessage: !cameraAvailable ? 'Camera access required for AR features' : null
+      };
+    } catch (error) {
+      console.error('Error checking AR capability:', error);
+      return {
+        hasAR: false,
+        has3D: false,
+        cameraRequired: false,
+        cameraAvailable: false,
+        arFeatures: [],
+        modelUrl: null,
+        instructions: null,
+        fallbackMessage: 'AR features unavailable'
+      };
+    }
+  }
+
+  async checkCameraAvailability() {
+    try {
+      // Check if getUserMedia is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        return false;
+      }
+
+      // Check camera permission
+      if (navigator.permissions) {
+        const permission = await navigator.permissions.query({ name: 'camera' });
+        return permission.state !== 'denied';
+      }
+
+      return true; // Assume available if permissions API not supported
+    } catch (error) {
+      console.error('Camera availability check failed:', error);
+      return false;
+}
   }
 
   async trackPriceDrops(products) {
@@ -261,11 +303,10 @@ return Array.from(recommendations).map(product => ({ ...product }));
       currentPrice: product.price,
       dropPercentage: Math.round((1 - product.price / (product.price * 1.2)) * 100),
       alertType: 'price_drop'
-    }));
+}));
     
-return priceDrops;
+    return priceDrops;
   }
-
   async searchByBarcode(barcode) {
     await this.delay();
     // Mock barcode lookup - in real app, this would query by barcode field
