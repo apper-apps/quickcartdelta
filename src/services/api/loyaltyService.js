@@ -20,7 +20,7 @@ class LoyaltyService {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  calculateEarnedPoints(orderTotal, tier = "Bronze") {
+async calculateEarnedPoints(orderTotal, tier = "Bronze") {
     await this.delay();
     const basePoints = Math.floor(orderTotal * this.pointsRates.purchase);
     const multiplier = this.tierBenefits[tier]?.multiplier || 1;
