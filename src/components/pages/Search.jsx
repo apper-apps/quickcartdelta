@@ -1,17 +1,17 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { setQuery, setResults } from "@/store/searchSlice";
+import { SearchIcon } from "lucide-react";
 import { productService } from "@/services/api/productService";
-import ProductGrid from "@/components/organisms/ProductGrid";
-import SearchBar from "@/components/molecules/SearchBar";
 import FilterSidebar from "@/components/molecules/FilterSidebar";
+import SearchBar from "@/components/molecules/SearchBar";
+import ProductGrid from "@/components/organisms/ProductGrid";
 import Loading from "@/components/ui/Loading";
 import Error from "@/components/ui/Error";
 import Empty from "@/components/ui/Empty";
-import Icon from "@/components/ui/Icon";
+import { setQuery, setResults } from "@/store/searchSlice";
 
-const Search = () => {
+export default function Search() {
   const [searchParams] = useSearchParams();
   const dispatch = useDispatch();
   const { query, results } = useSelector((state) => state.search);
@@ -161,43 +161,39 @@ const Search = () => {
                 actionPath="/"
                 icon="Search"
               />
-            ) : null}
+) : null}
           </div>
         </div>
       ) : (
-        <div className="text-center py-16">
-<div className="max-w-md mx-auto">
-<div className="w-24 h-24 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-full flex items-center justify-center mx-auto mb-6">
-<Icon name="Search" className="w-12 h-12 text-primary/60" />
-</div>
-<h2 className="text-2xl font-bold mb-2">Search for Products</h2>
-            <p className="text-gray-600 mb-8">
-              Find exactly what you're looking for from our vast collection of products.
-            </p>
-            
-            {/* Popular Searches */}
-            <div className="text-left">
-              <h3 className="font-medium mb-3">Popular Searches:</h3>
-              <div className="flex flex-wrap gap-2">
-                {["Electronics", "Clothing", "Home & Garden", "Sports", "Books"].map((term) => (
-                  <button
-                    key={term}
-                    onClick={() => {
-                      dispatch(setQuery(term));
-                      performSearch(term);
-                    }}
-                    className="px-3 py-1 bg-gray-100 hover:bg-primary hover:text-white rounded-full text-sm transition-colors duration-200"
-                  >
-                    {term}
-                  </button>
-                ))}
-              </div>
+        <div className="max-w-md mx-auto">
+          <div className="w-24 h-24 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-full flex items-center justify-center mx-auto mb-6">
+            <SearchIcon className="w-12 h-12 text-primary/60" />
+          </div>
+          <h2 className="text-2xl font-bold mb-2">Search for Products</h2>
+          <p className="text-gray-600 mb-6">
+            Enter a search term above to find products you're looking for.
+          </p>
+          
+          {/* Popular Searches */}
+          <div className="text-left">
+            <h3 className="font-medium mb-3">Popular Searches:</h3>
+            <div className="flex flex-wrap gap-2">
+              {["Electronics", "Clothing", "Home & Garden", "Sports", "Books"].map((term) => (
+                <button
+                  key={term}
+                  onClick={() => {
+                    dispatch(setQuery(term));
+                    performSearch(term);
+                  }}
+                  className="px-3 py-1 bg-gray-100 hover:bg-primary hover:text-white rounded-full text-sm transition-colors duration-200"
+                >
+                  {term}
+                </button>
+              ))}
             </div>
           </div>
         </div>
       )}
     </div>
   );
-};
-
-export default Search;
+}
