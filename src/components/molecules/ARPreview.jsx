@@ -72,17 +72,30 @@ const requestCameraAccess = async () => {
         throw new Error('MediaDevices API not supported in this browser');
       }
       
-// Context-safe getUserMedia with React-specific safeguards
+      // Enhanced context-safe getUserMedia with React-specific safeguards
       let stream;
       
-      // Ensure we're outside React's synthetic event context
-      await new Promise(resolve => setTimeout(resolve, 0));
+      // Use requestAnimationFrame to ensure complete escape from React's synthetic event context
+      // This is more reliable than setTimeout for Web API context preservation
+      await new Promise(resolve => {
+        requestAnimationFrame(() => {
+          // Double RAF to ensure we're in browser's native execution context
+          requestAnimationFrame(resolve);
+        });
+      });
       
       try {
-        // Bind getUserMedia to preserve native context - React-safe approach
-        const getUserMediaBound = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+        // Enhanced method binding with defensive context preservation
+        const mediaDevices = navigator.mediaDevices;
+        const getUserMediaMethod = mediaDevices.getUserMedia;
         
-        stream = await getUserMediaBound({ 
+        // Ensure method exists and bind with explicit context
+        if (typeof getUserMediaMethod !== 'function') {
+          throw new Error('getUserMedia method not available');
+        }
+        
+        // Use call instead of bind for more reliable context preservation
+        stream = await getUserMediaMethod.call(mediaDevices, { 
           video: { 
             facingMode: 'environment',
             width: { ideal: 1280 },
