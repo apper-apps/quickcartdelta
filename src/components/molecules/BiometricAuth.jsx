@@ -5,134 +5,108 @@ import ApperIcon from "@/components/ApperIcon";
 import Error from "@/components/ui/Error";
 import Button from "@/components/atoms/Button";
 
-function BiometricAuth({ isOpen, onClose, onSuccess, type = "fingerprint" }) {
-  const [isScanning, setIsScanning] = useState(false);
-  const [scanResult, setScanResult] = useState(null);
-  const [progress, setProgress] = useState(0);
+function BiometricAuth({ isOpen, onClose, onSuccess, type = 'fingerprint' }) {
+  const [isScanning, setIsScanning] = useState(false)
+  const [scanProgress, setScanProgress] = useState(0)
+  const [error, setError] = useState(null)
+  const [isSupported, setIsSupported] = useState(true)
+  const [authMethod, setAuthMethod] = useState(type)
+
+  function handleScanComplete() {
+    setScanProgress(100)
+    setTimeout(() => {
+      onSuccess()
+      onClose()
+      toast.success('Authentication successful!')
+    }, 500)
+  }
+
+  async function startScan() {
+    try {
+      setIsScanning(true)
+      setError(null)
+      setScanProgress(0)
+
+      // Check WebAuthn support
+      if (!window.PublicKeyCredential || !navigator.credentials) {
+        throw new Error('Biometric authentication not supported in this browser')
+      }
+
+      // Animate scan progress
+      const interval = setInterval(() => {
+        setScanProgress(prev => {
+          if (prev >= 100) {
+            clearInterval(interval)
+            return 100
+          }
+          return prev + 10
+        })
+      }, 150)
+
+      // Use direct method call to avoid context binding issues
+      const credential = await navigator.credentials.create({
+        publicKey: {
+          challenge: new Uint8Array(32),
+          rp: {
+            name: "QuickCart",
+            id: window.location.hostname,
+          },
+          user: {
+            id: new Uint8Array(16),
+            name: "user@example.com",
+            displayName: "User",
+          },
+          pubKeyCredParams: [{alg: -7, type: "public-key"}],
+          authenticatorSelection: {
+            authenticatorAttachment: "platform",
+            userVerification: "required"
+          },
+          timeout: 60000,
+          attestation: "direct"
+        }
+      })
+
+      if (credential) {
+        clearInterval(interval)
+        handleScanComplete()
+      }
+    } catch (error) {
+      console.error('Biometric authentication error:', error)
+      setError(`Authentication failed: ${error.message}`)
+      setIsScanning(false)
+      setScanProgress(0)
+    }
+  }
+
+  function handleFallback() {
+    // Fallback to password/PIN authentication
+    toast.info('Redirecting to alternative authentication...')
+    onClose()
+  }
 
   useEffect(() => {
-    if (isScanning) {
-      const interval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            handleScanComplete();
-            return 100;
-          }
-          return prev + 10;
-        });
-      }, 100);
-
-      return () => clearInterval(interval);
-    }
-  }, [isScanning]);
-
-  const handleScanComplete = () => {
-    setIsScanning(false);
-    setScanResult('success');
-    toast.success('Authentication successful!');
-    setTimeout(() => {
-      onSuccess();
-      onClose();
-    }, 1000);
-  };
-
-const [error, setError] = useState('');
-
-  const startScan = async () => {
-    try {
-      setIsScanning(true);
-      setProgress(0);
-      setError('');
-      setScanResult(null);
-
-      // Check if WebAuthn is supported
-      if (window.PublicKeyCredential) {
+    if (isOpen) {
+      // Check biometric support on mount
+      const checkSupport = async () => {
         try {
-          // Proper context-safe credentials API call - bind method to preserve context
-          const credentialsCreateBound = navigator.credentials.create.bind(navigator.credentials);
-          
-          // Create credential with proper error handling
-          const credential = await credentialsCreateBound({
-            publicKey: {
-              challenge: new Uint8Array(32),
-              rp: { name: "QuickCart" },
-              user: {
-                id: new Uint8Array(16),
-                name: "user@quickcart.com",
-                displayName: "QuickCart User"
-              },
-              pubKeyCredParams: [{ alg: -7, type: "public-key" }],
-              authenticatorSelection: {
-                authenticatorAttachment: "platform",
-                userVerification: "required"
-              }
-            }
-          });
-          
-          if (credential) {
-            handleScanComplete();
-            return;
+          if (!window.PublicKeyCredential) {
+            setIsSupported(false)
+            return
           }
-        } catch (contextError) {
-          // Strategy 2: Explicit binding fallback
-          if (contextError.message?.includes('Illegal invocation') || contextError.name === 'TypeError') {
-            const createCredential = navigator.credentials.create.bind(navigator.credentials);
-            const credential = await createCredential({
-              publicKey: {
-                challenge: new Uint8Array(32),
-                rp: { name: "QuickCart" },
-                user: {
-                  id: new Uint8Array(16),
-                  name: "user@quickcart.com",
-                  displayName: "QuickCart User"
-                },
-                pubKeyCredParams: [{ alg: -7, type: "public-key" }],
-                authenticatorSelection: {
-                  authenticatorAttachment: "platform",
-                  userVerification: "required"
-                }
-              }
-            });
-            
-            if (credential) {
-              handleScanComplete();
-              return;
-            }
-          } else {
-            console.warn('WebAuthn failed, falling back to simulation:', contextError);
-          }
+
+          const createCredential = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+          setIsSupported(createCredential)
+        } catch (error) {
+          console.warn('Biometric support check failed:', error)
+          setIsSupported(false)
         }
       }
-      
-      // Fallback: simulate biometric scanning
-      const interval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            handleScanComplete();
-            return 100;
-          }
-          return prev + 10;
-        });
-      }, 200);
-      
-    } catch (error) {
-      console.error('Biometric authentication failed:', error);
-      setError(error.message || 'Authentication failed');
-      setIsScanning(false);
-      setScanResult('error');
-      toast.error('Authentication failed. Please try again.');
+
+      checkSupport()
     }
-  };
+  }, [isOpen])
 
-  const handleFallback = () => {
-    onClose();
-    // This would typically trigger a PIN/password flow
-    toast.info('Please use your PIN to authenticate');
-  };
-
-  if (!isOpen) return null;
+  if (!isOpen) return null
 
   return (
     <AnimatePresence>
@@ -140,137 +114,127 @@ const [error, setError] = useState('');
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-        onClick={onClose}
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        onClick={(e) => e.target === e.currentTarget && onClose()}
       >
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          className="bg-white rounded-2xl p-6 w-full max-w-sm text-center"
-          onClick={(e) => e.stopPropagation()}
+          className="bg-surface rounded-2xl p-8 max-w-md w-full shadow-2xl"
         >
-          <h3 className="text-xl font-semibold mb-2">
-            {type === 'fingerprint' ? 'Fingerprint' : 'Face ID'} Authentication
-          </h3>
-          
-          <p className="text-gray-600 mb-6">
-            {type === 'fingerprint' 
-              ? 'Place your finger on the sensor to authenticate'
-              : 'Look at your device to authenticate with Face ID'
-            }
-          </p>
-
-          {error && (
-            <Error message={error} className="mb-4" />
-          )}
-          {/* Biometric Scanner Visual */}
-          <div className="mb-6 relative">
-            <motion.div
-              className={`w-24 h-24 mx-auto rounded-full border-4 flex items-center justify-center relative ${
-                scanResult === 'success' 
-                  ? 'border-green-500 bg-green-50' 
-                  : isScanning 
-                    ? 'border-primary bg-primary/10' 
-                    : 'border-gray-300 bg-gray-50'
-              }`}
-              animate={isScanning ? { scale: [1, 1.1, 1] } : {}}
-              transition={{ duration: 1, repeat: isScanning ? Infinity : 0 }}
-            >
-              <ApperIcon 
-                name={type === 'fingerprint' ? 'Fingerprint' : 'Scan'} 
-                size={32}
-                className={
-                  scanResult === 'success' 
-                    ? 'text-green-600' 
-                    : isScanning 
-                      ? 'text-primary' 
-                      : 'text-gray-400'
-                }
-              />
-
-              {/* Scanning Animation */}
-              {isScanning && (
-                <motion.div
-                  className="absolute inset-0 border-4 border-primary rounded-full"
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                  style={{
-                    background: `conic-gradient(from 0deg, transparent, rgba(74, 144, 226, 0.3), transparent)`
-                  }}
-                />
-              )}
-
-              {/* Success Check */}
-              {scanResult === 'success' && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute inset-0 flex items-center justify-center"
-                >
-                  <ApperIcon name="Check" size={40} className="text-green-600" />
-                </motion.div>
-              )}
-            </motion.div>
-            
-            {/* Progress Bar */}
-            {isScanning && (
-              <div className="mt-4 bg-gray-200 rounded-full h-2 overflow-hidden">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-primary to-secondary rounded-full"
-                  style={{ width: `${progress}%` }}
-                  transition={{ duration: 0.1 }}
-                />
+          {!isSupported ? (
+            <div className="text-center">
+              <ApperIcon name="AlertTriangle" size={64} className="mx-auto mb-4 text-warning" />
+              <h3 className="text-xl font-bold mb-2">Biometric Auth Unavailable</h3>
+              <p className="text-gray-600 mb-6">
+                Your device doesn't support biometric authentication or it's not set up.
+              </p>
+              <div className="flex gap-3">
+                <Button onClick={handleFallback} className="btn-primary flex-1">
+                  Use Password Instead
+                </Button>
+                <Button onClick={onClose} className="btn-secondary">
+                  Cancel
+                </Button>
               </div>
-            )}
-          </div>
+            </div>
+          ) : error ? (
+            <Error
+              message={error}
+              onRetry={() => {
+                setError(null)
+                startScan()
+              }}
+              onCancel={onClose}
+              showRetry
+            />
+          ) : (
+            <div className="text-center">
+              <div className="relative mb-6">
+                <div className="w-24 h-24 mx-auto bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center">
+                  <ApperIcon 
+                    name={authMethod === 'face' ? "Scan" : "Fingerprint"} 
+                    size={40} 
+                    className="text-white" 
+                  />
+                </div>
+                
+                {isScanning && (
+                  <motion.div
+                    initial={{ scale: 1 }}
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="absolute inset-0 border-4 border-primary/30 rounded-full"
+                  />
+                )}
+              </div>
 
-          {/* Status Text */}
-          <div className="mb-6">
-            {scanResult === 'success' ? (
-              <p className="text-green-600 font-medium">✓ Authentication Successful</p>
-            ) : isScanning ? (
-              <p className="text-primary font-medium">Scanning... {progress}%</p>
-            ) : (
-              <p className="text-gray-600">Tap to scan</p>
-            )}
-          </div>
+              <h3 className="text-xl font-bold mb-2">
+                {authMethod === 'face' ? 'Face Authentication' : 'Fingerprint Authentication'}
+              </h3>
+              
+              <p className="text-gray-600 mb-6">
+                {isScanning
+                  ? `Scanning ${authMethod}... Please don't move.`
+                  : `Place your ${authMethod === 'face' ? 'face in view' : 'finger on the sensor'} to authenticate.`
+                }
+              </p>
 
-          {/* Action Buttons */}
-          <div className="space-y-3">
-            {!isScanning && !scanResult && (
-              <Button
-                onClick={startScan}
-                className="w-full"
-                variant="primary"
-              >
-                <ApperIcon 
-                  name={type === 'fingerprint' ? 'Fingerprint' : 'Scan'} 
-                  className="mr-2" 
-                  size={16} 
-                />
-                Start {type === 'fingerprint' ? 'Fingerprint' : 'Face ID'} Scan
-              </Button>
-            )}
+              {isScanning && (
+                <div className="mb-6">
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <motion.div
+                      className="bg-gradient-to-r from-primary to-secondary h-2 rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${scanProgress}%` }}
+                      transition={{ duration: 0.3 }}
+                    />
+                  </div>
+                  <p className="text-sm text-gray-500 mt-2">{scanProgress}% complete</p>
+                </div>
+              )}
 
-            <Button
-              onClick={handleFallback}
-              variant="outline"
-              className="w-full"
-              disabled={isScanning}
-            >
-              <ApperIcon name="Lock" className="mr-2" size={16} />
-              Use PIN Instead
-            </Button>
-          </div>
+              <div className="flex flex-col gap-3">
+                {!isScanning ? (
+                  <Button onClick={startScan} className="btn-primary">
+                    Start {authMethod === 'face' ? 'Face' : 'Fingerprint'} Scan
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={() => {
+                      setIsScanning(false)
+                      setScanProgress(0)
+                    }} 
+                    className="btn-secondary"
+                  >
+                    Cancel Scan
+                  </Button>
+                )}
 
-          <p className="text-xs text-gray-500 mt-4">
-            Your biometric data is processed securely on your device and never stored on our servers.
-          </p>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => setAuthMethod(authMethod === 'face' ? 'fingerprint' : 'face')}
+                    className="btn-secondary flex-1 text-sm"
+                    disabled={isScanning}
+                  >
+                    Switch to {authMethod === 'face' ? 'Fingerprint' : 'Face'}
+                  </Button>
+                  <Button onClick={handleFallback} className="btn-secondary flex-1 text-sm">
+                    Use Password
+                  </Button>
+                </div>
+
+                <Button onClick={onClose} className="text-gray-500 text-sm">
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
         </motion.div>
       </motion.div>
     </AnimatePresence>
-  );
+  )
 }
 
-export default BiometricAuth;
+export default BiometricAuth

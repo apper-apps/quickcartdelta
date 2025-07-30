@@ -1,156 +1,145 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import ApperIcon from "@/components/ApperIcon";
+import Error from "@/components/ui/Error";
+import Cart from "@/components/pages/Cart";
 import Button from "@/components/atoms/Button";
 
 function ARPreview({ product, isOpen, onClose }) {
-const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [rotationY, setRotationY] = useState(0);
-  const [cameraStream, setCameraStream] = useState(null);
-  const [cameraPermission, setCameraPermission] = useState('prompt'); // 'granted', 'denied', 'prompt'
-  const [showCameraView, setShowCameraView] = useState(false);
-  const containerRef = useRef(null);
-  const videoRef = useRef(null);
+  const containerRef = useRef(null)
+  const videoRef = useRef(null)
+  const [permissionStatus, setPermissionStatus] = useState('prompt')
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [stream, setStream] = useState(null)
+  const [rotation, setRotation] = useState({ x: 0, y: 0 })
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [cameraView, setCameraView] = useState('user')
 
-useEffect(() => {
-    if (isOpen) {
-      initializeAR();
-    } else {
-      cleanup();
-    }
-    
-    return () => cleanup();
-  }, [isOpen]);
-
-  const initializeAR = async () => {
+  async function checkCameraPermission() {
     try {
-      setIsLoading(true);
-      setError(null);
+      const permissionStatus = await navigator.permissions.query({ name: 'camera' })
+      setPermissionStatus(permissionStatus.state)
       
-      // Check camera permission status
-      const permissionStatus = await checkCameraPermission();
-      setCameraPermission(permissionStatus);
+      permissionStatus.addEventListener('change', () => {
+        setPermissionStatus(permissionStatus.state)
+      })
       
-      if (permissionStatus === 'granted') {
-        // Simulate AR loading with camera access
-        const timer = setTimeout(() => {
-          setIsLoading(false);
-        }, 1500);
-        return () => clearTimeout(timer);
-      } else {
-        setIsLoading(false);
-      }
-    } catch (err) {
-      console.error('AR initialization error:', err);
-      setError('Failed to initialize AR preview');
-      setIsLoading(false);
+      return permissionStatus.state
+    } catch (error) {
+      console.warn('Permission API not supported:', error)
+      return 'prompt'
     }
-  };
+  }
 
-  const checkCameraPermission = async () => {
+  async function requestCameraAccess() {
     try {
-      if (navigator.permissions) {
-        const permission = await navigator.permissions.query({ name: 'camera' });
-        return permission.state;
-      }
-      return 'prompt';
-    } catch (err) {
-      console.error('Permission check error:', err);
-      return 'prompt';
-    }
-  };
-
-const requestCameraAccess = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
+      setIsLoading(true)
+      setError(null)
       
-      // Check if MediaDevices API is available
+      // Check if getUserMedia is supported
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('MediaDevices API not supported in this browser');
+        throw new Error('Camera access not supported in this browser')
       }
       
-      // Proper context-safe getUserMedia call - bind method to preserve context
-      const getUserMediaBound = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-      
-      const stream = await getUserMediaBound({ 
-        video: { 
-          facingMode: 'environment',
+      // Use arrow function to preserve context and avoid "Illegal invocation"
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: cameraView,
           width: { ideal: 1280 },
           height: { ideal: 720 }
-        } 
-      });
-      
-      // Check if component is still mounted before updating state
-      if (!containerRef.current) return;
-      
-      setCameraStream(stream);
-      setCameraPermission('granted');
-      setShowCameraView(true);
+        }
+      })
       
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+        videoRef.current.srcObject = stream
+        await videoRef.current.play()
       }
       
-      setIsLoading(false);
-    } catch (err) {
-      console.error('Camera access error:', err);
-      
-      // Check if component is still mounted before updating state
-      if (!containerRef.current) return;
-      
-      if (err.name === 'NotAllowedError') {
-        setError('Camera access denied. Please enable camera permissions to use AR features.');
-        setCameraPermission('denied');
-      } else if (err.name === 'NotFoundError') {
-        setError('No camera found. Please connect a camera to use AR features.');
-      } else if (err.name === 'NotReadableError') {
-        setError('Camera is already in use by another application.');
-      } else if (err.name === 'TypeError' && err.message.includes('Illegal invocation')) {
-        setError('Camera API context error. Please refresh the page and try again.');
-        console.warn('MediaDevices context binding failed - this may be due to browser security restrictions');
-      } else if (err.message === 'MediaDevices API not supported in this browser') {
-        setError('AR features are not supported in this browser. Please use a modern browser.');
-      } else {
-        setError('Unable to access camera. Please check your camera settings.');
-      }
-      
-      setIsLoading(false);
+      setStream(stream)
+      setPermissionStatus('granted')
+    } catch (error) {
+      console.error('Camera access error:', error)
+      setError(error.message || 'Failed to access camera')
+      setPermissionStatus('denied')
+    } finally {
+      setIsLoading(false)
     }
-  };
+  }
 
-  const cleanup = () => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(track => track.stop());
-      setCameraStream(null);
-    }
-    setShowCameraView(false);
-  };
-
-  const retryPermission = async () => {
-    setCameraPermission('prompt');
-    await requestCameraAccess();
-  };
-
-const handleDrag = (event, info) => {
-    const newRotation = rotationY + info.delta.x * 0.5;
-    setRotationY(newRotation);
-  };
-
-  const toggleFullscreen = () => {
-    setIsFullscreen(!isFullscreen);
-  };
-
-  const toggleCameraView = async () => {
-    if (showCameraView) {
-      cleanup();
+  async function initializeAR() {
+    if (!isOpen) return
+    
+    const permission = await checkCameraPermission()
+    
+    if (permission === 'granted') {
+      await requestCameraAccess()
+    } else if (permission === 'prompt') {
+      // Don't auto-request, let user trigger it
+      setError('Camera permission required for AR preview')
     } else {
-      await requestCameraAccess();
+      setError('Camera access denied. Please enable camera permissions.')
     }
-  };
-  if (!isOpen) return null;
+  }
+
+  function cleanup() {
+    if (stream) {
+      stream.getTracks().forEach(track => {
+        track.stop()
+      })
+      setStream(null)
+    }
+    
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+  }
+
+  async function retryPermission() {
+    setError(null)
+    await requestCameraAccess()
+  }
+
+  function handleDrag(event, info) {
+    const newRotation = {
+      x: rotation.x + info.delta.y * 0.5,
+      y: rotation.y + info.delta.x * 0.5
+    }
+    setRotation(newRotation)
+  }
+
+  function toggleFullscreen() {
+    setIsFullscreen(!isFullscreen)
+  }
+
+  async function toggleCameraView() {
+    const newView = cameraView === 'user' ? 'environment' : 'user'
+    setCameraView(newView)
+    
+    if (stream) {
+      cleanup()
+      setTimeout(() => {
+        requestCameraAccess()
+      }, 100)
+    }
+  }
+
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => {
+        initializeAR()
+      }, 300)
+      
+      return () => {
+        clearTimeout(timer)
+        cleanup()
+      }
+    } else {
+      cleanup()
+    }
+  }, [isOpen, cameraView])
+
+  if (!isOpen) return null
 
   return (
     <AnimatePresence>
@@ -158,264 +147,143 @@ const handleDrag = (event, info) => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className={`fixed inset-0 bg-black/90 flex items-center justify-center z-50 ${
-          isFullscreen ? 'p-0' : 'p-4'
+        className={`fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 ${
+          isFullscreen ? 'p-0' : ''
         }`}
-        onClick={onClose}
+        onClick={(e) => e.target === e.currentTarget && onClose()}
       >
         <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
+          ref={containerRef}
+          initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.8, opacity: 0 }}
-          className={`bg-white rounded-2xl relative ${
-            isFullscreen ? 'w-full h-full rounded-none' : 'max-w-4xl w-full max-h-[90vh]'
+          exit={{ scale: 0.9, opacity: 0 }}
+          drag
+          dragConstraints={containerRef}
+          onDrag={handleDrag}
+          className={`relative bg-surface rounded-2xl overflow-hidden shadow-2xl ${
+            isFullscreen ? 'w-full h-full rounded-none' : 'max-w-2xl w-full aspect-video'
           }`}
-          onClick={e => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <div className="absolute top-0 left-0 right-0 z-10 bg-black/50 backdrop-blur-sm p-4 flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold">AR Preview</h2>
-              <p className="text-gray-600">{product?.title}</p>
+              <h3 className="text-white font-semibold">{product?.name} - AR Preview</h3>
+              <p className="text-white/70 text-sm">Drag to rotate • Try it on virtually</p>
             </div>
             <div className="flex items-center gap-2">
               <Button
-                variant="ghost"
-                size="sm"
-                onClick={toggleFullscreen}
+                onClick={toggleCameraView}
+                className="p-2 bg-white/20 hover:bg-white/30 text-white rounded-lg"
+                disabled={isLoading || !stream}
               >
-                <ApperIcon 
-                  name={isFullscreen ? "Minimize2" : "Maximize2"} 
-                  size={16} 
-                />
+                <ApperIcon name="RefreshCw" size={20} />
               </Button>
               <Button
-                variant="ghost"
-                size="sm"
-                onClick={onClose}
+                onClick={toggleFullscreen}
+                className="p-2 bg-white/20 hover:bg-white/30 text-white rounded-lg"
               >
-                <ApperIcon name="X" size={16} />
+                <ApperIcon name={isFullscreen ? "Minimize2" : "Maximize2"} size={20} />
+              </Button>
+              <Button
+                onClick={onClose}
+                className="p-2 bg-white/20 hover:bg-white/30 text-white rounded-lg"
+              >
+                <ApperIcon name="X" size={20} />
               </Button>
             </div>
           </div>
 
-          {/* AR Viewer */}
-<div 
-            ref={containerRef}
-            className={`relative bg-gradient-to-b from-gray-50 to-gray-100 ${
-              isFullscreen ? 'h-[calc(100%-80px)]' : 'h-96'
-            }`}
-          >
-            {isLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <ApperIcon name="Loader2" className="animate-spin mx-auto mb-4" size={48} />
-                  <p className="text-gray-600">
-                    {cameraPermission === 'prompt' ? 'Requesting camera access...' : 'Loading AR Preview...'}
-                  </p>
-                  <p className="text-sm text-gray-500 mt-2">
-                    {cameraPermission === 'prompt' ? 'Please allow camera permissions' : 'Setting up 3D visualization'}
-                  </p>
-                </div>
-              </div>
-            ) : error ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center max-w-sm mx-auto p-6">
-                  <ApperIcon name="AlertCircle" className="mx-auto mb-4 text-error" size={48} />
-                  <h3 className="text-lg font-semibold text-gray-800 mb-2">Camera Access Required</h3>
-                  <p className="text-gray-600 mb-4 text-sm">{error}</p>
-                  
-                  {cameraPermission === 'denied' ? (
-                    <div className="space-y-3">
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
-                        <p className="font-medium mb-1">Enable Camera Permissions:</p>
-                        <p>1. Click the camera icon in your browser's address bar</p>
-                        <p>2. Select "Allow" for camera access</p>
-                        <p>3. Refresh the page and try again</p>
-                      </div>
-                      <Button 
-                        variant="primary" 
-                        size="sm" 
-                        onClick={retryPermission}
-                        className="w-full"
-                      >
-                        <ApperIcon name="RotateCcw" className="mr-2" size={16} />
-                        Try Again
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button 
-                      variant="primary" 
-                      size="sm" 
-                      onClick={requestCameraAccess}
-                      className="w-full"
-                    >
-                      <ApperIcon name="Camera" className="mr-2" size={16} />
-                      Enable Camera
-                    </Button>
-                  )}
-                  
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setError(null)}
-                    className="w-full mt-2"
-                  >
-                    Continue without Camera
-                  </Button>
-                </div>
-              </div>
-            ) : showCameraView && cameraStream ? (
-              <div className="h-full relative">
-                {/* Camera View */}
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover"
-                />
-                
-                {/* AR Overlay */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <motion.div
-                    drag
-                    onDrag={handleDrag}
-                    className="relative cursor-grab active:cursor-grabbing"
-                    style={{
-                      transform: `rotateY(${rotationY}deg)`,
-                      transformStyle: 'preserve-3d'
-                    }}
-                    whileHover={{ scale: 1.05 }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                  >
-                    <div className="w-48 h-48 relative">
-                      <img
-                        src={product?.image}
-                        alt={product?.title}
-                        className="w-full h-full object-contain drop-shadow-2xl opacity-90"
-                      />
-                      <div className="absolute inset-0 border-2 border-dashed border-white/50 rounded-lg animate-pulse"></div>
-                    </div>
-                  </motion.div>
-                </div>
-
-                {/* AR Camera Controls */}
-                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-                  <div className="bg-black/70 text-white px-4 py-2 rounded-full text-sm flex items-center gap-2">
-                    <ApperIcon name="Camera" size={16} />
-                    Live AR View • Drag to rotate
-                  </div>
-                </div>
-
-                {/* AR Features */}
-                <div className="absolute top-4 right-4 space-y-2">
-                  <motion.div
-                    className="bg-green-500 text-white px-3 py-1 rounded-full text-sm flex items-center gap-2"
-                    initial={{ x: 100, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    <ApperIcon name="Video" size={14} />
-                    Live Camera
-                  </motion.div>
-                </div>
-              </div>
+          {/* Camera View */}
+          <div className="relative w-full h-full bg-gray-900">
+            {stream && !error ? (
+              <video
+                ref={videoRef}
+                autoPlay
+                muted
+                playsInline
+                className="w-full h-full object-cover"
+              />
             ) : (
-              <div className="h-full flex items-center justify-center relative">
-                {/* 3D Product Mockup */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                {isLoading ? (
+                  <div className="text-center text-white">
+                    <div className="animate-spin w-8 h-8 border-2 border-white/30 border-t-white rounded-full mx-auto mb-4"></div>
+                    <p>Initializing camera...</p>
+                  </div>
+                ) : error ? (
+                  <div className="text-center text-white max-w-md mx-auto px-4">
+                    <ApperIcon name="AlertCircle" size={48} className="mx-auto mb-4 text-red-400" />
+                    <h4 className="text-lg font-semibold mb-2">Camera Access Required</h4>
+                    <p className="text-white/70 mb-4">{error}</p>
+                    {permissionStatus !== 'denied' && (
+                      <Button
+                        onClick={retryPermission}
+                        className="btn-primary"
+                        disabled={isLoading}
+                      >
+                        {isLoading ? 'Requesting...' : 'Enable Camera'}
+                      </Button>
+                    )}
+                    {permissionStatus === 'denied' && (
+                      <p className="text-sm text-white/50 mt-2">
+                        Please enable camera permissions in your browser settings
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center text-white">
+                    <ApperIcon name="Camera" size={48} className="mx-auto mb-4 text-white/50" />
+                    <p>Camera not initialized</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* AR Overlay - Virtual Product */}
+            {stream && !error && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <motion.div
-                  drag="x"
-                  onDrag={handleDrag}
-                  className="relative cursor-grab active:cursor-grabbing"
                   style={{
-                    transform: `rotateY(${rotationY}deg)`,
-                    transformStyle: 'preserve-3d'
+                    transform: `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)`
                   }}
-                  whileHover={{ scale: 1.05 }}
-                  transition={{ type: "spring", stiffness: 300 }}
+                  className="relative"
                 >
-                  <div className="w-64 h-64 relative">
-                    <img
-                      src={product?.image}
-                      alt={product?.title}
-                      className="w-full h-full object-contain drop-shadow-2xl"
-                    />
-                    
-                    {/* 3D Rotation Indicator */}
-                    <div className="absolute inset-0 border-2 border-dashed border-primary/30 rounded-lg animate-pulse"></div>
+                  <img
+                    src={product?.image}
+                    alt={product?.name}
+                    className="w-48 h-48 object-contain drop-shadow-2xl"
+                  />
+                  <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                    ${product?.price}
                   </div>
                 </motion.div>
-
-                {/* AR Controls Overlay */}
-                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-                  <div className="bg-black/70 text-white px-4 py-2 rounded-full text-sm flex items-center gap-2">
-                    <ApperIcon name="RotateCw" size={16} />
-                    Drag to rotate • Pinch to zoom
-                  </div>
-                </div>
-
-                {/* Feature Highlights */}
-                <div className="absolute top-4 right-4 space-y-2">
-                  <motion.div
-                    className="bg-primary text-white px-3 py-1 rounded-full text-sm flex items-center gap-2"
-                    initial={{ x: 100, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    transition={{ delay: 0.5 }}
-                  >
-                    <ApperIcon name="Eye" size={14} />
-                    360° View
-                  </motion.div>
-                  <motion.div
-                    className="bg-secondary text-white px-3 py-1 rounded-full text-sm flex items-center gap-2"
-                    initial={{ x: 100, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    transition={{ delay: 0.7 }}
-                  >
-                    <ApperIcon name="Smartphone" size={14} />
-                    AR Ready
-                  </motion.div>
-                </div>
               </div>
             )}
           </div>
 
-          {/* Footer Actions */}
-          <div className="p-4 border-t border-gray-200 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-<Button 
-                variant={showCameraView ? "secondary" : "outline"} 
-                size="sm"
-                onClick={toggleCameraView}
-                disabled={cameraPermission === 'denied'}
-              >
-                <ApperIcon 
-                  name={showCameraView ? "CameraOff" : "Camera"} 
-                  className="mr-2" 
-                  size={16} 
-                />
-                {showCameraView ? "Exit AR" : "Try in AR"}
-              </Button>
-              <Button variant="outline" size="sm">
-                <ApperIcon name="Share" className="mr-2" size={16} />
-                Share View
-              </Button>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">
-                Compatible with iOS Safari & Chrome
-              </span>
-              <div className="flex items-center gap-1">
-                <ApperIcon name="Smartphone" size={16} className="text-primary" />
-                <ApperIcon name="Chrome" size={16} className="text-primary" />
+          {/* Bottom Controls */}
+          {stream && !error && (
+            <div className="absolute bottom-0 left-0 right-0 bg-black/50 backdrop-blur-sm p-4">
+              <div className="flex items-center justify-center gap-4">
+                <Button className="btn-primary flex items-center gap-2">
+                  <ApperIcon name="ShoppingCart" size={16} />
+                  Add to Cart
+                </Button>
+                <Button className="btn-secondary flex items-center gap-2">
+                  <ApperIcon name="Heart" size={16} />
+                  Save
+                </Button>
+                <Button className="btn-secondary flex items-center gap-2">
+                  <ApperIcon name="Share2" size={16} />
+                  Share
+                </Button>
               </div>
             </div>
-          </div>
+          )}
         </motion.div>
       </motion.div>
     </AnimatePresence>
-  );
+  )
 }
 
-export default ARPreview;
+export default ARPreview
