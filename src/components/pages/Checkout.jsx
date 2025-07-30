@@ -44,14 +44,19 @@ const Checkout = () => {
 
   const shippingCost = total >= 50 ? 0 : 9.99;
   const tax = total * 0.08;
-  const finalTotal = total + shippingCost + tax;
+const finalTotal = total + shippingCost + tax;
 
-  // Redirect if cart is empty
+  // Redirect if cart is empty - moved to useEffect to prevent setState during render
+  React.useEffect(() => {
+    if (items.length === 0) {
+      navigate("/cart");
+    }
+  }, [items.length, navigate]);
+
+  // Show loading while redirect is happening for empty cart
   if (items.length === 0) {
-    navigate("/cart");
     return null;
   }
-
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
