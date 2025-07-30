@@ -1,6 +1,6 @@
-import React from "react";
-import { Route, Router, Routes } from "react-router-dom";
-import { ToastContainer } from "react-toastify";
+import React from 'react'
+import { Route, BrowserRouter, Routes } from "react-router-dom";
+import { ToastContainer } from 'react-toastify';
 import "@/index.css";
 import Layout from "@/components/organisms/Layout";
 import Search from "@/components/pages/Search";
@@ -17,8 +17,8 @@ import POS from "@/components/pages/POS";
 import MarketplaceIntegration from "@/components/pages/MarketplaceIntegration";
 
 function AppComponent() {
-  return (
-    <Router>
+return (
+    <BrowserRouter>
       <div className="min-h-screen bg-background">
         <Layout>
 <Routes>
@@ -47,10 +47,10 @@ function AppComponent() {
           draggable
           pauseOnHover
           theme="light"
-        />
+/>
       </div>
-    </Router>
-  );
+    </BrowserRouter>
+  )
 }
 
 export default AppComponent;
