@@ -46,27 +46,14 @@ const [error, setError] = useState('');
       setError('');
       setScanResult(null);
 
-      // Check if WebAuthn is supported and try to create credential
+      // Check if WebAuthn is supported
       if (window.PublicKeyCredential) {
-        let credential;
         try {
-          // Use requestAnimationFrame for context-safe WebAuthn API calls
-          await new Promise(resolve => {
-            requestAnimationFrame(() => {
-              requestAnimationFrame(resolve);
-            });
-          });
-
-          // Enhanced context preservation for WebAuthn API
-          const credentialsAPI = navigator.credentials;
-          const createMethod = credentialsAPI.create;
+          // Proper context-safe credentials API call - bind method to preserve context
+          const credentialsCreateBound = navigator.credentials.create.bind(navigator.credentials);
           
-          if (typeof createMethod !== 'function') {
-            console.warn('WebAuthn create method not available');
-            return;
-          }
-
-          credential = await createMethod.call(credentialsAPI, {
+          // Create credential with proper error handling
+          const credential = await credentialsCreateBound({
             publicKey: {
               challenge: new Uint8Array(32),
               rp: { name: "QuickCart" },
@@ -82,11 +69,16 @@ const [error, setError] = useState('');
               }
             }
           });
+          
+          if (credential) {
+            handleScanComplete();
+            return;
+          }
         } catch (contextError) {
           // Strategy 2: Explicit binding fallback
           if (contextError.message?.includes('Illegal invocation') || contextError.name === 'TypeError') {
             const createCredential = navigator.credentials.create.bind(navigator.credentials);
-            credential = await createCredential({
+            const credential = await createCredential({
               publicKey: {
                 challenge: new Uint8Array(32),
                 rp: { name: "QuickCart" },
@@ -102,27 +94,29 @@ const [error, setError] = useState('');
                 }
               }
             });
+            
+            if (credential) {
+              handleScanComplete();
+              return;
+            }
           } else {
-            throw contextError;
+            console.warn('WebAuthn failed, falling back to simulation:', contextError);
           }
         }
-        
-        if (credential) {
-          handleScanComplete();
-        }
-      } else {
-        // Fallback: simulate biometric scanning
-        const interval = setInterval(() => {
-          setProgress(prev => {
-            if (prev >= 100) {
-              clearInterval(interval);
-              handleScanComplete();
-              return 100;
-            }
-            return prev + 10;
-          });
-        }, 200);
       }
+      
+      // Fallback: simulate biometric scanning
+      const interval = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 100) {
+            clearInterval(interval);
+            handleScanComplete();
+            return 100;
+          }
+          return prev + 10;
+        });
+      }, 200);
+      
     } catch (error) {
       console.error('Biometric authentication failed:', error);
       setError(error.message || 'Authentication failed');

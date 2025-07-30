@@ -72,61 +72,16 @@ const requestCameraAccess = async () => {
         throw new Error('MediaDevices API not supported in this browser');
       }
       
-      // Enhanced context-safe getUserMedia with React-specific safeguards
-      let stream;
+      // Proper context-safe getUserMedia call - bind method to preserve context
+      const getUserMediaBound = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
       
-      // Use requestAnimationFrame to ensure complete escape from React's synthetic event context
-      // This is more reliable than setTimeout for Web API context preservation
-      await new Promise(resolve => {
-        requestAnimationFrame(() => {
-          // Double RAF to ensure we're in browser's native execution context
-          requestAnimationFrame(resolve);
-        });
+      const stream = await getUserMediaBound({ 
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
       });
-      
-      try {
-        // Enhanced method binding with defensive context preservation
-        const mediaDevices = navigator.mediaDevices;
-        const getUserMediaMethod = mediaDevices.getUserMedia;
-        
-        // Ensure method exists and bind with explicit context
-        if (typeof getUserMediaMethod !== 'function') {
-          throw new Error('getUserMedia method not available');
-        }
-        
-        // Use call instead of bind for more reliable context preservation
-        stream = await getUserMediaMethod.call(mediaDevices, { 
-          video: { 
-            facingMode: 'environment',
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          } 
-        });
-      } catch (error) {
-        // Fallback for legacy browsers or context issues
-        if (error.name === 'TypeError' && error.message.includes('Illegal invocation')) {
-          // Use legacy getUserMedia if context binding fails
-          const legacyGetUserMedia = navigator.getUserMedia || 
-                                   navigator.webkitGetUserMedia || 
-                                   navigator.mozGetUserMedia;
-          
-          if (legacyGetUserMedia) {
-            stream = await new Promise((resolve, reject) => {
-              legacyGetUserMedia.call(navigator, {
-                video: { 
-                  facingMode: 'environment',
-                  width: { ideal: 1280 },
-                  height: { ideal: 720 }
-                }
-              }, resolve, reject);
-            });
-          } else {
-            throw new Error('Camera access not supported in this browser');
-          }
-        } else {
-          throw error;
-        }
-      }
       
       // Check if component is still mounted before updating state
       if (!containerRef.current) return;
@@ -153,8 +108,7 @@ const requestCameraAccess = async () => {
         setError('No camera found. Please connect a camera to use AR features.');
       } else if (err.name === 'NotReadableError') {
         setError('Camera is already in use by another application.');
-      } else if (err.name === 'TypeError' && (err.message.includes('Illegal invocation') || err.message.includes('getUserMedia'))) {
-        // Enhanced detection for context binding issues
+      } else if (err.name === 'TypeError' && err.message.includes('Illegal invocation')) {
         setError('Camera API context error. Please refresh the page and try again.');
         console.warn('MediaDevices context binding failed - this may be due to browser security restrictions');
       } else if (err.message === 'MediaDevices API not supported in this browser') {
