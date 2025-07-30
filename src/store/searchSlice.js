@@ -2,8 +2,9 @@ import { createSlice } from "@reduxjs/toolkit";
 
 const searchSlice = createSlice({
   name: "search",
-  initialState: {
+initialState: {
     query: "",
+    category: "",
     results: [],
     isOpen: false,
     recentSearches: [],
@@ -11,6 +12,9 @@ const searchSlice = createSlice({
   reducers: {
     setQuery: (state, action) => {
       state.query = action.payload;
+},
+    setCategory: (state, action) => {
+      state.category = action.payload;
     },
     setResults: (state, action) => {
       state.results = action.payload;
@@ -38,6 +42,7 @@ const searchSlice = createSlice({
 
 export const {
   setQuery,
+  setCategory,
   setResults,
   openSearch,
   closeSearch,
