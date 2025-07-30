@@ -1,7 +1,5 @@
 import productsData from "@/services/mockData/products.json";
 import categoriesData from "@/services/mockData/categories.json";
-import React from "react";
-import Error from "@/components/ui/Error";
 
 // Enhanced product service with AR/3D capabilities
 class ProductService {
@@ -257,9 +255,8 @@ categoryProducts.forEach(product => {
         reason = 'api_error';
       }
       
-      return { available: false, reason };
+return { available: false, reason };
     }
-  }
   }
 
   async getARCapability(productId) {
