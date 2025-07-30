@@ -2,11 +2,16 @@ import { createSlice } from "@reduxjs/toolkit";
 
 const cartSlice = createSlice({
   name: "cart",
-  initialState: {
+initialState: {
     items: [],
     total: 0,
     itemCount: 0,
     isOpen: false,
+    discount: {
+      code: "",
+      percentage: 0,
+      isValid: false
+    }
   },
   reducers: {
     addToCart: (state, action) => {
@@ -47,7 +52,7 @@ const cartSlice = createSlice({
       state.items = [];
       state.total = 0;
       state.itemCount = 0;
-    },
+},
     toggleCart: (state) => {
       state.isOpen = !state.isOpen;
     },
@@ -56,6 +61,38 @@ const cartSlice = createSlice({
     },
     closeCart: (state) => {
       state.isOpen = false;
+    },
+    applyDiscount: (state, action) => {
+      const code = action.payload;
+      // Mock discount validation - in real app, this would call a service
+      const validCodes = {
+        'WELCOME25': 25,
+        'FREESHIP': 0, // Special case for free shipping
+        'FLASH50': 50,
+        'WEEKEND30': 30,
+        'SAVE20': 20
+      };
+      
+      if (validCodes.hasOwnProperty(code)) {
+        state.discount = {
+          code: code,
+          percentage: validCodes[code],
+          isValid: true
+        };
+      } else {
+        state.discount = {
+          code: "",
+          percentage: 0,
+          isValid: false
+        };
+      }
+    },
+    removeDiscount: (state) => {
+      state.discount = {
+        code: "",
+        percentage: 0,
+        isValid: false
+      };
     },
     calculateTotals: (state) => {
       state.total = state.items.reduce((total, item) => total + (item.price * item.quantity), 0);
@@ -72,6 +109,8 @@ export const {
   toggleCart,
   openCart,
   closeCart,
+  applyDiscount,
+  removeDiscount,
   calculateTotals,
 } = cartSlice.actions;
 

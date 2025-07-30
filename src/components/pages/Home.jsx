@@ -69,7 +69,7 @@ const Home = () => {
   }
 
   return (
-    <div className="space-y-12">
+<div className="space-y-12">
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10">
         <div className="container mx-auto px-4 py-16">
@@ -123,6 +123,138 @@ const Home = () => {
               </div>
             </motion.div>
           </div>
+        </div>
+      </section>
+
+      {/* Promotional Banners */}
+      <section className="container mx-auto px-4">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Flash Sale Banner */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="relative overflow-hidden bg-gradient-to-br from-accent to-red-500 rounded-2xl p-6 text-white lg:col-span-2"
+          >
+            <div className="relative z-10">
+              <Badge variant="secondary" className="mb-3 bg-white/20 text-white border-white/30">
+                ⚡ Flash Sale
+              </Badge>
+              <h3 className="text-2xl md:text-3xl font-bold mb-2">
+                Up to 70% Off
+              </h3>
+              <p className="text-white/90 mb-4 text-lg">
+                Limited time offer on electronics & gadgets
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  variant="secondary"
+                  className="bg-white text-accent hover:bg-gray-100"
+                  icon="Zap"
+                >
+                  Shop Flash Sale
+                </Button>
+                <div className="flex items-center gap-2 text-white/90">
+                  <ApperIcon name="Clock" size={16} />
+                  <span className="text-sm font-medium">Ends in 2 days</span>
+                </div>
+              </div>
+            </div>
+            <div className="absolute top-4 right-4 w-16 h-16 bg-white/10 rounded-full flex items-center justify-center">
+              <ApperIcon name="Percent" className="w-8 h-8" />
+            </div>
+          </motion.div>
+
+          {/* First Order Discount */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="bg-gradient-to-br from-primary to-secondary rounded-2xl p-6 text-white"
+          >
+            <Badge variant="secondary" className="mb-3 bg-white/20 text-white border-white/30">
+              🎉 New Customer
+            </Badge>
+            <h3 className="text-xl font-bold mb-2">25% OFF</h3>
+            <p className="text-white/90 mb-4 text-sm">
+              Your first order with code
+            </p>
+            <div className="bg-white/20 rounded-lg p-3 mb-4">
+              <code className="text-white font-mono font-bold tracking-wider">
+                WELCOME25
+              </code>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="bg-white text-primary hover:bg-gray-100 w-full"
+              icon="ShoppingBag"
+            >
+              Start Shopping
+            </Button>
+          </motion.div>
+
+          {/* Free Shipping Banner */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="bg-gradient-to-br from-success to-green-600 rounded-2xl p-6 text-white"
+          >
+            <Badge variant="secondary" className="mb-3 bg-white/20 text-white border-white/30">
+              🚚 Free Delivery
+            </Badge>
+            <h3 className="text-xl font-bold mb-2">Free Shipping</h3>
+            <p className="text-white/90 mb-4 text-sm">
+              On orders over $50 with code
+            </p>
+            <div className="bg-white/20 rounded-lg p-3 mb-4">
+              <code className="text-white font-mono font-bold tracking-wider">
+                FREESHIP
+              </code>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="bg-white text-success hover:bg-gray-100 w-full"
+              icon="Truck"
+            >
+              Shop Now
+            </Button>
+          </motion.div>
+
+          {/* Weekend Deal */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-2xl p-6 text-white lg:col-span-2"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <Badge variant="secondary" className="mb-3 bg-white/20 text-white border-white/30">
+                  🎯 Weekend Special
+                </Badge>
+                <h3 className="text-2xl font-bold mb-2">Buy 2 Get 1 Free</h3>
+                <p className="text-white/90 mb-4">
+                  On selected home & garden items this weekend only
+                </p>
+                <Button
+                  variant="secondary"
+                  className="bg-white text-purple-600 hover:bg-gray-100"
+                  icon="Gift"
+                >
+                  Browse Deals
+                </Button>
+              </div>
+              <div className="text-right">
+                <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mb-2">
+                  <ApperIcon name="Gift" className="w-10 h-10" />
+                </div>
+                <p className="text-xs text-white/80">Valid until Sunday</p>
+              </div>
+            </div>
+          </motion.div>
         </div>
       </section>
 
