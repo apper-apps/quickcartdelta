@@ -62,12 +62,14 @@ useEffect(() => {
     }
   };
 
-  const requestCameraAccess = async () => {
+const requestCameraAccess = async () => {
     try {
       setIsLoading(true);
       setError(null);
       
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      // Fix MediaDevices binding issue - ensure proper context
+      const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      const stream = await getUserMedia({ 
         video: { 
           facingMode: 'environment',
           width: { ideal: 1280 },
@@ -94,6 +96,8 @@ useEffect(() => {
         setError('No camera found. Please connect a camera to use AR features.');
       } else if (err.name === 'NotReadableError') {
         setError('Camera is already in use by another application.');
+      } else if (err.name === 'TypeError' && err.message.includes('Illegal invocation')) {
+        setError('Camera API error. Please refresh the page and try again.');
       } else {
         setError('Unable to access camera. Please check your camera settings.');
       }

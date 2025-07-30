@@ -1,7 +1,5 @@
 import productsData from "@/services/mockData/products.json";
 import categoriesData from "@/services/mockData/categories.json";
-import React from "react";
-import Error from "@/components/ui/Error";
 
 // Enhanced product service with AR/3D capabilities
 class ProductService {
@@ -109,13 +107,10 @@ async delete(id) {
     return true;
   }
 
-  async getBrowsingRecommendations(currentProductId = null, browsingHistory = [], cartItems = []) {
+async getBrowsingRecommendations(currentProductId = null, browsingHistory = [], cartItems = []) {
     await this.delay();
-    
-    const recommendations = new Set();
     const maxRecommendations = 8;
-    
-    // Get product categories from browsing history and cart
+    const recommendations = new Set();
     const viewedCategories = new Set();
     const cartCategories = new Set();
     
@@ -212,9 +207,9 @@ async delete(id) {
       
       highRatedProducts.forEach(product => {
         if (recommendations.size < maxRecommendations) {
-          recommendations.add(product);
+recommendations.add(product);
         }
-});
+      });
     }
     
     return Array.from(recommendations).map(product => ({ ...product }));
@@ -268,24 +263,27 @@ async delete(id) {
     }
   }
 
-  async checkCameraAvailability() {
+async checkCameraAvailability() {
     try {
-      // Check if getUserMedia is supported
+      // Check if mediaDevices API is available
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        return false;
+        return { available: false, reason: 'Camera API not supported' };
       }
-
-      // Check camera permission
-      if (navigator.permissions) {
-        const permission = await navigator.permissions.query({ name: 'camera' });
-        return permission.state !== 'denied';
-      }
-
-      return true; // Assume available if permissions API not supported
+      
+      // Fix MediaDevices binding issue - ensure proper context
+      const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      
+      // Try to get camera stream briefly to check availability
+      const stream = await getUserMedia({ video: true });
+      
+      // Immediately stop all tracks
+      stream.getTracks().forEach(track => track.stop());
+      
+      return { available: true };
     } catch (error) {
       console.error('Camera availability check failed:', error);
-      return false;
-}
+      return { available: false, reason: error.message };
+    }
   }
 
   async trackPriceDrops(products) {
@@ -301,9 +299,9 @@ async delete(id) {
       productId: product.Id,
       previousPrice: product.price * 1.2, // Mock previous price
       currentPrice: product.price,
-      dropPercentage: Math.round((1 - product.price / (product.price * 1.2)) * 100),
+dropPercentage: Math.round((1 - product.price / (product.price * 1.2)) * 100),
       alertType: 'price_drop'
-}));
+    }));
     
     return priceDrops;
   }
