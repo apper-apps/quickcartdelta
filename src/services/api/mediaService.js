@@ -11,21 +11,30 @@ class MediaService {
   }
 
   // Get user media with proper error handling and context binding
-  async getUserMedia(constraints = { video: true, audio: false }) {
+async getUserMedia(constraints = { video: true, audio: false }) {
     if (!this.isSupported) {
       throw new Error('getUserMedia is not supported in this browser');
     }
 
     try {
-      // Proper context binding - call directly on navigator.mediaDevices
-      this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+      // Enhanced context preservation to prevent "Illegal invocation"
+      const mediaDevices = navigator.mediaDevices;
+      if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
+        throw new Error('getUserMedia method not available');
+      }
+      
+      // Explicit context binding to prevent context loss
+      const getUserMediaBound = function(constraints) {
+        return mediaDevices.getUserMedia.call(mediaDevices, constraints);
+      };
+      
+      this.stream = await getUserMediaBound(constraints);
       return this.stream;
     } catch (error) {
       console.error('Error accessing media devices:', error);
       throw this.handleMediaError(error);
     }
   }
-
   // Get camera stream with enhanced error handling
   async getCameraStream(facingMode = 'environment') {
     try {
@@ -132,14 +141,25 @@ class MediaService {
     }
   }
 
-  // Get available media devices with proper error handling
+// Get available media devices with proper error handling
   async getDevices() {
     if (!navigator.mediaDevices?.enumerateDevices) {
       return { cameras: [], microphones: [], speakers: [] };
     }
 
     try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
+      // Enhanced context preservation for enumerateDevices
+      const mediaDevices = navigator.mediaDevices;
+      if (!mediaDevices || typeof mediaDevices.enumerateDevices !== 'function') {
+        return { cameras: [], microphones: [], speakers: [] };
+      }
+      
+      // Explicit context binding to prevent "Illegal invocation"
+      const enumerateDevicesBound = function() {
+        return mediaDevices.enumerateDevices.call(mediaDevices);
+      };
+      
+      const devices = await enumerateDevicesBound();
       
       return {
         cameras: devices.filter(device => device.kind === 'videoinput'),
@@ -148,7 +168,7 @@ class MediaService {
       };
     } catch (error) {
       console.error('Error enumerating devices:', error);
-return { cameras: [], microphones: [], speakers: [] };
+      return { cameras: [], microphones: [], speakers: [] };
     }
   }
 

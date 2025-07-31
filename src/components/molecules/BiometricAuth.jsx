@@ -28,8 +28,12 @@ const startCamera = useCallback(async () => {
         throw new Error('getUserMedia not supported in this browser');
       }
       
-      // Enhanced context binding to prevent "Illegal invocation"
+// Enhanced context binding to prevent "Illegal invocation"
       const getUserMediaBound = function(constraints) {
+        // Double-check context before calling
+        if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
+          throw new Error('MediaDevices context lost during biometric auth');
+        }
         return mediaDevices.getUserMedia.call(mediaDevices, constraints);
       };
       

@@ -101,14 +101,18 @@ const startCamera = useCallback(async () => {
       setIsLoading(true);
       setError(null);
 
-      // More robust context preservation to prevent "Illegal invocation"
+// Enhanced context preservation to prevent "Illegal invocation"
       const mediaDevices = navigator.mediaDevices;
       if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
         throw new Error('getUserMedia not properly available');
       }
       
-      // Create bound function with explicit context preservation
+      // Enhanced bound function with additional safety checks
       const getUserMediaBound = function(constraints) {
+        // Double-check context before calling
+        if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
+          throw new Error('MediaDevices context lost');
+        }
         return mediaDevices.getUserMedia.call(mediaDevices, constraints);
       };
       
@@ -260,8 +264,12 @@ const switchCamera = useCallback(async () => {
         throw new Error('Camera switching not supported in this browser');
       }
       
-      // Enhanced context binding to prevent "Illegal invocation"
+// Enhanced context binding to prevent "Illegal invocation"
       const getUserMediaBound = function(constraints) {
+        // Double-check context before calling
+        if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
+          throw new Error('MediaDevices context lost during camera switch');
+        }
         return mediaDevices.getUserMedia.call(mediaDevices, constraints);
       };
       
