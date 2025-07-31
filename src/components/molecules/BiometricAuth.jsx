@@ -27,24 +27,14 @@ const startCamera = useCallback(async () => {
       if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
         throw new Error('getUserMedia not supported in this browser');
       }
-      
-// Enhanced context binding to prevent "Illegal invocation"
-      const getUserMediaBound = function(constraints) {
-        // Double-check context before calling
-        if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
-          throw new Error('MediaDevices context lost during biometric auth');
-        }
-        return mediaDevices.getUserMedia.call(mediaDevices, constraints);
-      };
-      
-      // Clean up any existing stream before setting new one
+// Clean up any existing stream before setting new one
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => {
           track.stop();
         });
       }
       
-      const stream = await getUserMediaBound({
+      const stream = await mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640 },
           height: { ideal: 480 },

@@ -23,12 +23,8 @@ async getUserMedia(constraints = { video: true, audio: false }) {
         throw new Error('getUserMedia method not available');
       }
       
-      // Explicit context binding to prevent context loss
-      const getUserMediaBound = function(constraints) {
-        return mediaDevices.getUserMedia.call(mediaDevices, constraints);
-      };
-      
-      this.stream = await getUserMediaBound(constraints);
+// Use .call() to ensure proper context binding and prevent "Illegal invocation"
+      this.stream = await mediaDevices.getUserMedia.call(mediaDevices, constraints);
       return this.stream;
     } catch (error) {
       console.error('Error accessing media devices:', error);
@@ -154,13 +150,8 @@ async getUserMedia(constraints = { video: true, audio: false }) {
         return { cameras: [], microphones: [], speakers: [] };
       }
       
-      // Explicit context binding to prevent "Illegal invocation"
-      const enumerateDevicesBound = function() {
-        return mediaDevices.enumerateDevices.call(mediaDevices);
-      };
-      
-      const devices = await enumerateDevicesBound();
-      
+// Use .call() to ensure proper context binding and prevent "Illegal invocation"
+      const devices = await mediaDevices.enumerateDevices.call(mediaDevices);
       return {
         cameras: devices.filter(device => device.kind === 'videoinput'),
         microphones: devices.filter(device => device.kind === 'audioinput'),

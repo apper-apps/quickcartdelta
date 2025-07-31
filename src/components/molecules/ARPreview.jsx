@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AlertCircle, Camera, RotateCcw, X, Download, Maximize2 } from "lucide-react";
+import { AlertCircle, Camera, Download, Maximize2, RotateCcw, X } from "lucide-react";
 import { toast } from "react-toastify";
 import mediaService from "@/services/api/mediaService";
 import Error from "@/components/ui/Error";
@@ -17,6 +17,7 @@ const ARPreview = ({ product, onClose }) => {
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const mountedRef = useRef(true);
+  
   useEffect(() => {
     mountedRef.current = true;
     initCamera();
@@ -40,12 +41,7 @@ const ARPreview = ({ product, onClose }) => {
   };
 
   const initCamera = async () => {
-    if (!mediaService) {
-      setError('Media service not available');
-      return;
-    }
-
-    try {
+try {
       setIsLoading(true);
       setError(null);
       
@@ -79,7 +75,7 @@ const ARPreview = ({ product, onClose }) => {
           }
         });
       }
-} catch (error) {
+    } catch (error) {
       console.error('Camera initialization error:', error);
       if (mountedRef.current) {
         setError(error.message);
@@ -89,20 +85,17 @@ const ARPreview = ({ product, onClose }) => {
       setIsLoading(false);
     }
   };
-
 const startCamera = useCallback(async () => {
     // Enhanced browser and API validation
     if (!navigator?.mediaDevices?.getUserMedia) {
       setError('Camera not supported in this browser');
       return;
     }
-
+    
     try {
       setIsLoading(true);
       setError(null);
-
-// Enhanced context preservation to prevent "Illegal invocation"
-      const mediaDevices = navigator.mediaDevices;
+const mediaDevices = navigator.mediaDevices;
       if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
         throw new Error('getUserMedia not properly available');
       }
@@ -250,8 +243,9 @@ const startCamera = useCallback(async () => {
     } finally {
       setIsCapturing(false);
     }
-  }, [product, isCapturing]);
-const switchCamera = useCallback(async () => {
+}, [product, isCapturing]);
+
+  const switchCamera = useCallback(async () => {
     if (!streamRef.current) return;
     
     try {
@@ -263,8 +257,9 @@ const switchCamera = useCallback(async () => {
       if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
         throw new Error('Camera switching not supported in this browser');
       }
+}
       
-// Enhanced context binding to prevent "Illegal invocation"
+      // Enhanced context binding to prevent "Illegal invocation"
       const getUserMediaBound = function(constraints) {
         // Double-check context before calling
         if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
@@ -321,10 +316,10 @@ const switchCamera = useCallback(async () => {
     }
   }, [facingMode]);
 
-  const handleClose = useCallback(() => {
+const handleClose = useCallback(() => {
     stopCamera();
     onClose?.();
-}, [onClose, stopCamera]);
+  }, [onClose, stopCamera]);
 
   useEffect(() => {
     const checkPermissionAndStart = async () => {
