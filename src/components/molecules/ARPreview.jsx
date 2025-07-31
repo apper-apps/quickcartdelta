@@ -27,9 +27,12 @@ const startCamera = useCallback(async () => {
       
       // Store reference to prevent context issues
 const mediaDevices = navigator.mediaDevices;
-      if (typeof mediaDevices.getUserMedia !== 'function') {
+      if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
         throw new Error('getUserMedia not supported in this browser');
       }
+      
+      // Use .bind() to ensure proper context binding and prevent "Illegal invocation"
+      const getUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
       
       // Clean up any existing stream first
       if (streamRef.current) {
@@ -38,8 +41,6 @@ const mediaDevices = navigator.mediaDevices;
       
       let stream;
       try {
-        // Use .bind() to ensure proper context binding and prevent "Illegal invocation"
-        const getUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
         // Try back camera first
         stream = await getUserMedia({
           video: { 
@@ -179,10 +180,13 @@ const switchCamera = useCallback(async () => {
       }
       
 // Store reference to prevent context issues
-      const mediaDevices = navigator.mediaDevices;
-      if (typeof mediaDevices.getUserMedia !== 'function') {
+const mediaDevices = navigator.mediaDevices;
+      if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
         throw new Error('Camera switching not supported in this browser');
       }
+      
+      // Use .bind() to ensure proper context binding and prevent "Illegal invocation"
+      const getUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
       
       setIsLoading(true);
       setError(null);
@@ -193,8 +197,6 @@ const switchCamera = useCallback(async () => {
       // Toggle facing mode
       const newFacingMode = facingMode === 'environment' ? 'user' : 'environment';
       
-      // Use .bind() to ensure proper context binding and prevent "Illegal invocation"
-      const getUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
       // Request opposite camera
       const stream = await getUserMedia({
         video: {

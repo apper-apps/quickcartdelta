@@ -23,12 +23,12 @@ const startCamera = useCallback(async () => {
       }
       
       // Store reference to prevent context issues
-      const mediaDevices = navigator.mediaDevices;
-      if (typeof mediaDevices.getUserMedia !== 'function') {
+const mediaDevices = navigator.mediaDevices;
+      if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
         throw new Error('getUserMedia not supported in this browser');
       }
       
-// Use .bind() to ensure proper context binding and prevent "Illegal invocation"
+      // Use .bind() to ensure proper context binding and prevent "Illegal invocation"
       const getUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
       const stream = await getUserMedia({
         video: { 
