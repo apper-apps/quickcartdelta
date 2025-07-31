@@ -28,17 +28,16 @@ const mediaDevices = navigator.mediaDevices;
         throw new Error('getUserMedia not supported in this browser');
       }
       
-      // Use .bind() to ensure proper context binding and prevent "Illegal invocation"
+// Use .bind() to ensure proper context binding and prevent "Illegal invocation"
       const getUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
       const stream = await getUserMedia({
-        video: { 
-          facingMode: 'user',
+        video: {
           width: { ideal: 640 },
-          height: { ideal: 480 }
+          height: { ideal: 480 },
+          facingMode: 'user'
         },
         audio: false
       });
-      
       // Clean up any existing stream before setting new one
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => {

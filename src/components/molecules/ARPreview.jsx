@@ -50,12 +50,13 @@ const mediaDevices = navigator.mediaDevices;
           },
           audio: false
         });
-      } catch (err) {
+} catch (err) {
         console.warn('Preferred camera not available, trying fallback:', err);
         try {
-          // Fallback to any available camera
-          stream = await mediaDevices.getUserMedia({
+          // Fallback to any available camera - use bound function consistently
+          stream = await getUserMedia({
             video: { 
+              facingMode: 'environment',
               width: { ideal: 1280 },
               height: { ideal: 720 }
             },
