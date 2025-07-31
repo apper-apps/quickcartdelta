@@ -49,10 +49,18 @@ async function requestCameraAccess() {
       // Check for secure context (HTTPS required for getUserMedia)
       if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
         throw new Error('Camera access requires HTTPS or localhost')
+async function initializeAR() {
+    try {
+      setLoading(true);
+      
+      // Check if MediaDevices API is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera access is not supported on this device or browser');
       }
-
-      // Call getUserMedia directly without .call() to prevent "Illegal invocation" errors
-      const stream = await navigator.mediaDevices.getUserMedia({
+      
+      // Properly bind the getUserMedia method to maintain context
+      const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      const stream = await getUserMedia({
         video: {
           facingMode: cameraView,
           width: { ideal: 1280 },
@@ -60,11 +68,11 @@ async function requestCameraAccess() {
         }
       });
       
-      if (videoRef.current && stream) {
-        videoRef.current.srcObject = stream
-        try {
-          await videoRef.current.play()
-        } catch (playError) {
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        setStream(stream);
+        setError(null);
+      }
           console.warn('Video play failed:', playError)
           // Continue anyway, stream is still valid
         }
