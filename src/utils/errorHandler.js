@@ -15,26 +15,41 @@ class ErrorHandler {
    */
   setupGlobalHandlers() {
     // Handle uncaught errors
-    window.addEventListener('error', (event) => {
-      this.handleError({
+window.addEventListener('error', (event) => {
+      const errorInfo = {
         type: 'javascript',
-        message: event.message,
-        filename: event.filename,
-        lineno: event.lineno,
-        colno: event.colno,
-        error: event.error,
-        stack: event.error?.stack
-      });
+        message: event.message || 'Unknown JavaScript error',
+        filename: event.filename || 'unknown',
+        lineno: event.lineno || 0,
+        colno: event.colno || 0,
+        error: event.error ? {
+          name: event.error.name,
+          message: event.error.message,
+          stack: event.error.stack
+        } : null,
+        stack: event.error?.stack || 'No stack trace available'
+      };
+      
+console.error('Global JavaScript Error:', JSON.stringify(errorInfo, null, 2));
+      this.handleError(errorInfo);
     });
 
     // Handle unhandled promise rejections
     window.addEventListener('unhandledrejection', (event) => {
-      this.handleError({
+      const reason = event.reason;
+      const errorInfo = {
         type: 'promise',
-        message: event.reason?.message || 'Unhandled promise rejection',
-        error: event.reason,
-        stack: event.reason?.stack
-      });
+        message: this.extractErrorMessage(reason) || 'Unhandled promise rejection',
+        error: reason ? {
+          name: reason.name || 'UnhandledRejection',
+          message: reason.message || String(reason),
+          stack: reason.stack
+        } : null,
+        stack: reason?.stack || 'No stack trace available'
+      };
+      
+console.error('Unhandled Promise Rejection:', JSON.stringify(errorInfo, null, 2));
+      this.handleError(errorInfo);
     });
 
     // Handle React errors (will be caught by Error Boundary)
@@ -64,9 +79,10 @@ class ErrorHandler {
     if (this.isMediaDeviceError(error)) {
       this.handleMediaDeviceError(error);
     } else if (this.isReactError(error)) {
-      this.handleReactError(error);
+this.handleReactError(error);
     }
-// Emit custom event for error tracking
+
+    // Emit custom event for error tracking
     if (typeof window !== 'undefined' && typeof CustomEvent !== 'undefined') {
       window.dispatchEvent(new CustomEvent('app:error', { detail: error }));
     }
@@ -106,6 +122,23 @@ class ErrorHandler {
    */
   handleReactError(error) {
     console.warn('React Error detected:', error.message);
+}
+
+  /**
+   * Extract error message from various error types
+   */
+  extractErrorMessage(error) {
+    if (!error) return 'Unknown error';
+    
+    if (typeof error === 'string') return error;
+    if (error.message) return error.message;
+    if (error.reason) return this.extractErrorMessage(error.reason);
+    
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
   }
 
   /**
