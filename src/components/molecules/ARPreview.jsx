@@ -49,21 +49,22 @@ async function requestCameraAccess() {
       // Check for secure context (HTTPS required for getUserMedia)
       if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
         throw new Error('Camera access requires HTTPS or localhost')
+try {
+      // Check if getUserMedia is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera access is not supported in this browser');
       }
-      
-// Call getUserMedia with proper context binding to prevent "Illegal invocation" errors
-      const stream = await navigator.mediaDevices.getUserMedia.call(
-        navigator.mediaDevices,
-        {
-          video: {
-            facingMode: cameraView,
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
+
+      // Call getUserMedia directly without .call() to prevent "Illegal invocation" errors
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: cameraView,
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
         }
-      )
+      });
       
-      // Check if component is still mounted before updating state
+      if (videoRef.current) {
       if (videoRef.current && stream) {
         videoRef.current.srcObject = stream
         try {
