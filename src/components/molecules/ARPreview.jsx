@@ -8,81 +8,89 @@ const ARPreview = ({ product, onClose }) => {
   const [error, setError] = useState(null);
   const [hasPermission, setHasPermission] = useState(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [isActive, setIsActive] = useState(false);
   const [facingMode, setFacingMode] = useState('environment'); // 'user' or 'environment'
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
-
-  const startCamera = useCallback(async () => {
+const startCamera = useCallback(async () => {
     try {
       setIsLoading(true);
-      setError(null);
+      setError('');
       
-      // Check if MediaDevices API is supported
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera API not supported in this browser');
+      // Enhanced browser compatibility checks
+      if (!navigator?.mediaDevices) {
+        throw new Error('MediaDevices API not supported in this browser');
       }
       
-      // Stop existing stream before starting new one
+      // Store reference to prevent context issues
+      const mediaDevices = navigator.mediaDevices;
+      if (typeof mediaDevices.getUserMedia !== 'function') {
+        throw new Error('getUserMedia not supported in this browser');
+      }
+      
+      // Clean up any existing stream first
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
       }
       
-      // Correct usage - call getUserMedia on the navigator.mediaDevices object directly
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: facingMode,
-          width: { ideal: 1280, max: 1920 },
-          height: { ideal: 720, max: 1080 }
-        },
-        audio: false
-      });
+      // Try to get back camera first for AR experience
+      let stream;
+      try {
+        // Use .call() to ensure proper context binding and prevent "Illegal invocation"
+        stream = await mediaDevices.getUserMedia.call(mediaDevices, {
+          video: { 
+            facingMode: { exact: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+      } catch (err) {
+        console.warn('Back camera not available, trying front camera:', err);
+        // Fallback to any available camera with proper context
+        stream = await mediaDevices.getUserMedia.call(mediaDevices, {
+          video: { 
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+      }
       
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        try {
+          await videoRef.current.play();
+        } catch (playError) {
+          console.warn('Video play failed:', playError);
+          // Continue - this might work on user interaction
+        }
       }
-      setHasPermission(true);
+      setIsActive(true);
     } catch (err) {
       console.error('Camera access error:', err);
       let errorMessage = 'Camera access failed';
       
       if (err.name === 'NotAllowedError') {
-        errorMessage = 'Camera permission denied. Please allow camera access to use AR preview.';
+        errorMessage = 'Camera permission denied. Please allow camera access.';
       } else if (err.name === 'NotFoundError') {
         errorMessage = 'No camera found on this device.';
       } else if (err.name === 'NotSupportedError') {
-        errorMessage = 'Camera not supported in this browser.';
+        errorMessage = 'Camera not supported in this browser. Please try a different browser.';
       } else if (err.name === 'NotReadableError') {
-        errorMessage = 'Camera is already in use by another application.';
-      } else if (err.name === 'OverconstrainedError') {
-        errorMessage = 'Camera constraints not supported. Trying with basic settings...';
-        // Retry with basic constraints
-        try {
-          const basicStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: facingMode },
-            audio: false
-          });
-          streamRef.current = basicStream;
-          if (videoRef.current) {
-            videoRef.current.srcObject = basicStream;
-            await videoRef.current.play();
-          }
-          setHasPermission(true);
-          setError(null);
-          return;
-        } catch (retryErr) {
-          errorMessage = 'Camera constraints not supported by this device.';
-        }
+        errorMessage = 'Camera is being used by another application.';
+      } else if (err.message?.includes('MediaDevices') || err.message?.includes('getUserMedia')) {
+        errorMessage = 'Camera API not available. Please use a modern browser with HTTPS.';
       }
       
       setError(errorMessage);
-      setHasPermission(false);
     } finally {
       setIsLoading(false);
     }
-  }, [facingMode]);
+}, []);
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -94,10 +102,7 @@ const ARPreview = ({ product, onClose }) => {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-  }, []);
-
-  const switchCamera = useCallback(() => {
-    setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
+    setIsActive(false);
   }, []);
 
   const capturePhoto = useCallback(async () => {
@@ -105,8 +110,8 @@ const ARPreview = ({ product, onClose }) => {
     
     try {
       setIsCapturing(true);
-      const canvas = canvasRef.current;
       const video = videoRef.current;
+      const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
       
       if (!ctx) {
@@ -153,6 +158,58 @@ const ARPreview = ({ product, onClose }) => {
       setIsCapturing(false);
     }
   }, [product, isCapturing]);
+const switchCamera = useCallback(async () => {
+    if (!streamRef.current) return;
+    
+    try {
+      setIsLoading(true);
+      setError('');
+      
+      // Store reference to prevent context issues
+      const mediaDevices = navigator.mediaDevices;
+      if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
+        throw new Error('Camera switching not supported');
+      }
+      
+      // Get current facing mode before stopping stream
+      const currentTrack = streamRef.current.getVideoTracks()[0];
+      const currentSettings = currentTrack?.getSettings();
+      const isBack = currentSettings?.facingMode === 'environment';
+      
+      // Stop current stream
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+      
+      // Request opposite camera with proper context
+      const stream = await mediaDevices.getUserMedia.call(mediaDevices, {
+        video: {
+          facingMode: isBack ? 'user' : 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      });
+      
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        try {
+          await videoRef.current.play();
+        } catch (playError) {
+          console.warn('Video play failed:', playError);
+        }
+      }
+      
+      // Update facing mode state
+      setFacingMode(isBack ? 'user' : 'environment');
+      
+    } catch (err) {
+      console.error('Camera switch error:', err);
+      setError('Failed to switch camera. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   const handleClose = useCallback(() => {
     stopCamera();
@@ -189,8 +246,8 @@ const ARPreview = ({ product, onClose }) => {
     <div className="fixed inset-0 bg-black z-50">
       <div className="relative w-full h-full flex flex-col">
         {/* Header */}
-        <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/70 to-transparent p-4 safe-top">
-<div className="flex items-center justify-between text-white">
+<div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/70 to-transparent p-4 safe-top">
+          <div className="flex items-center justify-between text-white">
             <div>
               <h2 className="text-xl font-bold">{product?.name || 'AR Preview'}</h2>
               <p className="text-sm opacity-80">Augmented Reality Preview</p>
@@ -218,8 +275,8 @@ const ARPreview = ({ product, onClose }) => {
         )}
 
         {/* Camera View */}
-        <div className="flex-1 relative">
-          {hasPermission === null || isLoading ? (
+<div className="flex-1 relative">
+          {!isActive && (hasPermission === null || isLoading) ? (
             <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
               <div className="text-center text-white">
                 <div className="relative">
@@ -231,8 +288,8 @@ const ARPreview = ({ product, onClose }) => {
                 <p className="text-xl font-medium mb-2">Initializing AR Camera</p>
                 <p className="text-sm opacity-70">Please allow camera access when prompted</p>
               </div>
-            </div>
-          ) : hasPermission ? (
+</div>
+          ) : isActive ? (
             <>
               <video
                 ref={videoRef}

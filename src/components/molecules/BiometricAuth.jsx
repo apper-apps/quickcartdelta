@@ -12,18 +12,24 @@ const BiometricAuth = ({ onAuth, onCancel }) => {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
-  const startCamera = useCallback(async () => {
+const startCamera = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
       
-      // Check if MediaDevices API is supported
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera API not supported in this browser');
+      // Enhanced browser compatibility checks
+      if (!navigator?.mediaDevices) {
+        throw new Error('MediaDevices API not supported in this browser');
       }
       
-      // Correct usage - call getUserMedia on the navigator.mediaDevices object directly
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // Store reference to prevent context issues
+      const mediaDevices = navigator.mediaDevices;
+      if (typeof mediaDevices.getUserMedia !== 'function') {
+        throw new Error('getUserMedia not supported in this browser');
+      }
+      
+      // Use .call() to ensure proper context binding and prevent "Illegal invocation"
+      const stream = await mediaDevices.getUserMedia.call(mediaDevices, {
         video: { 
           facingMode: 'user',
           width: { ideal: 640 },
@@ -32,10 +38,22 @@ const BiometricAuth = ({ onAuth, onCancel }) => {
         audio: false
       });
       
+      // Clean up any existing stream before setting new one
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => {
+          track.stop();
+        });
+      }
+      
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        try {
+          await videoRef.current.play();
+        } catch (playError) {
+          console.warn('Video play failed:', playError);
+          // Continue - this might work on user interaction
+        }
       }
       setHasPermission(true);
     } catch (err) {
@@ -50,6 +68,8 @@ const BiometricAuth = ({ onAuth, onCancel }) => {
         errorMessage = 'Camera not supported in this browser.';
       } else if (err.name === 'NotReadableError') {
         errorMessage = 'Camera is already in use by another application.';
+      } else if (err.message?.includes('MediaDevices') || err.message?.includes('getUserMedia')) {
+        errorMessage = 'Camera API not available. Please use a modern browser with HTTPS.';
       }
       
       setError(errorMessage);
