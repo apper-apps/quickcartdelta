@@ -6,8 +6,8 @@ export class ErrorHandler {
   static handle(error, context = '') {
     console.error(`Error in ${context}:`, error);
     
-    // Don't show error toasts in development for certain errors
-    if (process.env.NODE_ENV === 'development' && 
+// Don't show error toasts in development for certain errors
+    if (import.meta.env.MODE === 'development' && 
         (error.message?.includes('Network Error') || 
          error.message?.includes('fetch'))) {
       return;
@@ -199,9 +199,9 @@ class GlobalErrorHandler {
 this.handleReactError(error);
     }
 
-    // Emit custom event for error tracking
-    if (typeof window !== 'undefined' && typeof CustomEvent !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('app:error', { detail: error }));
+// Emit custom event for error tracking
+    if (typeof window !== 'undefined' && window.CustomEvent) {
+      window.dispatchEvent(new window.CustomEvent('app:error', { detail: error }));
     }
   }
   /**
