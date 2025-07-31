@@ -104,21 +104,21 @@ const initializeCamera = async () => {
 
       setStream(mediaStream);
     } catch (err) {
-      console.error('Camera initialization failed:', err);
+console.error('Camera initialization failed:', err);
       setError(
         err.message.includes('Illegal invocation')
           ? 'Camera access failed due to browser compatibility. Please try refreshing the page.'
           : err.name === 'NotAllowedError' 
-          ? 'Camera access denied. Please allow camera permissions.'
+          ? 'Camera access denied. Please enable camera permissions in your browser settings and click the camera icon in your address bar to allow access, then try again.'
           : err.name === 'NotFoundError'
-          ? 'No camera found on this device.'
+          ? 'No camera found on this device. Please ensure your camera is connected and working properly.'
           : err.name === 'NotSupportedError'
-          ? 'Camera not supported on this device.'
+          ? 'Camera not supported on this device. Please try using a different browser or device.'
           : err.name === 'SecurityError'
-          ? 'Camera access blocked due to security restrictions.'
+          ? 'Camera access blocked due to security restrictions. Please check your browser settings and ensure you\'re using HTTPS.'
           : err.message === 'Camera API not supported in this browser'
-          ? 'Camera API not supported in this browser.'
-          : 'Failed to initialize camera. Please try again.'
+          ? 'Camera API not supported in this browser. Please try using Chrome, Firefox, or Safari for the best AR experience.'
+          : 'Failed to initialize camera. Please check your camera permissions and try again.'
       );
     } finally {
       setIsLoading(false);
