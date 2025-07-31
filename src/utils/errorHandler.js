@@ -218,14 +218,23 @@ this.handleReactError(error);
    * Handle MediaDevices specific errors
    */
   handleMediaDeviceError(error) {
-    console.warn('MediaDevices API Error detected:', error.message);
+console.warn('MediaDevices API Error detected:', error.message);
+    
+    // Enhanced error detection for "Illegal invocation" specifically
+    if (error.message?.includes('Illegal invocation') && error.message?.includes('getUserMedia')) {
+      console.error('getUserMedia context binding error - this indicates improper MediaDevices API usage');
+      
+      if (typeof window !== 'undefined' && window.toast) {
+        window.toast.error('Camera initialization error. Please refresh the page to resolve the issue.');
+      }
+      return;
+    }
     
     // Show user-friendly message if needed
     if (typeof window !== 'undefined' && window.toast) {
       window.toast.error('Camera/microphone access issue detected. Please refresh the page.');
     }
   }
-
   /**
    * Check if error is React-related
    */

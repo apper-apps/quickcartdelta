@@ -90,7 +90,8 @@ const ARPreview = ({ product, onClose }) => {
     }
   };
 
-  const startCamera = useCallback(async () => {
+const startCamera = useCallback(async () => {
+    // Enhanced browser and API validation
     if (!navigator?.mediaDevices?.getUserMedia) {
       setError('Camera not supported in this browser');
       return;
@@ -100,8 +101,16 @@ const ARPreview = ({ product, onClose }) => {
       setIsLoading(true);
       setError(null);
 
+      // More robust context preservation to prevent "Illegal invocation"
       const mediaDevices = navigator.mediaDevices;
-      const getUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
+      if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
+        throw new Error('getUserMedia not properly available');
+      }
+      
+      // Create bound function with explicit context preservation
+      const getUserMediaBound = function(constraints) {
+        return mediaDevices.getUserMedia.call(mediaDevices, constraints);
+      };
       
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
@@ -109,7 +118,7 @@ const ARPreview = ({ product, onClose }) => {
       
       let stream;
       try {
-        stream = await getUserMedia({
+        stream = await getUserMediaBound({
           video: { 
             facingMode: facingMode,
             width: { ideal: 1280 },
@@ -120,7 +129,7 @@ const ARPreview = ({ product, onClose }) => {
       } catch (err) {
         console.warn('Preferred camera not available, trying fallback:', err);
         try {
-          stream = await getUserMedia({
+          stream = await getUserMediaBound({
             video: { 
               facingMode: 'environment',
               width: { ideal: 1280 },
@@ -160,6 +169,8 @@ const ARPreview = ({ product, onClose }) => {
         errorMessage = 'Camera not supported in this browser. Please try a different browser.';
       } else if (err.name === 'NotReadableError') {
         errorMessage = 'Camera is being used by another application.';
+      } else if (err.message?.includes('Illegal invocation')) {
+        errorMessage = 'Camera API context error. Please refresh the page and try again.';
       } else if (err.message?.includes('MediaDevices') || err.message?.includes('getUserMedia')) {
         errorMessage = 'Camera API not available. Please use a modern browser with HTTPS.';
       }
@@ -249,8 +260,10 @@ const switchCamera = useCallback(async () => {
         throw new Error('Camera switching not supported in this browser');
       }
       
-      // Use .bind() to ensure proper context binding and prevent "Illegal invocation"
-      const getUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
+      // Enhanced context binding to prevent "Illegal invocation"
+      const getUserMediaBound = function(constraints) {
+        return mediaDevices.getUserMedia.call(mediaDevices, constraints);
+      };
       
       setIsLoading(true);
       setError(null);
@@ -262,7 +275,7 @@ const switchCamera = useCallback(async () => {
       const newFacingMode = facingMode === 'environment' ? 'user' : 'environment';
       
       // Request opposite camera
-      const stream = await getUserMedia({
+      const stream = await getUserMediaBound({
         video: {
           facingMode: newFacingMode,
           width: { ideal: 1280 },
@@ -288,7 +301,9 @@ const switchCamera = useCallback(async () => {
       console.error('Camera switch error:', err);
       let errorMessage = 'Failed to switch camera. Please try again.';
       
-      if (err.message?.includes('MediaDevices') || err.message?.includes('getUserMedia')) {
+      if (err.message?.includes('Illegal invocation')) {
+        errorMessage = 'Camera switching context error. Please refresh and try again.';
+      } else if (err.message?.includes('MediaDevices') || err.message?.includes('getUserMedia')) {
         errorMessage = 'Camera switching not available. Please use a modern browser with HTTPS.';
       }
       

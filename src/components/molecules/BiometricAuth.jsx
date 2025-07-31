@@ -23,14 +23,24 @@ const startCamera = useCallback(async () => {
       }
       
       // Store reference to prevent context issues
-const mediaDevices = navigator.mediaDevices;
+      const mediaDevices = navigator.mediaDevices;
       if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
         throw new Error('getUserMedia not supported in this browser');
       }
       
-// Use .bind() to ensure proper context binding and prevent "Illegal invocation"
-      const getUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
-      const stream = await getUserMedia({
+      // Enhanced context binding to prevent "Illegal invocation"
+      const getUserMediaBound = function(constraints) {
+        return mediaDevices.getUserMedia.call(mediaDevices, constraints);
+      };
+      
+      // Clean up any existing stream before setting new one
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => {
+          track.stop();
+        });
+      }
+      
+      const stream = await getUserMediaBound({
         video: {
           width: { ideal: 640 },
           height: { ideal: 480 },
@@ -38,12 +48,6 @@ const mediaDevices = navigator.mediaDevices;
         },
         audio: false
       });
-      // Clean up any existing stream before setting new one
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => {
-          track.stop();
-        });
-      }
       
       streamRef.current = stream;
       if (videoRef.current) {
@@ -68,6 +72,8 @@ const mediaDevices = navigator.mediaDevices;
         errorMessage = 'Camera not supported in this browser.';
       } else if (err.name === 'NotReadableError') {
         errorMessage = 'Camera is already in use by another application.';
+      } else if (err.message?.includes('Illegal invocation')) {
+        errorMessage = 'Camera API context error. Please refresh the page and try again.';
       } else if (err.message?.includes('MediaDevices') || err.message?.includes('getUserMedia')) {
         errorMessage = 'Camera API not available. Please use a modern browser with HTTPS.';
       }
