@@ -59,27 +59,44 @@ const initializeCamera = async () => {
         throw new Error('Camera access requires HTTPS connection');
       }
 
-      // Call getUserMedia with proper context binding to prevent "Illegal invocation" error
-      const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      // Enhanced getUserMedia binding to prevent "Illegal invocation" error
+      let mediaStream;
       
-      // Additional validation before calling getUserMedia
-      if (typeof getUserMedia !== 'function') {
-        throw new Error('getUserMedia is not a function');
+      try {
+        // Primary approach: Direct call with proper context
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+      } catch (bindingError) {
+        // Fallback approach: Explicit binding if direct call fails
+        if (bindingError.message.includes('Illegal invocation') || bindingError.name === 'TypeError') {
+          console.warn('Direct getUserMedia call failed, trying with explicit binding:', bindingError.message);
+          
+          const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+          mediaStream = await getUserMedia({
+            video: {
+              facingMode: 'environment',
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            },
+            audio: false
+          });
+        } else {
+          // Re-throw if not a binding issue
+          throw bindingError;
+        }
       }
-
-      const mediaStream = await getUserMedia({
-        video: {
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: false
-      });
 
       // Validate stream before proceeding
       if (!mediaStream || !mediaStream.getVideoTracks().length) {
         throw new Error('No video track available in media stream');
       }
+      
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         await videoRef.current.play();
@@ -89,7 +106,9 @@ const initializeCamera = async () => {
     } catch (err) {
       console.error('Camera initialization failed:', err);
       setError(
-        err.name === 'NotAllowedError' 
+        err.message.includes('Illegal invocation')
+          ? 'Camera access failed due to browser compatibility. Please try refreshing the page.'
+          : err.name === 'NotAllowedError' 
           ? 'Camera access denied. Please allow camera permissions.'
           : err.name === 'NotFoundError'
           ? 'No camera found on this device.'
