@@ -49,10 +49,6 @@ async function requestCameraAccess() {
       // Check for secure context (HTTPS required for getUserMedia)
       if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
         throw new Error('Camera access requires HTTPS or localhost')
-try {
-      // Check if getUserMedia is available
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera access is not supported in this browser');
       }
 
       // Call getUserMedia directly without .call() to prevent "Illegal invocation" errors
@@ -64,7 +60,6 @@ try {
         }
       });
       
-      if (videoRef.current) {
       if (videoRef.current && stream) {
         videoRef.current.srcObject = stream
         try {
@@ -83,7 +78,7 @@ try {
       // Enhanced error handling with specific messages
       let errorMessage = 'Failed to access camera'
       
-if (error.name === 'NotAllowedError') {
+      if (error.name === 'NotAllowedError') {
         errorMessage = 'Camera permission denied. Please allow camera access and try again.'
       } else if (error.name === 'NotFoundError') {
         errorMessage = 'No camera found on this device.'
