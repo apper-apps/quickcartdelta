@@ -26,7 +26,7 @@ const startCamera = useCallback(async () => {
       }
       
       // Store reference to prevent context issues
-      const mediaDevices = navigator.mediaDevices;
+const mediaDevices = navigator.mediaDevices;
       if (typeof mediaDevices.getUserMedia !== 'function') {
         throw new Error('getUserMedia not supported in this browser');
       }
@@ -37,9 +37,11 @@ const startCamera = useCallback(async () => {
       }
       
       let stream;
-try {
+      try {
+        // Use .bind() to ensure proper context binding and prevent "Illegal invocation"
+        const getUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
         // Try back camera first
-        stream = await mediaDevices.getUserMedia({
+        stream = await getUserMedia({
           video: { 
             facingMode: facingMode,
             width: { ideal: 1280 },
@@ -176,7 +178,7 @@ const switchCamera = useCallback(async () => {
         throw new Error('MediaDevices API not supported in this browser');
       }
       
-      // Store reference to prevent context issues
+// Store reference to prevent context issues
       const mediaDevices = navigator.mediaDevices;
       if (typeof mediaDevices.getUserMedia !== 'function') {
         throw new Error('Camera switching not supported in this browser');
@@ -186,13 +188,15 @@ const switchCamera = useCallback(async () => {
       setError(null);
       
       // Stop current stream
-streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach(track => track.stop());
       
       // Toggle facing mode
       const newFacingMode = facingMode === 'environment' ? 'user' : 'environment';
       
+      // Use .bind() to ensure proper context binding and prevent "Illegal invocation"
+      const getUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
       // Request opposite camera
-      const stream = await mediaDevices.getUserMedia({
+      const stream = await getUserMedia({
         video: {
           facingMode: newFacingMode,
           width: { ideal: 1280 },
