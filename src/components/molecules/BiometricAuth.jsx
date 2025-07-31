@@ -117,10 +117,37 @@ const startCamera = useCallback(async () => {
   const handleCancel = useCallback(() => {
     stopCamera();
     onCancel?.();
-  }, [onCancel, stopCamera]);
+}, [onCancel, stopCamera]);
 
   useEffect(() => {
-    startCamera();
+    // Enhanced camera initialization with permission handling
+    const initializeBiometricAuth = async () => {
+      try {
+        // Check camera permission status first
+        if (navigator.permissions) {
+          const permission = await navigator.permissions.query({ name: 'camera' });
+          if (permission.state === 'denied') {
+            setError('Camera access denied. Biometric authentication requires camera permissions. Please enable camera access in your browser settings.');
+            return;
+          }
+        }
+        
+        // Inform user about camera requirement
+        console.log('Initializing biometric authentication - camera access required');
+        await startCamera();
+      } catch (err) {
+        console.error('Biometric auth camera error:', err);
+        if (err.name === 'NotAllowedError') {
+          setError('Camera permission denied. Please allow camera access to use biometric authentication, or try alternative authentication methods.');
+        } else if (err.name === 'NotFoundError') {
+          setError('No camera found. Biometric authentication requires a camera device.');
+        } else {
+          setError(`Camera initialization failed: ${err.message || 'Please check your camera and try again'}`);
+        }
+      }
+    };
+
+    initializeBiometricAuth();
     
     // Cleanup on unmount
     return () => {

@@ -235,17 +235,39 @@ const switchCamera = useCallback(async () => {
     stopCamera();
     onClose?.();
   }, [onClose, stopCamera]);
-
-  // Start camera when component mounts or facing mode changes
+// Start camera when component mounts or facing mode changes
   useEffect(() => {
-    startCamera();
+    // Check if user has explicitly denied permissions before
+    const checkPermissionAndStart = async () => {
+      try {
+        // Check current permission status
+        if (navigator.permissions) {
+          const permission = await navigator.permissions.query({ name: 'camera' });
+          if (permission.state === 'denied') {
+            setError('Camera access has been denied. Please enable camera permissions in your browser settings to use AR preview.');
+            return;
+          }
+        }
+        
+        // Attempt to start camera
+        await startCamera();
+      } catch (err) {
+        console.error('Camera initialization error:', err);
+        if (err.name === 'NotAllowedError') {
+          setError('Camera access is required for AR preview. Please click "Allow" when prompted or enable camera permissions in your browser settings.');
+        } else {
+          setError(`Camera access failed: ${err.message || 'Unknown error'}`);
+        }
+      }
+    };
+
+    checkPermissionAndStart();
     
     // Cleanup on unmount
     return () => {
       stopCamera();
     };
   }, [startCamera, stopCamera]);
-
   // Handle visibility change to pause/resume camera
   useEffect(() => {
     const handleVisibilityChange = () => {
