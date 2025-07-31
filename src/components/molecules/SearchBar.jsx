@@ -122,7 +122,7 @@ const [isListening, setIsListening] = useState(false);
     recognition.start();
   };
 
-  const startBarcodeScanning = async () => {
+const startBarcodeScanning = async () => {
     if (!cameraSupported) {
       alert('Camera access is not supported in your browser');
       return;
@@ -130,7 +130,22 @@ const [isListening, setIsListening] = useState(false);
 
     try {
       setIsScanning(true);
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      
+      // Enhanced browser compatibility checks
+      if (!navigator?.mediaDevices) {
+        throw new Error('MediaDevices API not supported in this browser');
+      }
+      
+      // Store reference to prevent context issues
+      const mediaDevices = navigator.mediaDevices;
+      if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
+        throw new Error('getUserMedia not supported in this browser');
+      }
+      
+      // Use .bind() to ensure proper context binding and prevent "Illegal invocation"
+      const getUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
+      
+      const stream = await getUserMedia({ 
         video: { facingMode: 'environment' } // Use back camera
       });
       
@@ -144,23 +159,54 @@ const [isListening, setIsListening] = useState(false);
       // For demo, we'll simulate scanning after 3 seconds
       setTimeout(async () => {
         const mockBarcode = '1234567890123'; // Simulated barcode
-        stream.getTracks().forEach(track => track.stop());
+        
+        // Clean up stream
+        if (stream) {
+          stream.getTracks().forEach(track => {
+            try {
+              track.stop();
+            } catch (stopError) {
+              console.warn('Error stopping camera track:', stopError);
+            }
+          });
+        }
+        
         setIsScanning(false);
         
         // Search for product by barcode
-        const products = await productService.searchByBarcode(mockBarcode);
-        if (products.length > 0) {
-          dispatch(setQuery(products[0].name));
-          handleSearch(products[0].name);
-        } else {
-          alert('No product found for this barcode');
+        try {
+          const products = await productService.searchByBarcode(mockBarcode);
+          if (products.length > 0) {
+            dispatch(setQuery(products[0].name));
+            handleSearch(products[0].name);
+          } else {
+            alert('No product found for this barcode');
+          }
+        } catch (searchError) {
+          console.error('Barcode search error:', searchError);
+          alert('Error searching for product. Please try again.');
         }
       }, 3000);
       
     } catch (error) {
-      console.error('Camera access denied:', error);
-      alert('Camera access denied. Please allow camera permission to scan barcodes.');
+      console.error('Camera access error:', error);
       setIsScanning(false);
+      
+      let errorMessage = 'Camera access failed. Please try again.';
+      
+      if (error.name === 'NotAllowedError') {
+        errorMessage = 'Camera permission denied. Please allow camera access to scan barcodes.';
+      } else if (error.name === 'NotFoundError') {
+        errorMessage = 'No camera found on this device.';
+      } else if (error.name === 'NotSupportedError') {
+        errorMessage = 'Camera not supported in this browser. Please try a different browser.';
+      } else if (error.name === 'NotReadableError') {
+        errorMessage = 'Camera is being used by another application.';
+      } else if (error.message?.includes('MediaDevices') || error.message?.includes('getUserMedia')) {
+        errorMessage = 'Camera API not available. Please use a modern browser with HTTPS.';
+      }
+      
+      alert(errorMessage);
     }
   };
 
