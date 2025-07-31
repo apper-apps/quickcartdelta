@@ -38,9 +38,8 @@ const startCamera = useCallback(async () => {
       
       let stream;
 try {
-        // Try back camera first with enhanced context binding
-        const getUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
-        stream = await getUserMedia({
+        // Try back camera first
+        stream = await mediaDevices.getUserMedia({
           video: { 
             facingMode: facingMode,
             width: { ideal: 1280 },
@@ -50,10 +49,9 @@ try {
         });
       } catch (err) {
         console.warn('Preferred camera not available, trying fallback:', err);
-try {
-          // Fallback to any available camera with enhanced context binding
-          const getUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
-          stream = await getUserMedia({
+        try {
+          // Fallback to any available camera
+          stream = await mediaDevices.getUserMedia({
             video: { 
               width: { ideal: 1280 },
               height: { ideal: 720 }
@@ -188,14 +186,13 @@ const switchCamera = useCallback(async () => {
       setError(null);
       
       // Stop current stream
-      streamRef.current.getTracks().forEach(track => track.stop());
+streamRef.current.getTracks().forEach(track => track.stop());
       
       // Toggle facing mode
       const newFacingMode = facingMode === 'environment' ? 'user' : 'environment';
       
-// Request opposite camera with enhanced context binding
-      const getUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
-      const stream = await getUserMedia({
+      // Request opposite camera
+      const stream = await mediaDevices.getUserMedia({
         video: {
           facingMode: newFacingMode,
           width: { ideal: 1280 },
