@@ -19,14 +19,18 @@ const startCamera = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     
-    // Check if MediaDevices API is available
-    if (!navigator?.mediaDevices?.getUserMedia) {
-      setError('Camera access is not supported in this browser');
-      setIsLoading(false);
-      return;
-    }
-    
     try {
+      // Enhanced browser compatibility checks
+      if (!navigator?.mediaDevices) {
+        throw new Error('MediaDevices API not supported in this browser');
+      }
+      
+      // Store reference to prevent context issues
+      const mediaDevices = navigator.mediaDevices;
+      if (typeof mediaDevices.getUserMedia !== 'function') {
+        throw new Error('getUserMedia not supported in this browser');
+      }
+      
       // Clean up any existing stream first
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
@@ -34,8 +38,8 @@ const startCamera = useCallback(async () => {
       
       let stream;
       try {
-        // Try back camera first
-        stream = await navigator.mediaDevices.getUserMedia({
+        // Try back camera first with proper context binding
+        stream = await mediaDevices.getUserMedia.call(mediaDevices, {
           video: { 
             facingMode: facingMode,
             width: { ideal: 1280 },
@@ -46,8 +50,8 @@ const startCamera = useCallback(async () => {
       } catch (err) {
         console.warn('Preferred camera not available, trying fallback:', err);
         try {
-          // Fallback to any available camera
-          stream = await navigator.mediaDevices.getUserMedia({
+          // Fallback to any available camera with proper context binding
+          stream = await mediaDevices.getUserMedia.call(mediaDevices, {
             video: { 
               width: { ideal: 1280 },
               height: { ideal: 720 }
@@ -166,13 +170,18 @@ const startCamera = useCallback(async () => {
 const switchCamera = useCallback(async () => {
     if (!streamRef.current) return;
     
-    // Check if MediaDevices API is available
-    if (!navigator?.mediaDevices?.getUserMedia) {
-      setError('Camera switching is not supported in this browser');
-      return;
-    }
-    
     try {
+      // Enhanced browser compatibility checks
+      if (!navigator?.mediaDevices) {
+        throw new Error('MediaDevices API not supported in this browser');
+      }
+      
+      // Store reference to prevent context issues
+      const mediaDevices = navigator.mediaDevices;
+      if (typeof mediaDevices.getUserMedia !== 'function') {
+        throw new Error('Camera switching not supported in this browser');
+      }
+      
       setIsLoading(true);
       setError(null);
       
@@ -182,8 +191,8 @@ const switchCamera = useCallback(async () => {
       // Toggle facing mode
       const newFacingMode = facingMode === 'environment' ? 'user' : 'environment';
       
-      // Request opposite camera with direct method call
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // Request opposite camera with proper context binding
+      const stream = await mediaDevices.getUserMedia.call(mediaDevices, {
         video: {
           facingMode: newFacingMode,
           width: { ideal: 1280 },
@@ -207,7 +216,13 @@ const switchCamera = useCallback(async () => {
       
     } catch (err) {
       console.error('Camera switch error:', err);
-      setError('Failed to switch camera. Please try again.');
+      let errorMessage = 'Failed to switch camera. Please try again.';
+      
+      if (err.message?.includes('MediaDevices') || err.message?.includes('getUserMedia')) {
+        errorMessage = 'Camera switching not available. Please use a modern browser with HTTPS.';
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
