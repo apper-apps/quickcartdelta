@@ -1,47 +1,114 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AlertCircle, Camera, Download, Maximize2, RotateCcw, X } from "lucide-react";
+import { AlertCircle, Camera, RotateCcw, X, Download, Maximize2 } from "lucide-react";
+import { toast } from "react-toastify";
+import mediaService from "@/services/api/mediaService";
 import Error from "@/components/ui/Error";
 import Button from "@/components/atoms/Button";
 
 const ARPreview = ({ product, onClose }) => {
   const [isLoading, setIsLoading] = useState(false);
+  const [stream, setStream] = useState(null);
   const [error, setError] = useState(null);
   const [hasPermission, setHasPermission] = useState(null);
-  const [isCapturing, setIsCapturing] = useState(false);
   const [isActive, setIsActive] = useState(false);
-  const [facingMode, setFacingMode] = useState('environment'); // 'user' or 'environment'
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [facingMode, setFacingMode] = useState('environment');
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
-const startCamera = useCallback(async () => {
-    if (!videoRef.current) return;
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    initCamera();
     
-    setIsLoading(true);
-    setError(null);
-    
+    return () => {
+      mountedRef.current = false;
+      cleanup();
+    };
+  }, []);
+
+  const cleanup = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => {
+        track.stop();
+        track.enabled = false;
+      });
+    }
+    if (mediaService) {
+      mediaService.cleanup();
+    }
+  };
+
+  const initCamera = async () => {
+    if (!mediaService) {
+      setError('Media service not available');
+      return;
+    }
+
     try {
-      // Enhanced browser compatibility checks
-      if (!navigator?.mediaDevices) {
-        throw new Error('MediaDevices API not supported in this browser');
+      setIsLoading(true);
+      setError(null);
+      
+      // Check permissions first
+      const permissions = await mediaService.requestPermissions();
+      if (!permissions.camera) {
+        throw new Error(permissions.cameraError || 'Camera permission denied');
       }
       
-      // Store reference to prevent context issues
-const mediaDevices = navigator.mediaDevices;
-      if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
-        throw new Error('getUserMedia not supported in this browser');
+      if (!mountedRef.current) return;
+      setHasPermission(true);
+      
+      const cameraStream = await mediaService.getCameraStream();
+      if (!mountedRef.current) {
+        // Component unmounted, cleanup stream
+        cameraStream?.getTracks().forEach(track => track.stop());
+        return;
       }
       
-      // Use .bind() to ensure proper context binding and prevent "Illegal invocation"
+      setStream(cameraStream);
+      
+      if (videoRef.current && cameraStream) {
+        videoRef.current.srcObject = cameraStream;
+        
+        // Wait for video to be ready
+        videoRef.current.addEventListener('loadedmetadata', () => {
+          if (mountedRef.current && videoRef.current) {
+            videoRef.current.play().catch(playError => {
+              console.warn('Video play failed:', playError);
+            });
+          }
+        });
+      }
+} catch (error) {
+      console.error('Camera initialization error:', error);
+      if (mountedRef.current) {
+        setError(error.message);
+        toast.error('Failed to access camera: ' + error.message);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const startCamera = useCallback(async () => {
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      setError('Camera not supported in this browser');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const mediaDevices = navigator.mediaDevices;
       const getUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
       
-      // Clean up any existing stream first
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
       
       let stream;
       try {
-        // Try back camera first
         stream = await getUserMedia({
           video: { 
             facingMode: facingMode,
@@ -50,10 +117,9 @@ const mediaDevices = navigator.mediaDevices;
           },
           audio: false
         });
-} catch (err) {
+      } catch (err) {
         console.warn('Preferred camera not available, trying fallback:', err);
         try {
-          // Fallback to any available camera - use bound function consistently
           stream = await getUserMedia({
             video: { 
               facingMode: 'environment',
@@ -76,7 +142,6 @@ const mediaDevices = navigator.mediaDevices;
           await videoRef.current.play();
         } catch (playError) {
           console.warn('Video play failed:', playError);
-          // Continue - this might work on user interaction
         }
         
         setIsActive(true);
@@ -175,13 +240,11 @@ const switchCamera = useCallback(async () => {
     if (!streamRef.current) return;
     
     try {
-      // Enhanced browser compatibility checks
       if (!navigator?.mediaDevices) {
         throw new Error('MediaDevices API not supported in this browser');
       }
       
-// Store reference to prevent context issues
-const mediaDevices = navigator.mediaDevices;
+      const mediaDevices = navigator.mediaDevices;
       if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
         throw new Error('Camera switching not supported in this browser');
       }
@@ -238,13 +301,11 @@ const mediaDevices = navigator.mediaDevices;
   const handleClose = useCallback(() => {
     stopCamera();
     onClose?.();
-  }, [onClose, stopCamera]);
-// Start camera when component mounts or facing mode changes
+}, [onClose, stopCamera]);
+
   useEffect(() => {
-    // Check if user has explicitly denied permissions before
     const checkPermissionAndStart = async () => {
       try {
-        // Check current permission status
         if (navigator.permissions) {
           const permission = await navigator.permissions.query({ name: 'camera' });
           if (permission.state === 'denied') {
@@ -253,7 +314,6 @@ const mediaDevices = navigator.mediaDevices;
           }
         }
         
-        // Attempt to start camera
         await startCamera();
       } catch (err) {
         console.error('Camera initialization error:', err);
@@ -267,7 +327,6 @@ const mediaDevices = navigator.mediaDevices;
 
     checkPermissionAndStart();
     
-    // Cleanup on unmount
     return () => {
       stopCamera();
     };
@@ -334,7 +393,7 @@ const mediaDevices = navigator.mediaDevices;
                 <p className="text-xl font-medium mb-2">Initializing AR Camera</p>
                 <p className="text-sm opacity-70">Please allow camera access when prompted</p>
               </div>
-</div>
+            </div>
           ) : isActive ? (
             <>
               <video
@@ -414,7 +473,7 @@ const mediaDevices = navigator.mediaDevices;
               <RotateCcw className="w-6 h-6 text-white" />
             </button>
             
-<button
+            <button
               onClick={capturePhoto}
               disabled={!isActive || isCapturing}
               className="p-6 bg-white rounded-full hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
@@ -433,7 +492,7 @@ const mediaDevices = navigator.mediaDevices;
                   document.documentElement.requestFullscreen();
                 }
               }}
-disabled={!isActive}
+              disabled={!isActive}
               className="p-4 bg-white/20 rounded-full hover:bg-white/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title="Fullscreen"
             >

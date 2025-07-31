@@ -1,59 +1,176 @@
-/**
- * Global Error Handler - Catches and handles runtime errors
- * Including MediaDevices API binding issues
- */
+import { toast } from "react-toastify";
+import React from "react";
 
-class ErrorHandler {
+// Global error handler for the application
+export class ErrorHandler {
+  static handle(error, context = '') {
+    console.error(`Error in ${context}:`, error);
+    
+    // Don't show error toasts in development for certain errors
+    if (process.env.NODE_ENV === 'development' && 
+        (error.message?.includes('Network Error') || 
+         error.message?.includes('fetch'))) {
+      return;
+    }
+    
+    // Enhanced error mapping for media-related errors
+    const errorMessage = this.getErrorMessage(error);
+    toast.error(errorMessage);
+  }
+  
+  static getErrorMessage(error) {
+    // Media API specific errors
+    if (error.message?.includes('getUserMedia') || error.message?.includes('MediaDevices')) {
+      return 'Camera/microphone access failed. Please check your permissions and try again.';
+    }
+    
+    if (error.message?.includes('Illegal invocation')) {
+      return 'Browser API error. Please refresh the page and try again.';
+    }
+    
+    // Standard error mapping
+    const errorMap = {
+      'NetworkError': 'Network connection error. Please check your internet connection.',
+      'NotAllowedError': 'Permission denied. Please allow the requested permissions in your browser.',
+      'NotFoundError': 'Requested resource not found.',
+      'NotReadableError': 'Device is already in use by another application.',
+      'OverconstrainedError': 'Device constraints cannot be satisfied.',
+      'SecurityError': 'Security error. Please ensure you\'re using HTTPS.',
+      'AbortError': 'Operation was aborted. Please try again.',
+      'NotSupportedError': 'This feature is not supported in your browser.',
+      'TypeError': 'Invalid parameters provided.'
+    };
+    
+    return errorMap[error.name] || error.message || 'An unexpected error occurred.';
+  }
+  
+  static async handleAsync(asyncFn, context = '') {
+    try {
+      return await asyncFn();
+    } catch (error) {
+      // Enhanced error context for media errors
+      if (error.message?.includes('getUserMedia') || error.message?.includes('MediaDevices')) {
+        console.error('Media API Error Details:', {
+          error: error.message,
+          name: error.name,
+          context,
+          userAgent: navigator.userAgent,
+          isSecure: location.protocol === 'https:',
+          mediaDevicesSupported: !!(navigator.mediaDevices?.getUserMedia)
+        });
+      }
+      
+      this.handle(error, context);
+      throw error;
+    }
+  }
+  
+  static handlePromise(promise, context = '') {
+    return promise.catch(error => {
+      this.handle(error, context);
+      throw error;
+    });
+  }
+  
+  // Media-specific error handler
+  static handleMediaError(error, context = 'Media Operation') {
+    console.error(`Media Error in ${context}:`, {
+      error: error.message,
+      name: error.name,
+      originalError: error.originalError,
+      mediaDevicesSupported: !!(navigator.mediaDevices?.getUserMedia),
+      isSecure: location.protocol === 'https:'
+    });
+    
+    // Provide specific guidance for media errors
+    if (error.name === 'NotAllowedError') {
+      toast.error('Camera/microphone permission denied. Please click the camera icon in your browser\'s address bar to allow access.');
+    } else if (error.name === 'NotFoundError') {
+      toast.error('No camera/microphone found. Please connect a device and refresh the page.');
+    } else if (error.name === 'NotReadableError') {
+      toast.error('Camera/microphone is being used by another application. Please close other apps and try again.');
+    } else if (error.message?.includes('Illegal invocation')) {
+      toast.error('Browser compatibility issue. Please refresh the page or try a different browser.');
+    } else {
+      toast.error(this.getErrorMessage(error));
+    }
+  }
+}
+
+// React Error Boundary helper
+export const withErrorBoundary = (Component) => {
+  return class extends React.Component {
+    constructor(props) {
+      super(props);
+      this.state = { hasError: false, error: null };
+    }
+
+    static getDerivedStateFromError(error) {
+      return { hasError: true, error };
+    }
+
+    componentDidCatch(error, errorInfo) {
+      console.error('React Error Boundary caught error:', error, errorInfo);
+      ErrorHandler.handle(error, 'React Error Boundary');
+    }
+
+    render() {
+      if (this.state.hasError) {
+        return (
+          <div className="error-boundary p-4 bg-red-50 border border-red-200 rounded">
+            <h2 className="text-lg font-semibold text-red-800 mb-2">Something went wrong</h2>
+            <p className="text-red-600">Please refresh the page or try again later.</p>
+          </div>
+        );
+      }
+
+      return <Component {...this.props} />;
+    }
+  };
+};
+
+// Global Error Handler Class
+class GlobalErrorHandler {
   constructor() {
-    this.setupGlobalHandlers();
     this.errors = [];
-    this.maxErrors = 100;
+    this.maxErrors = 50;
+    this.setupGlobalHandlers();
   }
 
   /**
    * Setup global error handlers
    */
   setupGlobalHandlers() {
-    // Handle uncaught errors
-window.addEventListener('error', (event) => {
-      const errorInfo = {
-        type: 'javascript',
-        message: event.message || 'Unknown JavaScript error',
-        filename: event.filename || 'unknown',
-        lineno: event.lineno || 0,
-        colno: event.colno || 0,
-        error: event.error ? {
-          name: event.error.name,
-          message: event.error.message,
-          stack: event.error.stack
-        } : null,
-        stack: event.error?.stack || 'No stack trace available'
-      };
-      
-console.error('Global JavaScript Error:', JSON.stringify(errorInfo, null, 2));
-      this.handleError(errorInfo);
-    });
+    // Handle uncaught JavaScript errors
+    if (typeof window !== 'undefined') {
+      window.addEventListener('error', (event) => {
+        this.handleError({
+          type: 'javascript',
+          message: event.message,
+          filename: event.filename,
+          lineno: event.lineno,
+          colno: event.colno,
+          error: event.error,
+          stack: event.error?.stack
+        });
+      });
 
-    // Handle unhandled promise rejections
-    window.addEventListener('unhandledrejection', (event) => {
-      const reason = event.reason;
-      const errorInfo = {
-        type: 'promise',
-        message: this.extractErrorMessage(reason) || 'Unhandled promise rejection',
-        error: reason ? {
-          name: reason.name || 'UnhandledRejection',
-          message: reason.message || String(reason),
-          stack: reason.stack
-        } : null,
-        stack: reason?.stack || 'No stack trace available'
-      };
-      
-console.error('Unhandled Promise Rejection:', JSON.stringify(errorInfo, null, 2));
-      this.handleError(errorInfo);
-    });
+      // Handle unhandled promise rejections
+      window.addEventListener('unhandledrejection', (event) => {
+        const errorInfo = {
+          type: 'promise',
+          message: this.extractErrorMessage(event.reason),
+          reason: event.reason,
+          stack: event.reason?.stack
+        };
+        
+        console.error('Unhandled Promise Rejection:', JSON.stringify(errorInfo, null, 2));
+        this.handleError(errorInfo);
+      });
 
-    // Handle React errors (will be caught by Error Boundary)
-    this.setupReactErrorHandler();
+      // Handle React errors (will be caught by Error Boundary)
+      this.setupReactErrorHandler();
+    }
   }
 
   /**
