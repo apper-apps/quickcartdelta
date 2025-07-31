@@ -1,12 +1,12 @@
+import './index.css'
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { Provider } from "react-redux";
-import { store } from "@/store/store";
-import App from "@/App.jsx";
-import "@/index.css";
+import App from "./App.jsx";
+import ErrorBoundary from "@/components/ui/ErrorBoundary";
+import { errorHandler } from "@/utils/errorHandler";
 
-ReactDOM.createRoot(document.getElementById("root")).render(
-  <Provider store={store}>
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <ErrorBoundary>
     <App />
-  </Provider>
+  </ErrorBoundary>
 );
