@@ -1,353 +1,348 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Camera, X, RotateCw, Download, AlertTriangle } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { AlertCircle, Camera, Download, Maximize2, RotateCcw, X } from "lucide-react";
+import Error from "@/components/ui/Error";
+import Button from "@/components/atoms/Button";
 
-const ARPreview = ({ product, isOpen, onClose }) => {
+const ARPreview = ({ product, onClose }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [stream, setStream] = useState(null);
-  const [isARSupported, setIsARSupported] = useState(false);
-  const [capturedImage, setCapturedImage] = useState(null);
+  const [hasPermission, setHasPermission] = useState(null);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [facingMode, setFacingMode] = useState('environment'); // 'user' or 'environment'
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const streamRef = useRef(null);
 
-  // Check AR support on mount
-  useEffect(() => {
-    checkARSupport();
-  }, []);
-
-  // Initialize camera when component opens
-  useEffect(() => {
-    if (isOpen && isARSupported) {
-      initializeCamera();
-    }
-    
-    return () => {
-      if (stream) {
-        cleanup();
-      }
-    };
-  }, [isOpen, isARSupported]);
-
-  const checkARSupport = async () => {
-    try {
-      const hasUserMedia = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
-      const hasWebRTC = window.RTCPeerConnection;
-      setIsARSupported(hasUserMedia && hasWebRTC);
-    } catch (err) {
-      console.error('AR support check failed:', err);
-      setIsARSupported(false);
-    }
-  };
-
-const initializeCamera = async () => {
+  const startCamera = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-
-      // Enhanced browser compatibility checks
-      if (!navigator.mediaDevices) {
-        throw new Error('MediaDevices API not supported in this browser');
+      
+      // Check if MediaDevices API is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera API not supported in this browser');
       }
       
-      if (!navigator.mediaDevices.getUserMedia) {
-        throw new Error('getUserMedia not supported in this browser');
-      }
-
-      // Check for secure context (HTTPS required for getUserMedia)
-      if (!window.isSecureContext && location.protocol !== 'file:') {
-        throw new Error('Camera access requires HTTPS connection');
-      }
-
-      // Enhanced getUserMedia binding to prevent "Illegal invocation" error
-      let mediaStream;
-      
-      try {
-        // Primary approach: Direct call with proper context
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: 'environment',
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
-          audio: false
-        });
-      } catch (bindingError) {
-        // Fallback approach: Explicit binding if direct call fails
-        if (bindingError.message.includes('Illegal invocation') || bindingError.name === 'TypeError') {
-          console.warn('Direct getUserMedia call failed, trying with explicit binding:', bindingError.message);
-          
-          const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-          mediaStream = await getUserMedia({
-            video: {
-              facingMode: 'environment',
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
-            },
-            audio: false
-          });
-        } else {
-          // Re-throw if not a binding issue
-          throw bindingError;
-        }
-      }
-
-      // Validate stream before proceeding
-      if (!mediaStream || !mediaStream.getVideoTracks().length) {
-        throw new Error('No video track available in media stream');
+      // Stop existing stream before starting new one
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
       }
       
+      // Correct usage - call getUserMedia on the navigator.mediaDevices object directly
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { 
+          facingMode: facingMode,
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 }
+        },
+        audio: false
+      });
+      
+      streamRef.current = stream;
       if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
+        videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
-
-      setStream(mediaStream);
+      setHasPermission(true);
     } catch (err) {
-console.error('Camera initialization failed:', err);
-      setError(
-        err.message.includes('Illegal invocation')
-          ? 'Camera access failed due to browser compatibility. Please try refreshing the page.'
-          : err.name === 'NotAllowedError' 
-          ? 'Camera access denied. Please enable camera permissions in your browser settings and click the camera icon in your address bar to allow access, then try again.'
-          : err.name === 'NotFoundError'
-          ? 'No camera found on this device. Please ensure your camera is connected and working properly.'
-          : err.name === 'NotSupportedError'
-          ? 'Camera not supported on this device. Please try using a different browser or device.'
-          : err.name === 'SecurityError'
-          ? 'Camera access blocked due to security restrictions. Please check your browser settings and ensure you\'re using HTTPS.'
-          : err.message === 'Camera API not supported in this browser'
-          ? 'Camera API not supported in this browser. Please try using Chrome, Firefox, or Safari for the best AR experience.'
-          : 'Failed to initialize camera. Please check your camera permissions and try again.'
-      );
+      console.error('Camera access error:', err);
+      let errorMessage = 'Camera access failed';
+      
+      if (err.name === 'NotAllowedError') {
+        errorMessage = 'Camera permission denied. Please allow camera access to use AR preview.';
+      } else if (err.name === 'NotFoundError') {
+        errorMessage = 'No camera found on this device.';
+      } else if (err.name === 'NotSupportedError') {
+        errorMessage = 'Camera not supported in this browser.';
+      } else if (err.name === 'NotReadableError') {
+        errorMessage = 'Camera is already in use by another application.';
+      } else if (err.name === 'OverconstrainedError') {
+        errorMessage = 'Camera constraints not supported. Trying with basic settings...';
+        // Retry with basic constraints
+        try {
+          const basicStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: facingMode },
+            audio: false
+          });
+          streamRef.current = basicStream;
+          if (videoRef.current) {
+            videoRef.current.srcObject = basicStream;
+            await videoRef.current.play();
+          }
+          setHasPermission(true);
+          setError(null);
+          return;
+        } catch (retryErr) {
+          errorMessage = 'Camera constraints not supported by this device.';
+        }
+      }
+      
+      setError(errorMessage);
+      setHasPermission(false);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [facingMode]);
 
-  const cleanup = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => {
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => {
         track.stop();
       });
-      setStream(null);
+      streamRef.current = null;
     }
-    
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+  }, []);
+
+  const switchCamera = useCallback(() => {
+    setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
+  }, []);
+
+  const capturePhoto = useCallback(async () => {
+    if (!videoRef.current || !canvasRef.current || isCapturing) return;
     
-    setCapturedImage(null);
-    setError(null);
-  };
-
-  const capturePhoto = async () => {
     try {
-      if (!videoRef.current || !canvasRef.current) return;
-
+      setIsCapturing(true);
       const canvas = canvasRef.current;
       const video = videoRef.current;
-      const context = canvas.getContext('2d');
-
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-
-      // Draw video frame
-      context.drawImage(video, 0, 0);
-
-      // Add product overlay (simulated AR)
-      if (product?.image) {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-          img.src = product.image;
-        });
-
-        // Draw product overlay in center
-        const overlaySize = Math.min(canvas.width, canvas.height) * 0.3;
-        const x = (canvas.width - overlaySize) / 2;
-        const y = (canvas.height - overlaySize) / 2;
-        
-        context.drawImage(img, x, y, overlaySize, overlaySize);
+      const ctx = canvas.getContext('2d');
+      
+      if (!ctx) {
+        throw new Error('Unable to get canvas context');
       }
-
-      const imageData = canvas.toDataURL('image/jpeg', 0.8);
-      setCapturedImage(imageData);
+      
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
+      
+      // Draw video frame to canvas
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      // Add product overlay (simple demonstration)
+      ctx.fillStyle = 'rgba(74, 144, 226, 0.1)';
+      ctx.fillRect(canvas.width * 0.1, canvas.height * 0.1, canvas.width * 0.8, canvas.height * 0.8);
+      ctx.strokeStyle = '#4A90E2';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(canvas.width * 0.1, canvas.height * 0.1, canvas.width * 0.8, canvas.height * 0.8);
+      
+      // Add product name
+      ctx.font = '24px Inter, sans-serif';
+      ctx.fillStyle = '#4A90E2';
+      ctx.textAlign = 'center';
+      ctx.fillText(product?.name || 'AR Preview', canvas.width / 2, canvas.height * 0.9);
+      
+      // Convert to blob and download
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `ar-preview-${product?.name?.replace(/\s+/g, '-') || 'product'}-${Date.now()}.jpg`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }
+      }, 'image/jpeg', 0.9);
+      
     } catch (err) {
-      console.error('Photo capture failed:', err);
+      console.error('Photo capture error:', err);
       setError('Failed to capture photo. Please try again.');
+    } finally {
+      setIsCapturing(false);
     }
-  };
+  }, [product, isCapturing]);
 
-  const downloadImage = () => {
-    if (!capturedImage) return;
+  const handleClose = useCallback(() => {
+    stopCamera();
+    onClose?.();
+  }, [onClose, stopCamera]);
 
-    try {
-      const link = document.createElement('a');
-      link.download = `ar-preview-${product?.name || 'product'}-${Date.now()}.jpg`;
-      link.href = capturedImage;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (err) {
-      console.error('Download failed:', err);
-      setError('Failed to download image.');
-    }
-  };
+  // Start camera when component mounts or facing mode changes
+  useEffect(() => {
+    startCamera();
+    
+    // Cleanup on unmount
+    return () => {
+      stopCamera();
+    };
+  }, [startCamera, stopCamera]);
 
-  const retryCamera = () => {
-    cleanup();
-    if (isARSupported) {
-      initializeCamera();
-    }
-  };
+  // Handle visibility change to pause/resume camera
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopCamera();
+      } else if (hasPermission) {
+        startCamera();
+      }
+    };
 
-  const handleClose = () => {
-    cleanup();
-    onClose();
-  };
-
-  // Don't render if not open
-  if (!isOpen) return null;
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [hasPermission, startCamera, stopCamera]);
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"
-        onClick={(e) => e.target === e.currentTarget && handleClose()}
-      >
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
-          className="relative w-full max-w-4xl bg-white rounded-xl overflow-hidden shadow-2xl"
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-primary to-secondary text-white">
-            <div className="flex items-center gap-3">
-              <Camera className="w-6 h-6" />
-              <div>
-                <h2 className="text-lg font-semibold">AR Preview</h2>
-                <p className="text-sm opacity-90">
-                  {product?.name || 'Product Preview'}
-                </p>
-              </div>
+    <div className="fixed inset-0 bg-black z-50">
+      <div className="relative w-full h-full flex flex-col">
+        {/* Header */}
+        <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/70 to-transparent p-4 safe-top">
+<div className="flex items-center justify-between text-white">
+            <div>
+              <h2 className="text-xl font-bold">{product?.name || 'AR Preview'}</h2>
+              <p className="text-sm opacity-80">Augmented Reality Preview</p>
             </div>
             <button
               onClick={handleClose}
-              className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+              className="p-2 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
             >
-              <X className="w-5 h-5" />
+              <X className="w-6 h-6" />
             </button>
           </div>
+        </div>
 
-          {/* Content */}
-          <div className="relative aspect-video bg-gray-900">
-            {!isARSupported ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-8 text-center">
-                <AlertTriangle className="w-16 h-16 text-yellow-500 mb-4" />
-                <h3 className="text-xl font-semibold mb-2">AR Not Supported</h3>
-                <p className="text-gray-300 mb-4">
-                  Your device doesn't support AR features. Please try on a different device with camera access.
-                </p>
+        {/* Error Banner */}
+        {error && (
+          <div className="absolute top-20 left-4 right-4 z-20 bg-red-600/90 backdrop-blur-sm text-white p-4 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium">Camera Error</p>
+                <p className="text-sm opacity-90">{error}</p>
               </div>
-            ) : error ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-8 text-center">
-                <AlertTriangle className="w-16 h-16 text-red-500 mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Camera Error</h3>
-                <p className="text-gray-300 mb-4">{error}</p>
-                <button
-                  onClick={retryCamera}
-                  className="btn-primary flex items-center gap-2"
-                >
-                  <RotateCw className="w-4 h-4" />
-                  Retry
-                </button>
-              </div>
-            ) : isLoading ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
-                <div className="animate-spin rounded-full h-16 w-16 border-4 border-white border-t-transparent mb-4"></div>
-                <p className="text-lg">Initializing AR Camera...</p>
-              </div>
-            ) : capturedImage ? (
-              <div className="relative w-full h-full">
-                <img
-                  src={capturedImage}
-                  alt="AR Capture"
-                  className="w-full h-full object-contain"
-                />
-                <div className="absolute top-4 right-4 flex gap-2">
-                  <button
-                    onClick={downloadImage}
-                    className="p-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-                  >
-                    <Download className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={() => setCapturedImage(null)}
-                    className="p-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
-                  >
-                    <Camera className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <video
-                  ref={videoRef}
-                  className="w-full h-full object-cover"
-                  playsInline
-                  muted
-                />
-                
-                {/* AR Overlay Indicators */}
-                <div className="absolute inset-0 pointer-events-none">
-                  {/* Corner indicators */}
-                  <div className="absolute top-4 left-4 w-8 h-8 border-t-2 border-l-2 border-white/60"></div>
-                  <div className="absolute top-4 right-4 w-8 h-8 border-t-2 border-r-2 border-white/60"></div>
-                  <div className="absolute bottom-4 left-4 w-8 h-8 border-b-2 border-l-2 border-white/60"></div>
-                  <div className="absolute bottom-4 right-4 w-8 h-8 border-b-2 border-r-2 border-white/60"></div>
-                  
-                  {/* Center crosshair */}
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                    <div className="w-4 h-4 border-2 border-white/80 rounded-full"></div>
+            </div>
+          </div>
+        )}
+
+        {/* Camera View */}
+        <div className="flex-1 relative">
+          {hasPermission === null || isLoading ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+              <div className="text-center text-white">
+                <div className="relative">
+                  <Camera className="w-20 h-20 mx-auto mb-4 text-white/60" />
+                  <div className="absolute inset-0 animate-ping">
+                    <Camera className="w-20 h-20 mx-auto text-primary/40" />
                   </div>
+                </div>
+                <p className="text-xl font-medium mb-2">Initializing AR Camera</p>
+                <p className="text-sm opacity-70">Please allow camera access when prompted</p>
+              </div>
+            </div>
+          ) : hasPermission ? (
+            <>
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+              />
+              
+              {/* AR Overlay */}
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="w-full h-full relative">
+                  {/* Corner markers for AR frame */}
+                  <div className="absolute top-1/4 left-1/4 w-8 h-8 border-l-4 border-t-4 border-primary/60"></div>
+                  <div className="absolute top-1/4 right-1/4 w-8 h-8 border-r-4 border-t-4 border-primary/60"></div>
+                  <div className="absolute bottom-1/4 left-1/4 w-8 h-8 border-l-4 border-b-4 border-primary/60"></div>
+                  <div className="absolute bottom-1/4 right-1/4 w-8 h-8 border-r-4 border-b-4 border-primary/60"></div>
                   
                   {/* Product info overlay */}
-                  {product && (
-                    <div className="absolute bottom-6 left-6 bg-black/60 text-white p-4 rounded-lg backdrop-blur-sm">
-                      <h3 className="font-semibold">{product.name}</h3>
-                      <p className="text-sm opacity-90">${product.price}</p>
-                    </div>
-                  )}
+                  <div className="absolute bottom-32 left-4 right-4 bg-black/60 backdrop-blur-sm text-white p-4 rounded-lg">
+                    <h3 className="font-bold text-lg">{product?.name}</h3>
+                    <p className="text-sm opacity-80">Use AR to visualize this product in your space</p>
+                  </div>
                 </div>
-
-                {/* Capture Button */}
-                <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2">
-                  <button
-                    onClick={capturePhoto}
-                    className="w-16 h-16 bg-white rounded-full shadow-lg hover:scale-110 transition-transform active:scale-95 flex items-center justify-center"
+              </div>
+              
+              {/* Capture indicator */}
+              {isCapturing && (
+                <div className="absolute inset-0 bg-white/20 flex items-center justify-center">
+                  <div className="bg-black/80 text-white px-6 py-3 rounded-full">
+                    <div className="flex items-center gap-3">
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Capturing...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+              <div className="text-center text-white max-w-sm mx-4">
+                <AlertCircle className="w-20 h-20 mx-auto mb-4 text-red-400" />
+                <p className="text-xl font-medium mb-2">Camera Access Required</p>
+                <p className="text-sm opacity-80 mb-4">{error}</p>
+                <div className="space-y-2">
+                  <Button
+                    onClick={startCamera}
+                    variant="primary"
+                    className="w-full"
                   >
-                    <div className="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center">
-                      <Camera className="w-6 h-6 text-white" />
-                    </div>
-                  </button>
+                    <Camera className="w-4 h-4 mr-2" />
+                    Enable Camera
+                  </Button>
+                  <Button
+                    onClick={handleClose}
+                    variant="secondary"
+                    className="w-full"
+                  >
+                    Close AR Preview
+                  </Button>
                 </div>
-              </>
-            )}
-          </div>
+              </div>
+            </div>
+          )}
+        </div>
 
-          {/* Hidden canvas for capture */}
-          <canvas ref={canvasRef} className="hidden" />
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+        {/* Controls */}
+        <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/80 to-transparent p-6 safe-bottom">
+          <div className="flex items-center justify-center gap-8">
+            <button
+              onClick={switchCamera}
+              disabled={!hasPermission || isLoading}
+              className="p-4 bg-white/20 rounded-full hover:bg-white/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Switch Camera"
+            >
+              <RotateCcw className="w-6 h-6 text-white" />
+            </button>
+            
+            <button
+              onClick={capturePhoto}
+              disabled={!hasPermission || isCapturing}
+              className="p-6 bg-white rounded-full hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+              title="Capture Photo"
+            >
+              {isCapturing ? (
+                <div className="w-8 h-8 border-2 border-gray-800 border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <Download className="w-8 h-8 text-gray-800" />
+              )}
+            </button>
+            
+            <button
+              onClick={() => {
+                if (document.documentElement.requestFullscreen) {
+                  document.documentElement.requestFullscreen();
+                }
+              }}
+              disabled={!hasPermission}
+              className="p-4 bg-white/20 rounded-full hover:bg-white/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Fullscreen"
+            >
+              <Maximize2 className="w-6 h-6 text-white" />
+            </button>
+          </div>
+        </div>
+
+        {/* Hidden canvas for photo capture */}
+        <canvas ref={canvasRef} className="hidden" />
+      </div>
+    </div>
   );
 };
 

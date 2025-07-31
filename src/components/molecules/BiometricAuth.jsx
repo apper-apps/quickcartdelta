@@ -1,271 +1,237 @@
-import React, { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { toast } from "react-toastify";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { AlertCircle, Camera, Shield, User, X } from "lucide-react";
 import ApperIcon from "@/components/ApperIcon";
 import Error from "@/components/ui/Error";
 import Button from "@/components/atoms/Button";
 
-function BiometricAuth({ isOpen, onClose, onSuccess, title = "Biometric Authentication" }) {
-  const [isScanning, setIsScanning] = useState(false)
-  const [scanProgress, setScanProgress] = useState(0)
-  const [isSupported, setIsSupported] = useState(false)
-  const [error, setError] = useState(null)
-  const [scanType, setScanType] = useState('fingerprint') // 'fingerprint', 'face', 'voice'
-  const mountedRef = useRef(true)
+const BiometricAuth = ({ onAuth, onCancel }) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [hasPermission, setHasPermission] = useState(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
 
-  useEffect(() => {
-    mountedRef.current = true
-    checkSupport()
+  const startCamera = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Check if MediaDevices API is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera API not supported in this browser');
+      }
+      
+      // Correct usage - call getUserMedia on the navigator.mediaDevices object directly
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { 
+          facingMode: 'user',
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        },
+        audio: false
+      });
+      
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setHasPermission(true);
+    } catch (err) {
+      console.error('Camera access error:', err);
+      let errorMessage = 'Camera access failed';
+      
+      if (err.name === 'NotAllowedError') {
+        errorMessage = 'Camera permission denied. Please allow camera access and try again.';
+      } else if (err.name === 'NotFoundError') {
+        errorMessage = 'No camera found on this device.';
+      } else if (err.name === 'NotSupportedError') {
+        errorMessage = 'Camera not supported in this browser.';
+      } else if (err.name === 'NotReadableError') {
+        errorMessage = 'Camera is already in use by another application.';
+      }
+      
+      setError(errorMessage);
+      setHasPermission(false);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => {
+        track.stop();
+      });
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }, []);
+
+  const handleAuth = useCallback(() => {
+    if (!streamRef.current) {
+      setError('Camera not available for authentication');
+      return;
+    }
     
-    return () => {
-      mountedRef.current = false
-    }
-  }, [])
-
-async function checkSupport() {
-    try {
-      if (!window.PublicKeyCredential) {
-        setIsSupported(false)
-        return
-      }
-
-      const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
-      if (mountedRef.current) {
-        setIsSupported(available)
-      }
-    } catch (error) {
-      console.warn('Biometric support check failed:', error)
-      if (mountedRef.current) {
-        setIsSupported(false)
-      }
-    }
-  }
-
-  function handleScanComplete() {
-    setIsScanning(false)
-    setScanProgress(100)
-    toast.success('Authentication successful!')
+    // Simulate biometric authentication with proper error handling
+    setIsAuthenticating(true);
+    setError(null);
+    
     setTimeout(() => {
-      if (mountedRef.current) {
-        onSuccess()
-        onClose()
+      setIsAuthenticating(false);
+      // Simulate random success/failure for demo
+      const success = Math.random() > 0.3;
+      if (success) {
+        onAuth?.(true);
+      } else {
+        setError('Biometric authentication failed. Please try again.');
       }
-    }, 500)
-  }
+    }, 2000);
+  }, [onAuth]);
 
-  async function startScan() {
-    try {
-      setIsScanning(true)
-      setError(null)
-      setScanProgress(0)
-
-      // Check WebAuthn support
-      if (!window.PublicKeyCredential || !navigator.credentials) {
-        throw new Error('Biometric authentication not supported in this browser')
-      }
-
-      // Animate scan progress
-      const interval = setInterval(() => {
-        setScanProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(interval)
-            return 100
-          }
-          return prev + 10
-        })
-      }, 150)
-
-      // Use direct method call to avoid context binding issues
-      const credential = await navigator.credentials.create({
-        publicKey: {
-          challenge: new Uint8Array(32),
-          rp: {
-            name: "QuickCart",
-            id: window.location.hostname,
-          },
-          user: {
-            id: new Uint8Array(16),
-            name: "user@example.com",
-            displayName: "User",
-          },
-          pubKeyCredParams: [{alg: -7, type: "public-key"}],
-          authenticatorSelection: {
-            authenticatorAttachment: "platform",
-            userVerification: "required"
-          },
-          timeout: 60000,
-          attestation: "direct"
-        }
-      })
-
-      if (credential) {
-        clearInterval(interval)
-        handleScanComplete()
-      }
-    } catch (error) {
-      console.error('Biometric authentication error:', error)
-      setError(`Authentication failed: ${error.message}`)
-      setIsScanning(false)
-      setScanProgress(0)
-    }
-  }
-
-  function handleFallback() {
-    // Fallback to password/PIN authentication
-    toast.info('Redirecting to alternative authentication...')
-    onClose()
-  }
+  const handleCancel = useCallback(() => {
+    stopCamera();
+    onCancel?.();
+  }, [onCancel, stopCamera]);
 
   useEffect(() => {
-    if (isOpen) {
-      // Check biometric support on mount
-      const checkSupport = async () => {
-        try {
-          if (!window.PublicKeyCredential) {
-            setIsSupported(false)
-            return
-          }
+    startCamera();
+    
+    // Cleanup on unmount
+    return () => {
+      stopCamera();
+    };
+  }, [startCamera, stopCamera]);
 
-          const createCredential = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
-          setIsSupported(createCredential)
-        } catch (error) {
-          console.warn('Biometric support check failed:', error)
-          setIsSupported(false)
-        }
+  // Handle visibility change to pause/resume camera
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopCamera();
+      } else if (hasPermission) {
+        startCamera();
       }
+    };
 
-      checkSupport()
-    }
-  }, [isOpen])
-
-  if (!isOpen) return null
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+}, [hasPermission, startCamera, stopCamera]);
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-        onClick={(e) => e.target === e.currentTarget && onClose()}
-      >
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
-          className="bg-surface rounded-2xl p-8 max-w-md w-full shadow-2xl"
-        >
-          {!isSupported ? (
-            <div className="text-center">
-              <ApperIcon name="AlertTriangle" size={64} className="mx-auto mb-4 text-warning" />
-              <h3 className="text-xl font-bold mb-2">Biometric Auth Unavailable</h3>
-              <p className="text-gray-600 mb-6">
-                Your device doesn't support biometric authentication or it's not set up.
-              </p>
-              <div className="flex gap-3">
-                <Button onClick={handleFallback} className="btn-primary flex-1">
-                  Use Password Instead
-                </Button>
-                <Button onClick={onClose} className="btn-secondary">
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : error ? (
-            <Error
-              message={error}
-              onRetry={() => {
-                setError(null)
-                startScan()
-              }}
-              onCancel={onClose}
-              showRetry
-            />
-          ) : (
-            <div className="text-center">
-<div className="relative mb-6">
-                <div className="w-24 h-24 mx-auto bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center">
-                  <ApperIcon 
-                    name={scanType === 'face' ? "Scan" : "Fingerprint"} 
-                    size={40} 
-                    className="text-white" 
-                  />
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+          <h3 className="text-xl font-bold flex items-center gap-2">
+            <Shield className="w-6 h-6 text-primary" />
+            Biometric Authentication
+          </h3>
+          <button
+            onClick={handleCancel}
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            disabled={isAuthenticating}
+          >
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="p-6">
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-red-800">Authentication Error</p>
+                  <p className="text-sm text-red-700 mt-1">{error}</p>
                 </div>
-                
-                {isScanning && (
-                  <motion.div
-                    initial={{ scale: 1 }}
-                    animate={{ scale: [1, 1.2, 1] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                    className="absolute inset-0 border-4 border-primary/30 rounded-full"
-                  />
-                )}
-              </div>
-<h3 className="text-xl font-bold mb-2">
-                {scanType === 'face' ? 'Face Authentication' : 'Fingerprint Authentication'}
-              </h3>
-              
-              <p className="text-gray-600 mb-6">
-                {isScanning
-                  ? `Scanning ${scanType}... Please don't move.`
-                  : `Place your ${scanType === 'face' ? 'face in view' : 'finger on the sensor'} to authenticate.`
-                }
-              </p>
-
-              {isScanning && (
-                <div className="mb-6">
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <motion.div
-                      className="bg-gradient-to-r from-primary to-secondary h-2 rounded-full"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${scanProgress}%` }}
-                      transition={{ duration: 0.3 }}
-                    />
-                  </div>
-                  <p className="text-sm text-gray-500 mt-2">{scanProgress}% complete</p>
-                </div>
-              )}
-
-              <div className="flex flex-col gap-3">
-{!isScanning ? (
-                  <Button onClick={startScan} className="btn-primary">
-                    Start {scanType === 'face' ? 'Face' : 'Fingerprint'} Scan
-                  </Button>
-                ) : (
-                  <Button 
-                    onClick={() => {
-                      setIsScanning(false)
-                      setScanProgress(0)
-                    }} 
-                    className="btn-secondary"
-                  >
-                    Cancel Scan
-                  </Button>
-                )}
-
-<div className="flex gap-2">
-                  <Button
-                    onClick={() => setScanType(scanType === 'face' ? 'fingerprint' : 'face')}
-                    className="btn-secondary flex-1 text-sm"
-                    disabled={isScanning}
-                  >
-                    Switch to {scanType === 'face' ? 'Fingerprint' : 'Face'}
-                  </Button>
-                  <Button onClick={handleFallback} className="btn-secondary flex-1 text-sm">
-                    Use Password
-                  </Button>
-                </div>
-
-                <Button onClick={onClose} className="text-gray-500 text-sm">
-                  Cancel
-                </Button>
               </div>
             </div>
           )}
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
-  )
-}
 
-export default BiometricAuth
+          <div className="relative bg-gray-100 rounded-lg overflow-hidden mb-6" style={{ aspectRatio: '4/3' }}>
+            {hasPermission === null || isLoading ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center">
+                  <Camera className="w-16 h-16 text-gray-400 mx-auto mb-3 animate-pulse" />
+                  <p className="text-sm text-gray-600 font-medium">Initializing camera...</p>
+                  <p className="text-xs text-gray-500 mt-1">Please allow camera access when prompted</p>
+                </div>
+              </div>
+            ) : hasPermission ? (
+              <>
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                />
+                {isAuthenticating && (
+                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                    <div className="bg-white rounded-lg p-4 shadow-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                        <span className="text-sm font-medium">Authenticating...</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center">
+                  <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-3" />
+                  <p className="text-sm font-medium text-red-600">Camera Access Required</p>
+                  <p className="text-xs text-red-500 mt-1">Please enable camera permissions and refresh</p>
+                  <Button
+                    onClick={startCamera}
+                    variant="secondary"
+                    size="sm"
+                    className="mt-3"
+                  >
+                    Try Again
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3">
+            <Button
+              onClick={handleCancel}
+              variant="secondary"
+              className="flex-1"
+              disabled={isAuthenticating}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAuth}
+              disabled={!hasPermission || isLoading || isAuthenticating}
+              className="flex-1"
+            >
+              {isAuthenticating ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Authenticating
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  Authenticate
+                </div>
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default BiometricAuth;
