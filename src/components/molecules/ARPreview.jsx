@@ -37,15 +37,22 @@ async function requestCameraAccess() {
       setIsLoading(true)
       setError(null)
       
-      // Check if getUserMedia is supported
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera access not supported in this browser')
+      // Enhanced browser compatibility checks
+      if (!navigator.mediaDevices) {
+        throw new Error('MediaDevices API not supported in this browser')
       }
       
-      // Explicitly bind getUserMedia to preserve context and prevent "Illegal invocation"
-      const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices)
+      if (!navigator.mediaDevices.getUserMedia) {
+        throw new Error('getUserMedia not supported in this browser')
+      }
       
-      const stream = await getUserMedia({
+      // Check for secure context (HTTPS required for getUserMedia)
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+        throw new Error('Camera access requires HTTPS or localhost')
+      }
+      
+      // Direct call to getUserMedia without binding to prevent "Illegal invocation" errors
+      const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: cameraView,
           width: { ideal: 1280 },
@@ -68,7 +75,25 @@ async function requestCameraAccess() {
       setPermissionStatus('granted')
     } catch (error) {
       console.error('Camera access error:', error)
-      setError(error.message || 'Failed to access camera')
+      
+      // Enhanced error handling with specific messages
+      let errorMessage = 'Failed to access camera'
+      
+      if (error.name === 'NotAllowedError') {
+        errorMessage = 'Camera permission denied. Please allow camera access and try again.'
+      } else if (error.name === 'NotFoundError') {
+        errorMessage = 'No camera found on this device.'
+      } else if (error.name === 'NotReadableError') {
+        errorMessage = 'Camera is already in use by another application.'
+      } else if (error.name === 'OverconstrainedError') {
+        errorMessage = 'Camera does not support the requested settings.'
+      } else if (error.name === 'SecurityError') {
+        errorMessage = 'Camera access blocked due to security restrictions.'
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+      
+      setError(errorMessage)
       setPermissionStatus('denied')
     } finally {
       setIsLoading(false)
