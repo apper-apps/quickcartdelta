@@ -28,8 +28,9 @@ const startCamera = useCallback(async () => {
         throw new Error('getUserMedia not supported in this browser');
       }
       
-      // Use .call() to ensure proper context binding and prevent "Illegal invocation"
-      const stream = await mediaDevices.getUserMedia.call(mediaDevices, {
+// Use .bind() to ensure proper context binding and prevent "Illegal invocation"
+      const getUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
+      const stream = await getUserMedia({
         video: { 
           facingMode: 'user',
           width: { ideal: 640 },
