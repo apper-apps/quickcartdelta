@@ -130,14 +130,12 @@ function Error({ message, onRetry, className }) {
                 </p>
               </div>
             )}
-          </div>
+</div>
         )}
         
         {/* Retry Button */}
-{/* Retry Button */}
         {onRetry && (
           <button
-            onClick={onRetry}
             className="inline-flex items-center px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg"
           >
             <RefreshCw className="w-4 h-4 mr-2" />
