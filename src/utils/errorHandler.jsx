@@ -207,27 +207,50 @@ this.handleReactError(error);
   /**
    * Check if error is related to MediaDevices API
    */
-  isMediaDeviceError(error) {
+isMediaDeviceError(error) {
     const message = error.message?.toLowerCase() || '';
+    const stack = error.stack?.toLowerCase() || '';
     return message.includes('getusermedia') || 
-           message.includes('mediad devices') || 
-           message.includes('illegal invocation');
+           message.includes('mediadevices') || 
+           message.includes('illegal invocation') ||
+           (message.includes('illegal invocation') && stack.includes('getusermedia'));
   }
 
   /**
    * Handle MediaDevices specific errors
    */
   handleMediaDeviceError(error) {
-console.warn('MediaDevices API Error detected:', error.message);
+    console.warn('MediaDevices API Error detected:', error.message);
     
     // Enhanced error detection for "Illegal invocation" specifically
-    if (error.message?.includes('Illegal invocation') && error.message?.includes('getUserMedia')) {
-      console.error('getUserMedia context binding error - this indicates improper MediaDevices API usage');
+    if (error.message?.includes('Illegal invocation')) {
+      console.error('MediaDevices API context binding error details:', {
+        message: error.message,
+        stack: error.stack,
+        cause: 'Likely caused by improper getUserMedia context binding',
+        solution: 'Use getUserMedia.bind(navigator.mediaDevices) or proper feature detection'
+      });
       
       if (typeof window !== 'undefined' && window.toast) {
-        window.toast.error('Camera initialization error. Please refresh the page to resolve the issue.');
+        window.toast.error('Camera API error detected. The page will refresh automatically to resolve this issue.');
+        
+        // Auto-refresh after a short delay to resolve the context binding issue
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
       }
       return;
+    }
+    
+    // Handle getUserMedia specific errors
+    if (error.message?.includes('getUserMedia')) {
+      console.error('getUserMedia API Error:', {
+        error: error.message,
+        name: error.name,
+        mediaDevicesSupported: !!(navigator.mediaDevices),
+        getUserMediaSupported: !!(navigator.mediaDevices?.getUserMedia),
+        isSecure: location.protocol === 'https:'
+      });
     }
     
     // Show user-friendly message if needed

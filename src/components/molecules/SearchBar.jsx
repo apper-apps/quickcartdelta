@@ -83,10 +83,19 @@ const [isListening, setIsListening] = useState(false);
   const [cameraSupported, setCameraSupported] = useState(false);
 
   useEffect(() => {
-    setSpeechSupported('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
-    setCameraSupported(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+setSpeechSupported('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
+    
+    // Safe camera support detection to prevent "Illegal invocation" error
+    try {
+      setCameraSupported(
+        navigator.mediaDevices && 
+        typeof navigator.mediaDevices.getUserMedia === 'function'
+      );
+    } catch (error) {
+      console.warn('Camera support detection failed:', error);
+      setCameraSupported(false);
+    }
   }, []);
-
   const startVoiceSearch = () => {
     if (!speechSupported) {
       alert('Voice search is not supported in your browser');

@@ -6,8 +6,16 @@ class MediaService {
     this.isSupported = this.checkSupport();
   }
 
-  checkSupport() {
-    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+checkSupport() {
+    try {
+      return !!(
+        navigator.mediaDevices && 
+        typeof navigator.mediaDevices.getUserMedia === 'function'
+      );
+    } catch (error) {
+      console.warn('MediaDevices support check failed:', error);
+      return false;
+    }
   }
 
   // Get user media with proper error handling and context binding
