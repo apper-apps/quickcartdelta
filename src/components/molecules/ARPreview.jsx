@@ -49,9 +49,9 @@ const initializeCamera = async () => {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('Camera API not supported in this browser');
       }
-
-// Call getUserMedia directly to maintain proper context
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
+// Call getUserMedia with proper context binding to prevent "Illegal invocation" error
+      const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      const mediaStream = await getUserMedia({
         video: {
           facingMode: 'environment',
           width: { ideal: 1280 },
@@ -59,7 +59,6 @@ const initializeCamera = async () => {
         },
         audio: false
       });
-
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         await videoRef.current.play();
