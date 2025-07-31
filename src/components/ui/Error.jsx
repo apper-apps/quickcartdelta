@@ -1,109 +1,155 @@
-import React from 'react'
-import { Camera, RefreshCw, AlertTriangle, Settings, Shield } from 'lucide-react'
-import ApperIcon from '@/components/ApperIcon'
+import React from "react";
+import { AlertTriangle, Camera, Monitor, RefreshCw, Settings, Shield } from "lucide-react";
+import ApperIcon from "@/components/ApperIcon";
 
 function Error({ message, onRetry, className }) {
-  const messageText = message || ''
-  const isCameraError = messageText.toLowerCase().includes('camera') || messageText.toLowerCase().includes('permission')
-  const isPermissionDenied = messageText.toLowerCase().includes('denied') || messageText.toLowerCase().includes('notallowederror')
-  const isDeviceError = messageText.toLowerCase().includes('not found') || messageText.toLowerCase().includes('notfounderror')
-  
+  const messageText = message || 'Something went wrong'
+  const isCameraError = messageText.toLowerCase().includes('camera') || 
+                       messageText.toLowerCase().includes('permission') ||
+                       messageText.toLowerCase().includes('notallowederror') ||
+                       messageText.toLowerCase().includes('biometric')
+  const isPermissionDenied = messageText.toLowerCase().includes('denied') ||
+                            messageText.toLowerCase().includes('notallowed') ||
+                            messageText.toLowerCase().includes('permanently denied')
+  const isDeviceError = messageText.toLowerCase().includes('device') ||
+                       messageText.toLowerCase().includes('notfound') ||
+                       messageText.toLowerCase().includes('no camera')
+  const isBrowserError = messageText.toLowerCase().includes('browser') ||
+                        messageText.toLowerCase().includes('https') ||
+                        messageText.toLowerCase().includes('not supported')
+
   const getCameraErrorDetails = () => {
     if (isPermissionDenied) {
       return {
+        icon: Shield,
         title: 'Camera Permission Required',
-        subtitle: 'Enable camera access to continue',
-        instructions: [
-          'Click the camera icon in your browser\'s address bar',
-          'Select "Allow" for camera access',
-          'Or go to browser Settings > Privacy > Camera permissions'
-        ]
+        description: 'Camera access is needed for AR preview and biometric authentication',
+        suggestions: [
+          'Click "Allow" when your browser asks for camera permission',
+          'Chrome: Click the camera icon in the address bar, then "Allow"',
+          'Firefox: Click the shield icon and select "Allow Camera"',
+          'Safari: Go to Safari > Settings > Websites > Camera and allow this site',
+          'Edge: Click the camera icon in the address bar and select "Allow"'
+        ],
+        additionalInfo: 'If you previously denied access, you\'ll need to change your browser settings manually.'
       }
-    }
-    
-    if (isDeviceError) {
+    } else if (isDeviceError) {
       return {
-        title: 'Camera Not Found',
-        subtitle: 'No camera device detected',
-        instructions: [
-          'Check that your camera is connected',
-          'Close other apps that might be using the camera',
-          'Try refreshing the page'
-        ]
+        icon: Camera,
+        title: 'Camera Not Available',
+        description: 'No camera device was found or it\'s not accessible',
+        suggestions: [
+          'Make sure your camera is connected and working',
+          'Close other applications that might be using the camera',
+          'Check if your camera works in other applications',
+          'Try unplugging and reconnecting external cameras',
+          'Restart your browser and try again'
+        ],
+        additionalInfo: 'Some devices may have camera access disabled by system administrators.'
       }
-    }
-    
-    return {
-      title: 'Camera Access Required',
-      subtitle: 'Unable to access camera',
-      instructions: [
-        'Please allow camera access when prompted',
-        'Check your browser settings',
-        'Make sure no other apps are using the camera'
-      ]
+    } else if (isBrowserError) {
+      return {
+        icon: Monitor,
+        title: 'Browser Compatibility Issue',
+        description: 'Your browser doesn\'t support camera access or requires HTTPS',
+        suggestions: [
+          'Use a modern browser like Chrome, Firefox, Safari, or Edge',
+          'Make sure you\'re accessing the site via HTTPS (secure connection)',
+          'Update your browser to the latest version',
+          'Enable camera support in your browser settings',
+          'Try accessing the site in an incognito/private window'
+        ],
+        additionalInfo: 'Camera access requires a secure (HTTPS) connection for security reasons.'
+      }
+    } else {
+      return {
+        icon: Camera,
+        title: 'Camera Access Error',
+        description: 'Unable to initialize camera functionality',
+        suggestions: [
+          'Refresh the page and try again',
+          'Check that your camera isn\'t being used by another application',
+          'Ensure your browser supports camera access',
+          'Try restarting your browser',
+          'Check your system\'s camera privacy settings'
+        ],
+        additionalInfo: 'If the problem persists, try using a different browser or device.'
+      }
     }
   }
 
   const errorDetails = isCameraError ? getCameraErrorDetails() : null
-  
+  const ErrorIcon = errorDetails?.icon || AlertTriangle
+
   return (
-    <div className={`flex flex-col items-center justify-center p-8 text-center ${className || ''}`}>
-      <div className="w-16 h-16 mb-4 text-gray-400">
-        {isCameraError ? (
-          <Camera className="w-full h-full" />
-        ) : (
-          <AlertTriangle className="w-full h-full" />
-        )}
+    <div className={`flex flex-col items-center justify-center p-8 text-center bg-white rounded-lg shadow-sm border border-gray-200 ${className || ''}`}>
+      {/* App Icon */}
+      <div className="mb-4">
+        <ApperIcon size={48} />
       </div>
       
-      <h3 className="text-lg font-semibold text-gray-800 mb-2">
-        {errorDetails?.title || 'Oops! Something went wrong'}
-      </h3>
-      
-      {errorDetails?.subtitle && (
-        <p className="text-sm text-gray-500 mb-4">{errorDetails.subtitle}</p>
-      )}
-      
-      <p className="text-gray-600 mb-4 max-w-md leading-relaxed">
-        {messageText || 'An unexpected error occurred. Please try again.'}
-      </p>
-
-      {errorDetails?.instructions && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 max-w-md">
-          <div className="flex items-center gap-2 mb-2">
-            <Settings className="w-4 h-4 text-blue-600" />
-            <span className="text-sm font-medium text-blue-800">How to fix this:</span>
-          </div>
-          <ol className="text-xs text-blue-700 text-left space-y-1">
-            {errorDetails.instructions.map((instruction, index) => (
-              <li key={index} className="flex items-start gap-2">
-                <span className="flex-shrink-0 w-4 h-4 bg-blue-100 text-blue-600 rounded-full text-xs flex items-center justify-center font-medium">
-                  {index + 1}
-                </span>
-                <span>{instruction}</span>
-              </li>
-            ))}
-          </ol>
+      {/* Error Icon */}
+      <div className="mb-6">
+        <div className="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center">
+          <ErrorIcon className="w-8 h-8 text-red-600" />
         </div>
-      )}
-
-      {onRetry && (
-        <button
-          onClick={onRetry}
-          className="btn-primary flex items-center gap-2"
-        >
-          <RefreshCw className="w-4 h-4" />
-          {isCameraError ? 'Try Camera Access Again' : 'Try Again'}
-        </button>
-      )}
-
-      {isCameraError && isPermissionDenied && (
+      </div>
+      
+      {/* Error Content */}
+      <div className="space-y-6 max-w-lg">
+        <div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">
+            {errorDetails?.title || 'Error'}
+          </h3>
+          
+          <p className="text-gray-600 mb-4">
+            {errorDetails?.description || messageText}
+          </p>
+        </div>
+        
+        {/* Camera-specific suggestions */}
+        {errorDetails?.suggestions && (
+          <div className="text-left bg-gray-50 p-4 rounded-lg">
+            <p className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+              <Settings className="w-4 h-4 mr-2" />
+              How to fix this:
+            </p>
+            <ul className="text-sm text-gray-600 space-y-2">
+              {errorDetails.suggestions.map((suggestion, index) => (
+                <li key={index} className="flex items-start">
+                  <span className="w-1.5 h-1.5 bg-primary rounded-full mt-2 mr-3 flex-shrink-0"></span>
+                  <span>{suggestion}</span>
+                </li>
+              ))}
+            </ul>
+            
+            {errorDetails.additionalInfo && (
+              <div className="mt-4 pt-3 border-t border-gray-200">
+                <p className="text-xs text-gray-500 italic">
+                  💡 {errorDetails.additionalInfo}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Retry Button */}
+{/* Retry Button */}
+        {onRetry && (
+          <button
+            onClick={onRetry}
+            className="inline-flex items-center px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Try Again
+          </button>
+        )}
+        
         <p className="text-xs text-gray-500 mt-4 max-w-md">
           💡 Tip: Look for a camera icon in your browser's address bar or check your browser's privacy settings
         </p>
-      )}
+      </div>
     </div>
   )
-}
 
 export default Error

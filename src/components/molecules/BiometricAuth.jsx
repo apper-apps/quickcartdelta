@@ -19,15 +19,16 @@ const startCamera = useCallback(async () => {
       
       // Enhanced browser compatibility checks
       if (!navigator?.mediaDevices) {
-        throw new Error('MediaDevices API not supported in this browser');
+        throw new Error('MediaDevices API not supported in this browser. Please use Chrome, Firefox, or Safari.');
       }
       
       // Store reference to prevent context issues
       const mediaDevices = navigator.mediaDevices;
       if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
-        throw new Error('getUserMedia not supported in this browser');
+        throw new Error('getUserMedia not supported in this browser. Please update your browser.');
       }
-// Clean up any existing stream before setting new one
+      
+      // Clean up any existing stream before setting new one
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => {
           track.stop();
@@ -59,17 +60,17 @@ const startCamera = useCallback(async () => {
       let errorMessage = 'Camera access failed';
       
       if (err.name === 'NotAllowedError') {
-        errorMessage = 'Camera permission denied. Please allow camera access and try again.';
+        errorMessage = 'Camera permission denied. Biometric authentication requires camera access. Please click "Allow" when prompted, or enable camera permissions in your browser settings. Chrome: Click camera icon in address bar. Firefox: Click shield icon. Safari: Safari > Settings > Websites > Camera.';
       } else if (err.name === 'NotFoundError') {
-        errorMessage = 'No camera found on this device.';
+        errorMessage = 'No camera found on this device. Biometric authentication requires a camera. Please connect a webcam or use a device with a built-in camera.';
       } else if (err.name === 'NotSupportedError') {
-        errorMessage = 'Camera not supported in this browser.';
+        errorMessage = 'Camera not supported in this browser. Please use Chrome, Firefox, or Safari with HTTPS enabled for biometric authentication.';
       } else if (err.name === 'NotReadableError') {
-        errorMessage = 'Camera is already in use by another application.';
+        errorMessage = 'Camera is already in use by another application. Please close other apps using the camera and try again.';
       } else if (err.message?.includes('Illegal invocation')) {
         errorMessage = 'Camera API context error. Please refresh the page and try again.';
       } else if (err.message?.includes('MediaDevices') || err.message?.includes('getUserMedia')) {
-        errorMessage = 'Camera API not available. Please use a modern browser with HTTPS.';
+        errorMessage = 'Camera API not available. Please ensure you\'re using HTTPS and a supported browser for secure biometric authentication.';
       }
       
       setError(errorMessage);
@@ -118,30 +119,32 @@ const startCamera = useCallback(async () => {
     onCancel?.();
 }, [onCancel, stopCamera]);
 
-  useEffect(() => {
+useEffect(() => {
     // Enhanced camera initialization with permission handling
     const initializeBiometricAuth = async () => {
       try {
-        // Check camera permission status first
+        // Check camera permission status first for better user experience
         if (navigator.permissions) {
           const permission = await navigator.permissions.query({ name: 'camera' });
           if (permission.state === 'denied') {
-            setError('Camera access denied. Biometric authentication requires camera permissions. Please enable camera access in your browser settings.');
+            setError('Camera access has been permanently denied. Biometric authentication requires camera access. To enable: Chrome: Click the camera icon in the address bar. Firefox: Click the shield icon and select "Allow Camera". Safari: Go to Safari > Settings > Websites > Camera and allow this site.');
+            setHasPermission(false);
             return;
           }
         }
         
-        // Inform user about camera requirement
-        console.log('Initializing biometric authentication - camera access required');
+        // Only request camera if not explicitly denied
+        console.log('Initializing biometric authentication - requesting camera access');
         await startCamera();
       } catch (err) {
         console.error('Biometric auth camera error:', err);
         if (err.name === 'NotAllowedError') {
-          setError('Camera permission denied. Please allow camera access to use biometric authentication, or try alternative authentication methods.');
+          setError('Camera permission denied. Biometric authentication requires camera access. Please click "Allow" when prompted, or check your browser settings if you previously denied access. You can also use alternative authentication methods.');
+          setHasPermission(false);
         } else if (err.name === 'NotFoundError') {
-          setError('No camera found. Biometric authentication requires a camera device.');
+          setError('No camera found. Biometric authentication requires a camera device. Please connect a webcam or use a device with a built-in camera.');
         } else {
-          setError(`Camera initialization failed: ${err.message || 'Please check your camera and try again'}`);
+          setError(`Camera initialization failed: ${err.message || 'Please check your camera connection and browser settings, then try again'}`);
         }
       }
     };
@@ -236,12 +239,12 @@ const startCamera = useCallback(async () => {
                   <p className="text-sm font-medium text-red-600">Camera Access Required</p>
                   <p className="text-xs text-red-500 mt-1">Please enable camera permissions and refresh</p>
                   <Button
-                    onClick={startCamera}
+onClick={startCamera}
                     variant="secondary"
                     size="sm"
                     className="mt-3"
                   >
-                    Try Again
+                    {hasPermission === false ? 'Request Camera Access' : 'Try Again'}
                   </Button>
                 </div>
               </div>
