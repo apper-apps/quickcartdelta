@@ -51,14 +51,17 @@ async function requestCameraAccess() {
         throw new Error('Camera access requires HTTPS or localhost')
       }
       
-      // Direct call to getUserMedia without binding to prevent "Illegal invocation" errors
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: cameraView,
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+// Call getUserMedia with proper context binding to prevent "Illegal invocation" errors
+      const stream = await navigator.mediaDevices.getUserMedia.call(
+        navigator.mediaDevices,
+        {
+          video: {
+            facingMode: cameraView,
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
         }
-      })
+      )
       
       // Check if component is still mounted before updating state
       if (videoRef.current && stream) {
@@ -79,7 +82,7 @@ async function requestCameraAccess() {
       // Enhanced error handling with specific messages
       let errorMessage = 'Failed to access camera'
       
-      if (error.name === 'NotAllowedError') {
+if (error.name === 'NotAllowedError') {
         errorMessage = 'Camera permission denied. Please allow camera access and try again.'
       } else if (error.name === 'NotFoundError') {
         errorMessage = 'No camera found on this device.'
@@ -89,6 +92,8 @@ async function requestCameraAccess() {
         errorMessage = 'Camera does not support the requested settings.'
       } else if (error.name === 'SecurityError') {
         errorMessage = 'Camera access blocked due to security restrictions.'
+      } else if (error.message && error.message.includes('Illegal invocation')) {
+        errorMessage = 'Browser security error. Please try refreshing the page and allow camera access.'
       } else if (error.message) {
         errorMessage = error.message
       }
