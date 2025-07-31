@@ -14,68 +14,73 @@ const ARPreview = ({ product, onClose }) => {
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
 const startCamera = useCallback(async () => {
+    if (!videoRef.current) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    // Check if MediaDevices API is available
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      setError('Camera access is not supported in this browser');
+      setIsLoading(false);
+      return;
+    }
+    
     try {
-      setIsLoading(true);
-      setError('');
-      
-      // Enhanced browser compatibility checks
-      if (!navigator?.mediaDevices) {
-        throw new Error('MediaDevices API not supported in this browser');
-      }
-      
-      // Store reference to prevent context issues
-      const mediaDevices = navigator.mediaDevices;
-      if (typeof mediaDevices.getUserMedia !== 'function') {
-        throw new Error('getUserMedia not supported in this browser');
-      }
-      
       // Clean up any existing stream first
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
       }
       
-      // Try to get back camera first for AR experience
       let stream;
       try {
-        // Use .call() to ensure proper context binding and prevent "Illegal invocation"
-        stream = await mediaDevices.getUserMedia.call(mediaDevices, {
+        // Try back camera first
+        stream = await navigator.mediaDevices.getUserMedia({
           video: { 
-            facingMode: { exact: 'environment' },
+            facingMode: facingMode,
             width: { ideal: 1280 },
             height: { ideal: 720 }
           },
           audio: false
         });
       } catch (err) {
-        console.warn('Back camera not available, trying front camera:', err);
-        // Fallback to any available camera with proper context
-        stream = await mediaDevices.getUserMedia.call(mediaDevices, {
-          video: { 
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
-          audio: false
-        });
+        console.warn('Preferred camera not available, trying fallback:', err);
+        try {
+          // Fallback to any available camera
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { 
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            },
+            audio: false
+          });
+        } catch (fallbackErr) {
+          throw fallbackErr;
+        }
       }
       
-      streamRef.current = stream;
-      if (videoRef.current) {
+      if (stream && videoRef.current) {
         videoRef.current.srcObject = stream;
+        streamRef.current = stream;
+        setHasPermission(true);
+        
         try {
           await videoRef.current.play();
         } catch (playError) {
           console.warn('Video play failed:', playError);
           // Continue - this might work on user interaction
         }
+        
+        setIsActive(true);
       }
-      setIsActive(true);
+      
     } catch (err) {
       console.error('Camera access error:', err);
       let errorMessage = 'Camera access failed';
       
       if (err.name === 'NotAllowedError') {
         errorMessage = 'Camera permission denied. Please allow camera access.';
+        setHasPermission(false);
       } else if (err.name === 'NotFoundError') {
         errorMessage = 'No camera found on this device.';
       } else if (err.name === 'NotSupportedError') {
@@ -90,7 +95,7 @@ const startCamera = useCallback(async () => {
     } finally {
       setIsLoading(false);
     }
-}, []);
+  }, [facingMode]);
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -161,38 +166,35 @@ const startCamera = useCallback(async () => {
 const switchCamera = useCallback(async () => {
     if (!streamRef.current) return;
     
+    // Check if MediaDevices API is available
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      setError('Camera switching is not supported in this browser');
+      return;
+    }
+    
     try {
       setIsLoading(true);
-      setError('');
-      
-      // Store reference to prevent context issues
-      const mediaDevices = navigator.mediaDevices;
-      if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
-        throw new Error('Camera switching not supported');
-      }
-      
-      // Get current facing mode before stopping stream
-      const currentTrack = streamRef.current.getVideoTracks()[0];
-      const currentSettings = currentTrack?.getSettings();
-      const isBack = currentSettings?.facingMode === 'environment';
+      setError(null);
       
       // Stop current stream
       streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
       
-      // Request opposite camera with proper context
-      const stream = await mediaDevices.getUserMedia.call(mediaDevices, {
+      // Toggle facing mode
+      const newFacingMode = facingMode === 'environment' ? 'user' : 'environment';
+      
+      // Request opposite camera with direct method call
+      const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: isBack ? 'user' : 'environment',
+          facingMode: newFacingMode,
           width: { ideal: 1280 },
           height: { ideal: 720 }
         },
         audio: false
       });
       
-      streamRef.current = stream;
-      if (videoRef.current) {
+      if (stream && videoRef.current) {
         videoRef.current.srcObject = stream;
+        streamRef.current = stream;
         try {
           await videoRef.current.play();
         } catch (playError) {
@@ -201,7 +203,7 @@ const switchCamera = useCallback(async () => {
       }
       
       // Update facing mode state
-      setFacingMode(isBack ? 'user' : 'environment');
+      setFacingMode(newFacingMode);
       
     } catch (err) {
       console.error('Camera switch error:', err);
@@ -209,7 +211,7 @@ const switchCamera = useCallback(async () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [facingMode]);
 
   const handleClose = useCallback(() => {
     stopCamera();
@@ -359,18 +361,18 @@ const switchCamera = useCallback(async () => {
         {/* Controls */}
         <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/80 to-transparent p-6 safe-bottom">
           <div className="flex items-center justify-center gap-8">
-            <button
+<button
               onClick={switchCamera}
-              disabled={!hasPermission || isLoading}
+              disabled={!isActive || isLoading}
               className="p-4 bg-white/20 rounded-full hover:bg-white/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title="Switch Camera"
             >
               <RotateCcw className="w-6 h-6 text-white" />
             </button>
             
-            <button
+<button
               onClick={capturePhoto}
-              disabled={!hasPermission || isCapturing}
+              disabled={!isActive || isCapturing}
               className="p-6 bg-white rounded-full hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
               title="Capture Photo"
             >
@@ -387,7 +389,7 @@ const switchCamera = useCallback(async () => {
                   document.documentElement.requestFullscreen();
                 }
               }}
-              disabled={!hasPermission}
+disabled={!isActive}
               className="p-4 bg-white/20 rounded-full hover:bg-white/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title="Fullscreen"
             >
