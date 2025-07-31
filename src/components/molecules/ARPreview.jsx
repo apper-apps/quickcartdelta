@@ -40,12 +40,19 @@ const ARPreview = ({ product, isOpen, onClose }) => {
     }
   };
 
-  const initializeCamera = async () => {
+const initializeCamera = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
+      // Check if mediaDevices is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera API not supported in this browser');
+      }
+
+      // Store mediaDevices reference to maintain proper context
+      const mediaDevices = navigator.mediaDevices;
+      const mediaStream = await mediaDevices.getUserMedia({
         video: {
           facingMode: 'environment',
           width: { ideal: 1280 },
@@ -67,6 +74,12 @@ const ARPreview = ({ product, isOpen, onClose }) => {
           ? 'Camera access denied. Please allow camera permissions.'
           : err.name === 'NotFoundError'
           ? 'No camera found on this device.'
+          : err.name === 'NotSupportedError'
+          ? 'Camera not supported on this device.'
+          : err.name === 'SecurityError'
+          ? 'Camera access blocked due to security restrictions.'
+          : err.message === 'Camera API not supported in this browser'
+          ? 'Camera API not supported in this browser.'
           : 'Failed to initialize camera. Please try again.'
       );
     } finally {
