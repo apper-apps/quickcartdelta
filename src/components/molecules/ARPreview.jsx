@@ -255,9 +255,8 @@ const mediaDevices = navigator.mediaDevices;
       
       const mediaDevices = navigator.mediaDevices;
       if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
-        throw new Error('Camera switching not supported in this browser');
+throw new Error('Camera switching not supported in this browser');
       }
-}
       
       // Enhanced context binding to prevent "Illegal invocation"
       const getUserMediaBound = function(constraints) {
