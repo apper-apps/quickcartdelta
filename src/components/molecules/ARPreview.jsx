@@ -45,12 +45,28 @@ const initializeCamera = async () => {
       setIsLoading(true);
       setError(null);
 
-      // Check if mediaDevices is available
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera API not supported in this browser');
+      // Enhanced browser compatibility checks
+      if (!navigator.mediaDevices) {
+        throw new Error('MediaDevices API not supported in this browser');
       }
-// Call getUserMedia with proper context binding to prevent "Illegal invocation" error
+      
+      if (!navigator.mediaDevices.getUserMedia) {
+        throw new Error('getUserMedia not supported in this browser');
+      }
+
+      // Check for secure context (HTTPS required for getUserMedia)
+      if (!window.isSecureContext && location.protocol !== 'file:') {
+        throw new Error('Camera access requires HTTPS connection');
+      }
+
+      // Call getUserMedia with proper context binding to prevent "Illegal invocation" error
       const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      
+      // Additional validation before calling getUserMedia
+      if (typeof getUserMedia !== 'function') {
+        throw new Error('getUserMedia is not a function');
+      }
+
       const mediaStream = await getUserMedia({
         video: {
           facingMode: 'environment',
@@ -59,6 +75,11 @@ const initializeCamera = async () => {
         },
         audio: false
       });
+
+      // Validate stream before proceeding
+      if (!mediaStream || !mediaStream.getVideoTracks().length) {
+        throw new Error('No video track available in media stream');
+      }
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         await videoRef.current.play();
