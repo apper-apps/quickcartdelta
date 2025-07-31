@@ -307,6 +307,9 @@ console.warn('MediaDevices API Error detected:', error.message);
   }
 }
 
-// Export singleton instance
+// Export singleton instances
 export const errorHandler = new ErrorHandler();
-export default errorHandler;
+export const globalErrorHandler = new GlobalErrorHandler();
+
+// Export as default for backwards compatibility
+export default globalErrorHandler;
