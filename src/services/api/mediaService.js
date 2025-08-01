@@ -272,10 +272,22 @@ async getUserMedia(constraints = { video: true, audio: false }) {
   }
 
 // Check permission status using Permissions API
-  async checkPermissionStatus(permissionName = 'camera') {
+async checkPermissionStatus(permissionName = 'camera') {
     try {
       if (!navigator?.permissions?.query) {
-        return 'unknown'; // Permissions API not supported
+        // Fallback: try to detect permission status through getUserMedia attempt
+        try {
+          const testStream = await navigator.mediaDevices.getUserMedia({ 
+            video: permissionName === 'camera',
+            audio: permissionName === 'microphone'
+          });
+          testStream.getTracks().forEach(track => track.stop());
+          return 'granted';
+        } catch (testError) {
+          if (testError.name === 'NotAllowedError') return 'denied';
+          if (testError.name === 'NotFoundError') return 'unavailable';
+          return 'prompt';
+        }
       }
       
       const result = await navigator.permissions.query({ name: permissionName });
@@ -362,36 +374,70 @@ async getUserMedia(constraints = { video: true, audio: false }) {
     return result;
   }
 
-  // Request only camera permission with enhanced guidance
+// Request only camera permission with enhanced guidance and proactive checking
   async requestCameraPermission() {
     if (!this.isSupported) {
-      throw new Error('Camera not supported in this browser');
+      throw new Error('Camera not supported in this browser. Please use Chrome 53+, Firefox 36+, Safari 11+, or Edge 79+.');
     }
 
     // Check HTTPS requirement
-    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-      throw new Error('Camera access requires HTTPS connection');
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+      throw new Error('Camera access requires HTTPS connection for security. Please use https:// or localhost.');
     }
 
+    // Enhanced permission status checking
     const status = await this.checkPermissionStatus('camera');
+    console.log('Camera permission status:', status);
     
     if (status === 'denied') {
-      throw new Error('Camera permission was previously denied. Please enable camera access in your browser settings and refresh the page.');
+      const browserGuidance = this.getBrowserSpecificPermissionGuidance();
+      throw new Error(`Camera permission was previously denied. ${browserGuidance}\n\nAfter enabling permissions, please refresh the page.`);
     }
 
     if (status === 'granted') {
-      return true; // Already granted
+      // Double-check by actually requesting stream
+      try {
+        const testStream = await this.getUserMedia({ video: true, audio: false });
+        if (testStream) {
+          testStream.getTracks().forEach(track => track.stop());
+          return true;
+        }
+      } catch (testError) {
+        console.warn('Permission granted but stream failed:', testError);
+        // Continue to regular flow
+      }
     }
 
+    // Request permission with user-friendly prompting
     try {
+      console.log('Requesting camera permission...');
       const stream = await this.getUserMedia({ video: true, audio: false });
       if (stream) {
+        console.log('Camera permission granted successfully');
         stream.getTracks().forEach(track => track.stop());
         return true;
       }
       return false;
     } catch (error) {
+      console.error('Camera permission request failed:', error);
       throw this.handleMediaError(error);
+    }
+  }
+
+  // Get browser-specific permission guidance
+  getBrowserSpecificPermissionGuidance() {
+    const userAgent = navigator.userAgent.toLowerCase();
+    
+    if (userAgent.includes('chrome')) {
+      return 'To enable camera:\n1. Click the 🎥 camera icon in the address bar\n2. Select "Always allow on this site"\n3. Or go to chrome://settings/content/camera';
+    } else if (userAgent.includes('firefox')) {
+      return 'To enable camera:\n1. Click the 🛡️ shield icon in the address bar\n2. Click "Allow" for camera access\n3. Or go to about:preferences#privacy > Permissions > Camera';
+    } else if (userAgent.includes('safari')) {
+      return 'To enable camera:\n1. Safari > Settings > Websites > Camera\n2. Set this website to "Allow"\n3. Or click the camera icon in the address bar';
+    } else if (userAgent.includes('edge')) {
+      return 'To enable camera:\n1. Click the 🎥 camera icon in the address bar\n2. Select "Allow"\n3. Or go to edge://settings/content/camera';
+    } else {
+      return 'To enable camera:\n1. Look for camera icon in your browser\'s address bar\n2. Click it and select "Allow"\n3. Check browser settings if needed';
     }
   }
 

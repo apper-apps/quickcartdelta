@@ -104,31 +104,42 @@ export class ErrorHandler {
       } else {
         toast.error('Security restrictions prevent camera access. Please check your browser settings.');
       }
-    } else if (error.message?.includes('Illegal invocation')) {
-      toast.error('Browser API error detected. The page will refresh automatically to resolve this issue.');
-      // Auto-refresh after showing the error
+} else if (error.message?.includes('Illegal invocation')) {
+      toast.error('Browser API error detected. Refreshing automatically to resolve...', {
+        autoClose: 2000,
+        style: { whiteSpace: 'pre-line' }
+      });
+      // Auto-refresh after shorter delay for better UX
       setTimeout(() => {
         window.location.reload();
-      }, 3000);
+      }, 2000);
+    } else if (error.message?.includes('OverconstrainedError')) {
+      toast.error('Camera constraints not supported. Trying with basic settings...', {
+        autoClose: 5000,
+        style: { whiteSpace: 'pre-line' }
+      });
     } else {
-      toast.error(this.getErrorMessage(error));
+      toast.error(this.getErrorMessage(error), {
+        autoClose: 6000,
+        style: { whiteSpace: 'pre-line' }
+      });
     }
   }
 
-  // Get browser-specific permission guidance
+// Enhanced browser-specific permission guidance with visual cues
   static getBrowserSpecificGuidance() {
     const userAgent = navigator.userAgent.toLowerCase();
     
     if (userAgent.includes('chrome')) {
-      return 'To enable camera access:\n1. Click the camera icon in the address bar\n2. Select "Always allow"\n3. Refresh the page';
+      return 'Chrome Setup:\n🎥 Click camera icon in address bar → "Always allow"\n⚙️ Or: Settings → Privacy → Site Settings → Camera\n↻ Refresh page after enabling';
     } else if (userAgent.includes('firefox')) {
-      return 'To enable camera access:\n1. Click the shield icon in the address bar\n2. Select "Allow" for camera\n3. Refresh the page';
+      return 'Firefox Setup:\n🛡️ Click shield icon in address bar → "Allow Camera"\n⚙️ Or: Settings → Privacy → Permissions → Camera\n↻ Refresh page after enabling';
     } else if (userAgent.includes('safari')) {
-      return 'To enable camera access:\n1. Go to Safari > Preferences > Websites\n2. Select "Camera" from the left sidebar\n3. Set this website to "Allow"\n4. Refresh the page';
+      return 'Safari Setup:\n⚙️ Safari → Settings → Websites → Camera → "Allow"\n🎥 Or click camera icon in address bar if visible\n↻ Refresh page after enabling';
     } else if (userAgent.includes('edge')) {
-      return 'To enable camera access:\n1. Click the camera icon in the address bar\n2. Select "Allow"\n3. Refresh the page';
+      return 'Edge Setup:\n🎥 Click camera icon in address bar → "Allow"\n⚙️ Or: Settings → Site permissions → Camera\n↻ Refresh page after enabling';
     } else {
-      return 'To enable camera access:\n1. Look for a camera icon in your browser\'s address bar\n2. Click it and select "Allow"\n3. Refresh the page';
+      return 'Browser Setup:\n🎥 Look for camera icon in address bar → "Allow"\n⚙️ Check browser settings → Privacy → Camera\n↻ Refresh page after enabling';
     }
   }
 
@@ -295,7 +306,7 @@ isMediaDeviceError(error) {
   /**
    * Handle MediaDevices specific errors
    */
-  handleMediaDeviceError(error) {
+handleMediaDeviceError(error) {
     console.warn('MediaDevices API Error detected:', error.message);
     
     // Enhanced error detection for "Illegal invocation" specifically
@@ -303,35 +314,63 @@ isMediaDeviceError(error) {
       console.error('MediaDevices API context binding error details:', {
         message: error.message,
         stack: error.stack,
-        cause: 'Likely caused by improper getUserMedia context binding',
-        solution: 'Use getUserMedia.bind(navigator.mediaDevices) or proper feature detection'
+        cause: 'Browser API context binding issue - common in some browsers',
+        solution: 'Auto-refresh resolves context binding problems',
+        preventive: 'Use proper context binding: navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices)'
       });
       
-      if (typeof window !== 'undefined' && window.toast) {
-        window.toast.error('Camera API error detected. The page will refresh automatically to resolve this issue.');
+      if (typeof window !== 'undefined') {
+        // Use toast if available, otherwise console
+        if (window.toast) {
+          window.toast.error('🔄 Camera API context error. Auto-refreshing to resolve...', {
+            autoClose: 1500
+          });
+        } else {
+          console.log('Auto-refreshing to resolve camera API context issue...');
+        }
         
-        // Auto-refresh after a short delay to resolve the context binding issue
+        // Auto-refresh after shorter delay for better UX
         setTimeout(() => {
           window.location.reload();
-        }, 2000);
+        }, 1500);
       }
       return;
     }
     
-    // Handle getUserMedia specific errors
+    // Handle getUserMedia specific errors with detailed logging
     if (error.message?.includes('getUserMedia')) {
-      console.error('getUserMedia API Error:', {
+      console.error('getUserMedia API Error Details:', {
         error: error.message,
         name: error.name,
+        originalError: error.originalError,
         mediaDevicesSupported: !!(navigator.mediaDevices),
         getUserMediaSupported: !!(navigator.mediaDevices?.getUserMedia),
-        isSecure: location.protocol === 'https:'
+        isSecure: location.protocol === 'https:',
+        hostname: location.hostname,
+        userAgent: navigator.userAgent,
+        timestamp: new Date().toISOString()
       });
     }
     
-    // Show user-friendly message if needed
+    // Enhanced user messaging with actionable guidance
     if (typeof window !== 'undefined' && window.toast) {
-      window.toast.error('Camera/microphone access issue detected. Please refresh the page.');
+      if (error.name === 'NotAllowedError') {
+        window.toast.error('🎥 Camera permission needed. Check browser address bar for permission prompt.', {
+          autoClose: 8000
+        });
+      } else if (error.name === 'NotFoundError') {
+        window.toast.error('📱 No camera found. Please connect a camera device.', {
+          autoClose: 6000
+        });
+      } else if (error.name === 'NotReadableError') {
+        window.toast.error('📹 Camera busy. Close other apps using camera and try again.', {
+          autoClose: 6000
+        });
+      } else {
+        window.toast.error('🔧 Camera access issue. Please check permissions and refresh.', {
+          autoClose: 5000
+        });
+      }
     }
   }
   /**

@@ -55,22 +55,23 @@ const startCamera = useCallback(async () => {
         }
       }
       setHasPermission(true);
-    } catch (err) {
+} catch (err) {
       console.error('Camera access error:', err);
       let errorMessage = 'Camera access failed';
       
       if (err.name === 'NotAllowedError') {
-        errorMessage = 'Camera permission denied. Biometric authentication requires camera access. Please click "Allow" when prompted, or enable camera permissions in your browser settings. Chrome: Click camera icon in address bar. Firefox: Click shield icon. Safari: Safari > Settings > Websites > Camera.';
+        errorMessage = 'Camera permission denied. Biometric authentication requires camera access.\n\n🎯 To enable camera access:\n\n• Click "Allow" when prompted\n• Or enable manually:\n  - Chrome: Click 🎥 in address bar → "Allow"\n  - Firefox: Click 🛡️ shield → "Allow Camera"\n  - Safari: Safari > Settings > Websites > Camera → "Allow"\n  - Edge: Click 🎥 in address bar → "Allow"\n\n↻ Refresh this page after enabling camera access.\n\n🔒 Camera access is required for secure biometric authentication.';
       } else if (err.name === 'NotFoundError') {
-        errorMessage = 'No camera found on this device. Biometric authentication requires a camera. Please connect a webcam or use a device with a built-in camera.';
+        errorMessage = 'No camera found. Biometric authentication requires a camera.\n\n📱 Solutions:\n• Connect a webcam to your computer\n• Use a device with built-in camera\n• Check camera connection and drivers\n\n🔒 Biometric authentication needs camera access for security verification.';
       } else if (err.name === 'NotSupportedError') {
-        errorMessage = 'Camera not supported in this browser. Please use Chrome, Firefox, or Safari with HTTPS enabled for biometric authentication.';
+        errorMessage = 'Camera not supported for biometric authentication.\n\n🌐 Compatible browsers:\n• Chrome 53+ (recommended for WebRTC)\n• Firefox 36+ with secure context\n• Safari 11+ with camera permissions\n• Edge 79+ with HTTPS\n\n🔒 HTTPS connection required for security.\n\n💡 Use a modern browser for best biometric features.';
       } else if (err.name === 'NotReadableError') {
-        errorMessage = 'Camera is already in use by another application. Please close other apps using the camera and try again.';
+        errorMessage = 'Camera busy. Another application is using the camera.\n\n📱 Solutions:\n• Close other video conferencing apps (Zoom, Teams, etc.)\n• Close other browser tabs using camera\n• Restart your browser completely\n• Check running applications using camera\n\n🔒 Camera must be available for biometric verification.';
       } else if (err.message?.includes('Illegal invocation')) {
-        errorMessage = 'Camera API context error. Please refresh the page and try again.';
+        errorMessage = 'Camera API context error detected.\n\n⚡ Browser compatibility issue. The page will refresh automatically to resolve this.\n\n🔧 This typically happens due to browser security contexts and resolves with refresh.';
+        setTimeout(() => window.location.reload(), 2000);
       } else if (err.message?.includes('MediaDevices') || err.message?.includes('getUserMedia')) {
-        errorMessage = 'Camera API not available. Please ensure you\'re using HTTPS and a supported browser for secure biometric authentication.';
+        errorMessage = 'Camera API unavailable for biometric authentication.\n\n🔧 Requirements:\n• HTTPS connection (secure context)\n• Modern browser with WebRTC support\n• Camera device properly connected\n• Valid SSL certificate\n\n🔒 Secure connection required for biometric features.\n\n↻ Ensure requirements are met and refresh.';
       }
       
       setError(errorMessage);

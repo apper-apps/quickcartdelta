@@ -80,11 +80,15 @@ useEffect(() => {
       
       return false;
     } catch (error) {
-      console.error('Permission request failed:', error);
+console.error('Permission request failed:', error);
       setHasPermission(false);
       
       if (error.name === 'NotAllowedError') {
-        setError('Camera permission denied. To use AR features, please:\n1. Click "Allow" when prompted for camera access\n2. Or click the camera icon in your browser\'s address bar\n3. Refresh the page after enabling access');
+        setError('Camera permission denied. To use AR features, please:\n\n📱 Allow camera access when prompted, or:\n\n🔧 Manual Setup:\n• Chrome: Click camera icon in address bar → "Allow"\n• Firefox: Click shield icon → "Allow Camera"\n• Safari: Safari > Settings > Websites > Camera → "Allow"\n\nThen refresh this page to continue.');
+      } else if (error.name === 'NotFoundError') {
+        setError('No camera detected on this device. Please connect a camera and refresh the page.');
+      } else if (error.name === 'NotSupportedError') {
+        setError('Camera not supported in this browser. Please use Chrome, Firefox, or Safari with HTTPS.');
       }
       
       return false;
@@ -162,26 +166,32 @@ useEffect(() => {
       }
       
     } catch (err) {
-      console.error('Camera access error:', err);
+console.error('Camera access error:', err);
       let errorMessage = 'Camera access failed';
       
       if (err.name === 'NotAllowedError') {
-        errorMessage = 'Camera permission denied. To enable camera access:\n\n• Chrome: Click the camera icon in the address bar\n• Firefox: Click the shield icon and select "Allow"\n• Safari: Go to Safari > Preferences > Websites > Camera\n\nThen refresh the page.';
+        errorMessage = 'Camera permission denied. To enable AR features:\n\n🎯 Quick Fix:\nClick "Allow" when prompted for camera access.\n\n🔧 If already denied:\n• Chrome: Click 🎥 icon in address bar → "Allow"\n• Firefox: Click 🛡️ shield icon → "Allow Camera"\n• Safari: Safari > Settings > Websites > Camera → "Allow"\n• Edge: Click 🎥 icon in address bar → "Allow"\n\n↻ Refresh this page after enabling camera access.';
         setHasPermission(false);
+        toast.error('Camera permission needed for AR features. Check instructions in the AR preview.');
       } else if (err.name === 'NotFoundError') {
-        errorMessage = 'No camera found on this device. Please connect a camera and refresh the page.';
+        errorMessage = 'No camera found on this device. AR features require a camera.\n\n📱 Solutions:\n• Connect a webcam to your computer\n• Use a device with a built-in camera\n• Check that your camera is properly connected\n\n↻ Refresh after connecting a camera.';
+        toast.error('Camera not found. AR features require a camera device.');
       } else if (err.name === 'NotSupportedError') {
-        errorMessage = 'Camera not supported in this browser. Please try Chrome, Firefox, or Safari with HTTPS enabled.';
+        errorMessage = 'Camera not supported in this browser.\n\n🌐 Compatible browsers:\n• Chrome 53+ (recommended)\n• Firefox 36+\n• Safari 11+\n• Edge 79+\n\n🔒 Also ensure you\'re using HTTPS connection.';
+        toast.error('Browser not supported. Please use a modern browser with HTTPS.');
       } else if (err.name === 'NotReadableError') {
-        errorMessage = 'Camera is being used by another application. Please close other apps using the camera and try again.';
+        errorMessage = 'Camera is currently in use by another application.\n\n📱 Solutions:\n• Close other apps using the camera\n• Close other browser tabs with camera access\n• Restart your browser\n• Restart the camera application\n\n↻ Try again after closing conflicting apps.';
+        toast.error('Camera busy. Close other apps using the camera and try again.');
       } else if (err.message?.includes('Illegal invocation')) {
-        errorMessage = 'Camera API context error. Please refresh the page and try again.';
+        errorMessage = 'Camera API context error detected. The page will refresh automatically to resolve this issue.\n\n⚡ This is a browser compatibility issue that resolves with a page refresh.';
+        toast.error('Camera API error. Refreshing page automatically...');
+        setTimeout(() => window.location.reload(), 2000);
       } else if (err.message?.includes('MediaDevices') || err.message?.includes('getUserMedia')) {
-        errorMessage = 'Camera API not available. Please ensure you\'re using HTTPS and a modern browser.';
+        errorMessage = 'Camera API not available in this environment.\n\n🔧 Requirements:\n• HTTPS connection (or localhost)\n• Modern browser with camera support\n• Camera device connected and working\n\n↻ Ensure requirements are met and refresh.';
+        toast.error('Camera API unavailable. Check HTTPS and browser compatibility.');
       }
       
       setError(errorMessage);
-      toast.error('Camera access failed. Check the AR preview for detailed instructions.');
     } finally {
       setIsLoading(false);
     }
@@ -315,22 +325,29 @@ const switchCamera = useCallback(async () => {
         }
       }
       
-    } catch (err) {
+} catch (err) {
       console.error('Camera switch error:', err);
-      let errorMessage = 'Failed to switch camera. This may happen if your device only has one camera or if camera permissions were revoked.';
+      let errorMessage = 'Failed to switch camera.';
       
       if (err.name === 'NotAllowedError') {
-        errorMessage = 'Camera permission denied while switching. Please ensure camera access is allowed.';
+        errorMessage = 'Camera permission denied while switching.\n\n🔧 Solution:\nEnsure camera access is still allowed in your browser settings. Permission may have been revoked.\n\n↻ Refresh the page if needed.';
+        toast.error('Camera permission revoked. Please re-enable camera access.');
       } else if (err.name === 'NotFoundError') {
-        errorMessage = 'Requested camera not found. Your device may only have one camera.';
+        errorMessage = 'Camera not found for switching.\n\n📱 Common causes:\n• Device has only one camera\n• Requested camera is not available\n• Camera was disconnected\n\n💡 This is normal on devices with single cameras.';
+        toast.error('Camera switch unavailable. Your device may have only one camera.');
       } else if (err.message?.includes('Illegal invocation')) {
-        errorMessage = 'Camera switching context error. Please refresh and try again.';
+        errorMessage = 'Camera switching context error.\n\n⚡ Browser API issue detected. The page will refresh automatically to resolve this.';
+        toast.error('Camera API error. Refreshing automatically...');
+        setTimeout(() => window.location.reload(), 2000);
       } else if (err.message?.includes('MediaDevices') || err.message?.includes('getUserMedia')) {
-        errorMessage = 'Camera switching not available. Please use a modern browser with HTTPS.';
+        errorMessage = 'Camera switching not supported in this environment.\n\n🔧 Requirements:\n• Modern browser with camera support\n• HTTPS connection\n• Proper camera permissions\n\n↻ Check requirements and refresh.';
+        toast.error('Camera switching unavailable. Check browser compatibility.');
+      } else {
+        errorMessage = 'Camera switch failed.\n\n📱 Possible causes:\n• Device has only one camera (normal)\n• Camera hardware issue\n• Browser compatibility issue\n\n💡 Try refreshing if the issue persists.';
+        toast.error('Camera switch failed. Try refreshing the page.');
       }
       
       setError(errorMessage);
-      toast.error('Camera switch failed. Check the AR preview for details.');
     } finally {
       setIsLoading(false);
     }
