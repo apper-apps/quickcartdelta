@@ -219,13 +219,9 @@ const getStatusColor = (status) => {
       'high': '🟡',
       'normal': '🟢'
     };
+};
     return icons[priority] || '🟢';
   };
-return icons[priority] || '🟢';
-  };
-
-const renderOrderQueue = () => (
-const renderOrderQueue = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Delivery Queue</h2>
@@ -495,13 +491,13 @@ const renderOrderQueue = () => (
           </h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+<div>
               <p className="text-sm text-gray-500">Latitude</p>
-              <p className="font-mono text-sm">{driverLocation.latitude?.toFixed(6)}</p>
+              <p className="font-mono text-sm">{driverLocation.lat?.toFixed(6)}</p>
             </div>
             <div>
               <p className="text-sm text-gray-500">Longitude</p>
-              <p className="font-mono text-sm">{driverLocation.longitude?.toFixed(6)}</p>
+              <p className="font-mono text-sm">{driverLocation.lng?.toFixed(6)}</p>
             </div>
           </div>
           

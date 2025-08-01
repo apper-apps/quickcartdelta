@@ -175,9 +175,8 @@ async getDeliveryMetrics(driverId, period = 'today') {
     // In a real app, this would send to dispatch center
     console.log('Emergency reported:', emergencyReport);
     
-    return emergencyReport;
+return emergencyReport;
   }
-}
 
   async reportDeliveryIssue(orderId, issueType, description, location = null) {
     await this.delay();
