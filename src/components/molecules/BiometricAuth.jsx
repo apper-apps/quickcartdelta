@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, Camera, Shield, User, X } from "lucide-react";
+import { mediaService } from "@/services/api/mediaService";
 import ApperIcon from "@/components/ApperIcon";
 import Error from "@/components/ui/Error";
 import Button from "@/components/atoms/Button";
@@ -17,15 +18,29 @@ const startCamera = useCallback(async () => {
       setIsLoading(true);
       setError(null);
       
-      // Enhanced browser compatibility checks
+      // Enhanced browser compatibility checks with proactive validation
       if (!navigator?.mediaDevices) {
-        throw new Error('MediaDevices API not supported in this browser. Please use Chrome, Firefox, or Safari.');
+        throw new Error('MediaDevices API not supported in this browser. Please use Chrome 53+, Firefox 36+, Safari 11+, or Edge 79+ for biometric authentication.');
       }
       
-      // Store reference to prevent context issues
-      const mediaDevices = navigator.mediaDevices;
-      if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
-        throw new Error('getUserMedia not supported in this browser. Please update your browser.');
+      // Check HTTPS requirement for biometric security
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        throw new Error('Biometric authentication requires HTTPS connection for security. Please use https:// or localhost.');
+      }
+      
+      // Enhanced permission checking before camera access
+      if (mediaService?.checkPermissionStatus) {
+        const permissionStatus = await mediaService.checkPermissionStatus('camera');
+        console.log('Biometric auth - camera permission status:', permissionStatus);
+        
+        if (permissionStatus === 'denied') {
+          const browserGuidance = mediaService.getBrowserSpecificPermissionGuidance();
+          throw new Error(`Camera permission was previously denied. ${browserGuidance}\n\nAfter enabling permissions, please refresh the page.`);
+        }
+
+        if (permissionStatus === 'unavailable') {
+          throw new Error('No camera found. Biometric authentication requires a camera device.');
+        }
       }
       
       // Clean up any existing stream before setting new one
@@ -35,7 +50,8 @@ const startCamera = useCallback(async () => {
         });
       }
       
-      const stream = await mediaDevices.getUserMedia({
+      // Use mediaService for better error handling and context preservation
+      const stream = await mediaService.getUserMedia({
         video: {
           width: { ideal: 640 },
           height: { ideal: 480 },
@@ -55,23 +71,28 @@ const startCamera = useCallback(async () => {
         }
       }
       setHasPermission(true);
-} catch (err) {
-      console.error('Camera access error:', err);
-      let errorMessage = 'Camera access failed';
+      console.log('Biometric authentication camera started successfully');
+    } catch (err) {
+      console.error('Biometric camera access error:', err);
+      let errorMessage = 'Camera access failed for biometric authentication';
       
       if (err.name === 'NotAllowedError') {
-        errorMessage = 'Camera permission denied. Biometric authentication requires camera access.\n\n🎯 To enable camera access:\n\n• Click "Allow" when prompted\n• Or enable manually:\n  - Chrome: Click 🎥 in address bar → "Allow"\n  - Firefox: Click 🛡️ shield → "Allow Camera"\n  - Safari: Safari > Settings > Websites > Camera → "Allow"\n  - Edge: Click 🎥 in address bar → "Allow"\n\n↻ Refresh this page after enabling camera access.\n\n🔒 Camera access is required for secure biometric authentication.';
+        const browserGuidance = mediaService?.getBrowserSpecificPermissionGuidance() || 
+          'Enable camera access in browser settings';
+        errorMessage = `Camera permission denied. Biometric authentication requires camera access.\n\n${browserGuidance}\n\nRefresh this page after enabling camera access.\n\n🔒 Camera access is required for secure biometric verification.`;
       } else if (err.name === 'NotFoundError') {
         errorMessage = 'No camera found. Biometric authentication requires a camera.\n\n📱 Solutions:\n• Connect a webcam to your computer\n• Use a device with built-in camera\n• Check camera connection and drivers\n\n🔒 Biometric authentication needs camera access for security verification.';
       } else if (err.name === 'NotSupportedError') {
         errorMessage = 'Camera not supported for biometric authentication.\n\n🌐 Compatible browsers:\n• Chrome 53+ (recommended for WebRTC)\n• Firefox 36+ with secure context\n• Safari 11+ with camera permissions\n• Edge 79+ with HTTPS\n\n🔒 HTTPS connection required for security.\n\n💡 Use a modern browser for best biometric features.';
       } else if (err.name === 'NotReadableError') {
-        errorMessage = 'Camera busy. Another application is using the camera.\n\n📱 Solutions:\n• Close other video conferencing apps (Zoom, Teams, etc.)\n• Close other browser tabs using camera\n• Restart your browser completely\n• Check running applications using camera\n\n🔒 Camera must be available for biometric verification.';
+        errorMessage = 'Camera busy. Another application is using the camera.\n\n📱 Solutions:\n• Close video conferencing apps (Zoom, Teams, etc.)\n• Close other browser tabs using camera\n• Restart your browser completely\n• Check running applications using camera\n\n🔒 Camera must be available for biometric verification.';
       } else if (err.message?.includes('Illegal invocation')) {
         errorMessage = 'Camera API context error detected.\n\n⚡ Browser compatibility issue. The page will refresh automatically to resolve this.\n\n🔧 This typically happens due to browser security contexts and resolves with refresh.';
         setTimeout(() => window.location.reload(), 2000);
       } else if (err.message?.includes('MediaDevices') || err.message?.includes('getUserMedia')) {
         errorMessage = 'Camera API unavailable for biometric authentication.\n\n🔧 Requirements:\n• HTTPS connection (secure context)\n• Modern browser with WebRTC support\n• Camera device properly connected\n• Valid SSL certificate\n\n🔒 Secure connection required for biometric features.\n\n↻ Ensure requirements are met and refresh.';
+      } else if (err.message?.includes('HTTPS')) {
+        errorMessage = 'Biometric authentication requires HTTPS connection.\n\n🔒 Please use:\n• https:// URL for this site\n• localhost for development\n• Valid SSL certificate';
       }
       
       setError(errorMessage);
@@ -121,31 +142,61 @@ const startCamera = useCallback(async () => {
 }, [onCancel, stopCamera]);
 
 useEffect(() => {
-    // Enhanced camera initialization with permission handling
+    // Enhanced biometric authentication initialization with comprehensive permission handling
     const initializeBiometricAuth = async () => {
       try {
-        // Check camera permission status first for better user experience
-        if (navigator.permissions) {
-          const permission = await navigator.permissions.query({ name: 'camera' });
-          if (permission.state === 'denied') {
-            setError('Camera access has been permanently denied. Biometric authentication requires camera access. To enable: Chrome: Click the camera icon in the address bar. Firefox: Click the shield icon and select "Allow Camera". Safari: Go to Safari > Settings > Websites > Camera and allow this site.');
+        console.log('Initializing biometric authentication - checking camera permissions...');
+        
+        // Enhanced permission checking with better user experience
+        if (mediaService?.checkPermissionStatus) {
+          const permissionStatus = await mediaService.checkPermissionStatus('camera');
+          console.log('Biometric auth permission status:', permissionStatus);
+          
+          if (permissionStatus === 'denied') {
+            const browserGuidance = mediaService.getBrowserSpecificPermissionGuidance();
+            setError(`Camera access has been denied. Biometric authentication requires camera access.\n\n${browserGuidance}\n\nRefresh this page after enabling camera access.\n\n💡 Alternative: You can use other authentication methods if camera access is not available.`);
             setHasPermission(false);
             return;
           }
+
+          if (permissionStatus === 'unavailable') {
+            setError('No camera found. Biometric authentication requires a camera device.\n\n📱 Solutions:\n• Connect a webcam to your computer\n• Use a device with a built-in camera\n• Check camera drivers and connections\n\n💡 Alternative: You can use other authentication methods.');
+            setHasPermission(false);
+            return;
+          }
+        } else {
+          // Fallback permission check for older browsers
+          if (navigator.permissions) {
+            const permission = await navigator.permissions.query({ name: 'camera' });
+            if (permission.state === 'denied') {
+              const browserGuidance = mediaService?.getBrowserSpecificPermissionGuidance() || 
+                'Please enable camera access in your browser settings.';
+              setError(`Camera access has been denied. Biometric authentication requires camera access.\n\n${browserGuidance}\n\nRefresh this page after enabling camera access.`);
+              setHasPermission(false);
+              return;
+            }
+          }
         }
         
-        // Only request camera if not explicitly denied
-        console.log('Initializing biometric authentication - requesting camera access');
+        // Request camera access with enhanced error handling
+        console.log('Requesting camera access for biometric authentication...');
         await startCamera();
+        console.log('Biometric authentication camera initialized successfully');
       } catch (err) {
-        console.error('Biometric auth camera error:', err);
+        console.error('Biometric auth initialization error:', err);
         if (err.name === 'NotAllowedError') {
-          setError('Camera permission denied. Biometric authentication requires camera access. Please click "Allow" when prompted, or check your browser settings if you previously denied access. You can also use alternative authentication methods.');
+          const browserGuidance = mediaService?.getBrowserSpecificPermissionGuidance() || 
+            'Please enable camera access in your browser settings.';
+          setError(`Camera permission denied. Biometric authentication requires camera access.\n\n${browserGuidance}\n\nRefresh this page after enabling camera access.\n\n💡 Alternative: You can use other authentication methods if camera access is not available.`);
           setHasPermission(false);
         } else if (err.name === 'NotFoundError') {
-          setError('No camera found. Biometric authentication requires a camera device. Please connect a webcam or use a device with a built-in camera.');
+          setError('No camera found. Biometric authentication requires a camera device.\n\n📱 Solutions:\n• Connect a webcam to your computer\n• Use a device with a built-in camera\n• Check camera drivers and connections\n\n💡 Alternative: You can use other authentication methods.');
+          setHasPermission(false);
+        } else if (err.message?.includes('HTTPS')) {
+          setError('Biometric authentication requires HTTPS connection.\n\n🔒 Please use:\n• https:// URL for this site\n• localhost for development\n• Valid SSL certificate\n\n💡 Alternative: Use other authentication methods on non-HTTPS connections.');
+          setHasPermission(false);
         } else {
-          setError(`Camera initialization failed: ${err.message || 'Please check your camera connection and browser settings, then try again'}`);
+          setError(`Camera initialization failed: ${err.message || 'Please check your camera connection and browser settings, then try again'}\n\n💡 Alternative: You can use other authentication methods if camera issues persist.`);
         }
       }
     };

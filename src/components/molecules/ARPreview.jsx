@@ -40,10 +40,26 @@ useEffect(() => {
   };
 
 // Check camera permission status before requesting access
-  const checkPermissionStatus = useCallback(async () => {
+const checkPermissionStatus = useCallback(async () => {
     try {
+      // Enhanced permission checking with better fallback
       if (!navigator?.permissions?.query) {
-        return 'unknown'; // Permissions API not supported
+        // Fallback: attempt quick camera access test
+        try {
+          const testStream = await mediaService.getUserMedia({ 
+            video: { facingMode: 'environment' }, 
+            audio: false 
+          });
+          if (testStream) {
+            testStream.getTracks().forEach(track => track.stop());
+            return 'granted';
+          }
+        } catch (testError) {
+          if (testError.name === 'NotAllowedError') return 'denied';
+          if (testError.name === 'NotFoundError') return 'unavailable';
+          return 'prompt';
+        }
+        return 'unknown';
       }
       
       const result = await navigator.permissions.query({ name: 'camera' });
@@ -56,55 +72,86 @@ useEffect(() => {
 
   const requestCameraPermission = useCallback(async () => {
     try {
-      // First check if we already have permission
+      // Proactive permission status check
       const permissionStatus = await checkPermissionStatus();
+      console.log('Camera permission status:', permissionStatus);
       
       if (permissionStatus === 'denied') {
-        setError('Camera access was previously denied. Please click the camera icon in your browser\'s address bar to enable access, then refresh the page.');
+        const browserGuidance = mediaService?.getBrowserSpecificPermissionGuidance() || 
+          'Please enable camera access in your browser settings.';
+        setError(`Camera access was previously denied.\n\n${browserGuidance}\n\nAfter enabling permissions, please refresh this page.`);
         setHasPermission(false);
+        toast.error('Camera permission needed for AR features. Check the AR preview for instructions.');
         return false;
       }
 
-      // Try to get media to trigger permission request
-      const stream = await mediaService.getUserMedia({ 
-        video: { facingMode: 'environment' }, 
-        audio: false 
-      });
+      if (permissionStatus === 'unavailable') {
+        setError('No camera found on this device. AR features require a camera.\n\n📱 Solutions:\n• Connect a webcam to your computer\n• Use a device with a built-in camera\n• Check camera drivers and connections');
+        setHasPermission(false);
+        toast.error('Camera device not found. AR requires camera access.');
+        return false;
+      }
+
+      // Show user-friendly prompt before requesting permission
+      if (permissionStatus === 'prompt') {
+        toast.info('AR Preview needs camera access. Please click "Allow" when prompted.');
+      }
+
+      // Request camera permission with enhanced error handling
+      const stream = await mediaService.requestCameraPermission();
       
       if (stream) {
         // Stop the stream immediately - we just wanted to check permission
-        stream.getTracks().forEach(track => track.stop());
+        if (typeof stream === 'object' && stream.getTracks) {
+          stream.getTracks().forEach(track => track.stop());
+        }
         setHasPermission(true);
+        toast.success('Camera permission granted! AR features are now available.');
         return true;
       }
       
       return false;
     } catch (error) {
-console.error('Permission request failed:', error);
+      console.error('Camera permission request failed:', error);
       setHasPermission(false);
       
+      let errorMessage = 'Camera access failed. Please try again.';
+      
       if (error.name === 'NotAllowedError') {
-        setError('Camera permission denied. To use AR features, please:\n\n📱 Allow camera access when prompted, or:\n\n🔧 Manual Setup:\n• Chrome: Click camera icon in address bar → "Allow"\n• Firefox: Click shield icon → "Allow Camera"\n• Safari: Safari > Settings > Websites > Camera → "Allow"\n\nThen refresh this page to continue.');
+        const browserGuidance = mediaService?.getBrowserSpecificPermissionGuidance() || 
+          'Enable camera access in browser settings';
+        errorMessage = `Camera permission denied.\n\n${browserGuidance}\n\nRefresh the page after enabling camera access.`;
+        toast.error('Camera permission denied. Check AR preview for setup instructions.');
       } else if (error.name === 'NotFoundError') {
-        setError('No camera detected on this device. Please connect a camera and refresh the page.');
+        errorMessage = 'No camera detected. AR features require a camera device.\n\n📱 Solutions:\n• Connect a webcam\n• Use device with built-in camera\n• Check camera connections';
+        toast.error('Camera not found. Connect a camera device to use AR features.');
       } else if (error.name === 'NotSupportedError') {
-        setError('Camera not supported in this browser. Please use Chrome, Firefox, or Safari with HTTPS.');
+        errorMessage = 'Camera not supported in this browser or environment.\n\n🌐 Requirements:\n• Modern browser (Chrome 53+, Firefox 36+, Safari 11+)\n• HTTPS connection\n• Camera device available';
+        toast.error('Browser or environment not supported for camera access.');
+      } else if (error.message?.includes('HTTPS')) {
+        errorMessage = 'Camera access requires HTTPS connection.\n\n🔒 Please use:\n• https:// URL for this site\n• localhost for development\n• Valid SSL certificate';
+        toast.error('HTTPS required for camera access. Use secure connection.');
       }
       
+      setError(errorMessage);
       return false;
     }
   }, [checkPermissionStatus]);
 
-  const startCamera = useCallback(async () => {
+const startCamera = useCallback(async () => {
     // Enhanced browser and API validation
     if (!navigator?.mediaDevices?.getUserMedia) {
-      setError('Camera not supported in this browser. Please use a modern browser like Chrome, Firefox, or Safari.');
+      const errorMsg = 'Camera not supported in this browser.\n\n🌐 Please use:\n• Chrome 53+ (recommended)\n• Firefox 36+\n• Safari 11+\n• Edge 79+\n\nwith HTTPS connection.';
+      setError(errorMsg);
+      toast.error('Browser not supported for camera access.');
       return;
     }
 
     // Check HTTPS requirement
-    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-      setError('Camera access requires HTTPS. Please use a secure connection.');
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+      const errorMsg = 'Camera access requires HTTPS connection.\n\n🔒 Please use:\n• https:// URL\n• localhost for development\n• Valid SSL certificate';
+      setError(errorMsg);
+      toast.error('HTTPS required for camera access.');
       return;
     }
     
@@ -112,28 +159,40 @@ console.error('Permission request failed:', error);
       setIsLoading(true);
       setError(null);
       
-      // Check permission status first
+      // Proactive permission checking with better user experience
       const permissionStatus = await checkPermissionStatus();
+      console.log('Starting camera - permission status:', permissionStatus);
       
       if (permissionStatus === 'denied') {
-        setError('Camera access was denied. Please enable camera access in your browser settings and refresh the page.');
+        const browserGuidance = mediaService?.getBrowserSpecificPermissionGuidance() || 
+          'Please enable camera access in your browser settings.';
+        setError(`Camera access was denied.\n\n${browserGuidance}\n\nRefresh this page after enabling camera access.`);
         setHasPermission(false);
+        toast.error('Camera permission denied. Check AR preview for setup instructions.');
         return;
       }
 
-      // If permission is not granted, show guidance before requesting
+      if (permissionStatus === 'unavailable') {
+        setError('No camera found on this device. AR features require a camera.\n\n📱 Solutions:\n• Connect a webcam to your computer\n• Use a device with a built-in camera\n• Check camera drivers and connections');
+        setHasPermission(false);
+        toast.error('Camera device not found.');
+        return;
+      }
+
+      // Show helpful message for permission prompts
       if (permissionStatus === 'prompt') {
         setError(null); // Clear any previous errors
         toast.info('Please allow camera access when prompted to use AR features.');
       }
       
+      // Clean up any existing stream
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
       
       let stream;
       try {
-        // Try preferred camera settings
+        // Try preferred camera settings with enhanced error handling
         stream = await mediaService.getCameraStream(facingMode);
       } catch (err) {
         console.warn('Preferred camera not available, trying fallback:', err);
@@ -141,8 +200,9 @@ console.error('Permission request failed:', error);
           // Fallback to basic camera
           stream = await mediaService.getCameraStream('environment');
         } catch (fallbackErr) {
-          // Last resort - try any available camera
+          console.warn('Environment camera failed, trying any available camera:', fallbackErr);
           try {
+            // Last resort - try any available camera
             stream = await mediaService.getUserMedia({ video: true, audio: false });
           } catch (finalErr) {
             throw finalErr;
@@ -159,36 +219,44 @@ console.error('Permission request failed:', error);
           await videoRef.current.play();
         } catch (playError) {
           console.warn('Video play failed:', playError);
+          // Continue - video might play on user interaction
         }
         
         setIsActive(true);
-        toast.success('Camera started successfully!');
+        toast.success('Camera started successfully! AR features are now active.');
+      } else {
+        throw new Error('Failed to initialize camera stream');
       }
       
     } catch (err) {
-console.error('Camera access error:', err);
-      let errorMessage = 'Camera access failed';
+      console.error('Camera access error:', err);
+      let errorMessage = 'Camera access failed. Please try again.';
       
       if (err.name === 'NotAllowedError') {
-        errorMessage = 'Camera permission denied. To enable AR features:\n\n🎯 Quick Fix:\nClick "Allow" when prompted for camera access.\n\n🔧 If already denied:\n• Chrome: Click 🎥 icon in address bar → "Allow"\n• Firefox: Click 🛡️ shield icon → "Allow Camera"\n• Safari: Safari > Settings > Websites > Camera → "Allow"\n• Edge: Click 🎥 icon in address bar → "Allow"\n\n↻ Refresh this page after enabling camera access.';
+        const browserGuidance = mediaService?.getBrowserSpecificPermissionGuidance() || 
+          'Click "Allow" when prompted or enable in browser settings';
+        errorMessage = `Camera permission denied.\n\n${browserGuidance}\n\nRefresh this page after enabling camera access.`;
         setHasPermission(false);
-        toast.error('Camera permission needed for AR features. Check instructions in the AR preview.');
+        toast.error('Camera permission needed for AR features. Check instructions in AR preview.');
       } else if (err.name === 'NotFoundError') {
-        errorMessage = 'No camera found on this device. AR features require a camera.\n\n📱 Solutions:\n• Connect a webcam to your computer\n• Use a device with a built-in camera\n• Check that your camera is properly connected\n\n↻ Refresh after connecting a camera.';
-        toast.error('Camera not found. AR features require a camera device.');
+        errorMessage = 'No camera found on this device. AR features require a camera.\n\n📱 Solutions:\n• Connect a webcam to your computer\n• Use a device with a built-in camera\n• Check camera connections and drivers\n\n↻ Refresh after connecting a camera.';
+        toast.error('Camera not found. Connect a camera device to use AR features.');
       } else if (err.name === 'NotSupportedError') {
-        errorMessage = 'Camera not supported in this browser.\n\n🌐 Compatible browsers:\n• Chrome 53+ (recommended)\n• Firefox 36+\n• Safari 11+\n• Edge 79+\n\n🔒 Also ensure you\'re using HTTPS connection.';
-        toast.error('Browser not supported. Please use a modern browser with HTTPS.');
+        errorMessage = 'Camera not supported in this browser or environment.\n\n🌐 Requirements:\n• Chrome 53+, Firefox 36+, Safari 11+, or Edge 79+\n• HTTPS connection for security\n• Camera device properly connected\n\n↻ Use supported browser with HTTPS.';
+        toast.error('Browser or environment not supported for camera access.');
       } else if (err.name === 'NotReadableError') {
-        errorMessage = 'Camera is currently in use by another application.\n\n📱 Solutions:\n• Close other apps using the camera\n• Close other browser tabs with camera access\n• Restart your browser\n• Restart the camera application\n\n↻ Try again after closing conflicting apps.';
+        errorMessage = 'Camera is busy - another application is using it.\n\n📱 Solutions:\n• Close video conferencing apps (Zoom, Teams, etc.)\n• Close other browser tabs using camera\n• Restart your browser completely\n• Check running applications using camera\n\n↻ Try again after closing conflicting apps.';
         toast.error('Camera busy. Close other apps using the camera and try again.');
       } else if (err.message?.includes('Illegal invocation')) {
-        errorMessage = 'Camera API context error detected. The page will refresh automatically to resolve this issue.\n\n⚡ This is a browser compatibility issue that resolves with a page refresh.';
+        errorMessage = 'Camera API context error detected.\n\n⚡ Browser compatibility issue. The page will refresh automatically to resolve this.\n\n🔧 This typically happens due to browser security contexts.';
         toast.error('Camera API error. Refreshing page automatically...');
         setTimeout(() => window.location.reload(), 2000);
       } else if (err.message?.includes('MediaDevices') || err.message?.includes('getUserMedia')) {
-        errorMessage = 'Camera API not available in this environment.\n\n🔧 Requirements:\n• HTTPS connection (or localhost)\n• Modern browser with camera support\n• Camera device connected and working\n\n↻ Ensure requirements are met and refresh.';
+        errorMessage = 'Camera API not available in this environment.\n\n🔧 Requirements:\n• HTTPS connection (secure context)\n• Modern browser with WebRTC support\n• Camera device properly connected\n• Valid SSL certificate\n\n↻ Ensure requirements are met and refresh.';
         toast.error('Camera API unavailable. Check HTTPS and browser compatibility.');
+      } else if (err.message?.includes('HTTPS')) {
+        errorMessage = 'Camera access requires HTTPS connection.\n\n🔒 Please use:\n• https:// URL for this site\n• localhost for development\n• Valid SSL certificate';
+        toast.error('HTTPS required for camera access.');
       }
       
       setError(errorMessage);
@@ -361,28 +429,49 @@ const handleClose = useCallback(() => {
 useEffect(() => {
     const checkPermissionAndStart = async () => {
       try {
-        // Check permission status first to provide better user guidance
-        if (navigator.permissions) {
-          const permission = await navigator.permissions.query({ name: 'camera' });
-          if (permission.state === 'denied') {
-            setError('Camera access has been permanently denied. To enable AR preview: Chrome: Click the camera icon in the address bar and select "Allow". Firefox: Click the shield icon and enable camera. Safari: Go to Safari > Settings > Websites > Camera and allow this site.');
-            setHasPermission(false);
-            return;
-          }
+        // Enhanced permission status checking with better user experience
+        console.log('AR Preview initializing - checking camera permissions...');
+        
+        const permissionStatus = await checkPermissionStatus();
+        console.log('Initial permission status:', permissionStatus);
+        
+        if (permissionStatus === 'denied') {
+          const browserGuidance = mediaService?.getBrowserSpecificPermissionGuidance() || 
+            'Please enable camera access in your browser settings.';
+          setError(`Camera access has been denied.\n\n${browserGuidance}\n\nRefresh this page after enabling camera access.`);
+          setHasPermission(false);
+          toast.error('Camera permission denied. Check AR preview for setup instructions.');
+          return;
+        }
+
+        if (permissionStatus === 'unavailable') {
+          setError('No camera found on this device. AR preview requires a camera.\n\n📱 Solutions:\n• Connect a webcam to your computer\n• Use a device with a built-in camera\n• Check camera drivers and connections');
+          setHasPermission(false);
+          toast.error('Camera device not found for AR preview.');
+          return;
         }
         
-        // Only start camera if component is still mounted
-        if (mountedRef.current) {
+        // Only start camera if component is still mounted and we have potential access
+        if (mountedRef.current && permissionStatus !== 'denied') {
+          console.log('Starting camera for AR preview...');
           await startCamera();
         }
       } catch (err) {
-        console.error('Camera initialization error:', err);
+        console.error('AR Preview camera initialization error:', err);
         if (mountedRef.current) {
           if (err.name === 'NotAllowedError') {
-            setError('Camera access is required for AR preview. Please click "Allow" when prompted, or check your browser settings if you previously denied access.');
+            const browserGuidance = mediaService?.getBrowserSpecificPermissionGuidance() || 
+              'Please enable camera access in your browser settings.';
+            setError(`Camera access denied.\n\n${browserGuidance}\n\nRefresh this page after enabling camera access.`);
             setHasPermission(false);
+            toast.error('Camera permission needed for AR preview.');
+          } else if (err.name === 'NotFoundError') {
+            setError('No camera found. AR preview requires a camera device.\n\n📱 Solutions:\n• Connect a webcam\n• Use device with built-in camera\n• Check camera connections');
+            setHasPermission(false);
+            toast.error('Camera not found for AR preview.');
           } else {
-            setError(`Camera access failed: ${err.message || 'Please check your camera connection and try again'}`);
+            setError(`Camera initialization failed: ${err.message || 'Please check your camera connection and browser settings, then try again'}`);
+            toast.error('Camera initialization failed. Check your camera and try again.');
           }
         }
       }
@@ -393,7 +482,7 @@ useEffect(() => {
     return () => {
       stopCamera();
     };
-  }, [startCamera, stopCamera]);
+  }, [startCamera, stopCamera, checkPermissionStatus]);
   // Handle visibility change to pause/resume camera
   useEffect(() => {
     const handleVisibilityChange = () => {

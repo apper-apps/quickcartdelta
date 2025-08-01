@@ -21,18 +21,39 @@ checkSupport() {
   // Get user media with proper error handling and context binding
 async getUserMedia(constraints = { video: true, audio: false }) {
     if (!this.isSupported) {
-      throw new Error('getUserMedia is not supported in this browser');
+      throw new Error('getUserMedia is not supported in this browser. Please use Chrome 53+, Firefox 36+, Safari 11+, or Edge 79+.');
+    }
+
+    // Enhanced HTTPS checking
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+      throw new Error('Media access requires HTTPS connection for security. Please use https:// or localhost.');
     }
 
     try {
       // Enhanced context preservation to prevent "Illegal invocation"
       const mediaDevices = navigator.mediaDevices;
       if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
-        throw new Error('getUserMedia method not available');
+        throw new Error('getUserMedia method not available in this browser context');
       }
       
-// Use .call() to ensure proper context binding and prevent "Illegal invocation"
+      // Enhanced permission checking before access attempt
+      if (constraints.video && navigator.permissions) {
+        try {
+          const permission = await navigator.permissions.query({ name: 'camera' });
+          if (permission.state === 'denied') {
+            const browserGuidance = this.getBrowserSpecificPermissionGuidance();
+            throw new Error(`Camera permission was previously denied. ${browserGuidance} After enabling permissions, please refresh the page.`);
+          }
+        } catch (permError) {
+          console.warn('Permission check failed:', permError);
+          // Continue with getUserMedia attempt
+        }
+      }
+      
+      // Use .call() to ensure proper context binding and prevent "Illegal invocation"
+      console.log('Requesting media access with constraints:', constraints);
       this.stream = await mediaDevices.getUserMedia.call(mediaDevices, constraints);
+      console.log('Media access granted successfully');
       return this.stream;
     } catch (error) {
       console.error('Error accessing media devices:', error);
@@ -272,25 +293,36 @@ async getUserMedia(constraints = { video: true, audio: false }) {
   }
 
 // Check permission status using Permissions API
-async checkPermissionStatus(permissionName = 'camera') {
+// Enhanced permission status checking with comprehensive fallback detection
+  async checkPermissionStatus(permissionName = 'camera') {
     try {
       if (!navigator?.permissions?.query) {
-        // Fallback: try to detect permission status through getUserMedia attempt
+        console.warn('Permissions API not available, using fallback detection');
+        // Enhanced fallback: try to detect permission status through getUserMedia attempt
         try {
-          const testStream = await navigator.mediaDevices.getUserMedia({ 
-            video: permissionName === 'camera',
+          const constraints = {
+            video: permissionName === 'camera' ? { facingMode: 'environment' } : false,
             audio: permissionName === 'microphone'
-          });
-          testStream.getTracks().forEach(track => track.stop());
-          return 'granted';
+          };
+          
+          const testStream = await navigator.mediaDevices.getUserMedia(constraints);
+          if (testStream) {
+            testStream.getTracks().forEach(track => track.stop());
+            console.log(`${permissionName} permission detected as granted via fallback`);
+            return 'granted';
+          }
         } catch (testError) {
+          console.log(`${permissionName} permission test error:`, testError.name);
           if (testError.name === 'NotAllowedError') return 'denied';
           if (testError.name === 'NotFoundError') return 'unavailable';
+          if (testError.name === 'NotSupportedError') return 'unsupported';
           return 'prompt';
         }
+        return 'unknown';
       }
       
       const result = await navigator.permissions.query({ name: permissionName });
+      console.log(`${permissionName} permission status:`, result.state);
       return result.state; // 'granted', 'denied', or 'prompt'
     } catch (error) {
       console.warn(`Permission status check failed for ${permissionName}:`, error);
@@ -298,15 +330,30 @@ async checkPermissionStatus(permissionName = 'camera') {
     }
   }
 
-  // Request permissions with comprehensive error handling and status checking
+  // Enhanced permission request flow with comprehensive error handling
   async requestPermissions() {
     if (!this.isSupported) {
-      return { camera: false, microphone: false, error: 'Media devices not supported' };
+      return { 
+        camera: false, 
+        microphone: false, 
+        error: 'Media devices not supported in this browser. Please use Chrome 53+, Firefox 36+, Safari 11+, or Edge 79+.' 
+      };
+    }
+
+    // Check HTTPS requirement
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+      return {
+        camera: false,
+        microphone: false,
+        error: 'Media access requires HTTPS connection for security. Please use https:// or localhost.'
+      };
     }
 
     // Check current permission status first
     const cameraStatus = await this.checkPermissionStatus('camera');
     const microphoneStatus = await this.checkPermissionStatus('microphone');
+
+    console.log('Permission request - Camera:', cameraStatus, 'Microphone:', microphoneStatus);
 
     const result = {
       camera: cameraStatus === 'granted',
@@ -315,13 +362,22 @@ async checkPermissionStatus(permissionName = 'camera') {
       microphoneStatus
     };
 
-    // If permissions are already denied, return early with guidance
+    // If permissions are already denied, return early with enhanced guidance
     if (cameraStatus === 'denied') {
-      result.cameraError = 'Camera permission was previously denied. Please enable it in browser settings.';
+      result.cameraError = `Camera permission was previously denied. ${this.getBrowserSpecificPermissionGuidance()} After enabling permissions, please refresh the page.`;
     }
     
     if (microphoneStatus === 'denied') {
-      result.microphoneError = 'Microphone permission was previously denied. Please enable it in browser settings.';
+      result.microphoneError = `Microphone permission was previously denied. ${this.getBrowserSpecificPermissionGuidance()} After enabling permissions, please refresh the page.`;
+    }
+
+    // Handle unavailable devices
+    if (cameraStatus === 'unavailable') {
+      result.cameraError = 'No camera found. Please connect a camera device.';
+    }
+
+    if (microphoneStatus === 'unavailable') {
+      result.microphoneError = 'No microphone found. Please connect a microphone device.';
     }
 
     // If both are already granted, return success
@@ -331,7 +387,9 @@ async checkPermissionStatus(permissionName = 'camera') {
 
     try {
       // Try to get both permissions at once if not denied
-      if (cameraStatus !== 'denied' && microphoneStatus !== 'denied') {
+      if (cameraStatus !== 'denied' && microphoneStatus !== 'denied' && 
+          cameraStatus !== 'unavailable' && microphoneStatus !== 'unavailable') {
+        console.log('Requesting combined camera and microphone access...');
         const stream = await this.getUserMedia({ video: true, audio: true });
         if (stream) {
           stream.getTracks().forEach(track => track.stop());
@@ -344,9 +402,10 @@ async checkPermissionStatus(permissionName = 'camera') {
       console.warn('Combined permissions failed, trying individually:', error);
     }
     
-    // Try individual permissions
-    if (cameraStatus !== 'denied' && !result.camera) {
+    // Try individual permissions with enhanced error handling
+    if (cameraStatus !== 'denied' && cameraStatus !== 'unavailable' && !result.camera) {
       try {
+        console.log('Requesting camera permission individually...');
         const videoStream = await this.getUserMedia({ video: true, audio: false });
         if (videoStream) {
           videoStream.getTracks().forEach(track => track.stop());
@@ -358,8 +417,9 @@ async checkPermissionStatus(permissionName = 'camera') {
       }
     }
 
-    if (microphoneStatus !== 'denied' && !result.microphone) {
+    if (microphoneStatus !== 'denied' && microphoneStatus !== 'unavailable' && !result.microphone) {
       try {
+        console.log('Requesting microphone permission individually...');
         const audioStream = await this.getUserMedia({ video: false, audio: true });
         if (audioStream) {
           audioStream.getTracks().forEach(track => track.stop());
@@ -374,50 +434,59 @@ async checkPermissionStatus(permissionName = 'camera') {
     return result;
   }
 
-// Request only camera permission with enhanced guidance and proactive checking
+  // Enhanced camera permission request with comprehensive error handling and user guidance
   async requestCameraPermission() {
     if (!this.isSupported) {
       throw new Error('Camera not supported in this browser. Please use Chrome 53+, Firefox 36+, Safari 11+, or Edge 79+.');
     }
 
-    // Check HTTPS requirement
+    // Enhanced HTTPS requirement checking
     if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
       throw new Error('Camera access requires HTTPS connection for security. Please use https:// or localhost.');
     }
 
-    // Enhanced permission status checking
+    // Enhanced permission status checking with better logging
     const status = await this.checkPermissionStatus('camera');
-    console.log('Camera permission status:', status);
+    console.log('Camera permission request - current status:', status);
     
     if (status === 'denied') {
       const browserGuidance = this.getBrowserSpecificPermissionGuidance();
       throw new Error(`Camera permission was previously denied. ${browserGuidance}\n\nAfter enabling permissions, please refresh the page.`);
     }
 
+    if (status === 'unavailable') {
+      throw new Error('No camera found on this device. Please connect a camera and refresh the page.');
+    }
+
+    if (status === 'unsupported') {
+      throw new Error('Camera not supported in this browser or environment. Please use a modern browser with HTTPS.');
+    }
+
     if (status === 'granted') {
-      // Double-check by actually requesting stream
+      // Double-check by actually requesting stream to ensure it works
       try {
+        console.log('Permission granted, testing camera access...');
         const testStream = await this.getUserMedia({ video: true, audio: false });
         if (testStream) {
           testStream.getTracks().forEach(track => track.stop());
-          return true;
+          console.log('Camera access confirmed');
+          return testStream; // Return the stream for immediate use if needed
         }
       } catch (testError) {
         console.warn('Permission granted but stream failed:', testError);
-        // Continue to regular flow
+        // Continue to regular flow to handle the error properly
       }
     }
 
-    // Request permission with user-friendly prompting
+    // Request permission with enhanced user guidance
     try {
-      console.log('Requesting camera permission...');
+      console.log('Requesting camera permission from user...');
       const stream = await this.getUserMedia({ video: true, audio: false });
       if (stream) {
         console.log('Camera permission granted successfully');
-        stream.getTracks().forEach(track => track.stop());
-        return true;
+        return stream;
       }
-      return false;
+      throw new Error('Failed to obtain camera stream');
     } catch (error) {
       console.error('Camera permission request failed:', error);
       throw this.handleMediaError(error);
