@@ -82,8 +82,8 @@ const permissionStatus = await checkPermissionStatus();
           'Please enable camera access in your browser settings.';
         setError(`🚫 Camera access was denied.\n\n${browserGuidance}\n\n✅ After enabling permissions, please refresh this page.`);
         setHasPermission(false);
-        setShowPermissionHelp(true);
-        toast.error('Camera permission denied. Follow the instructions shown to enable access.');
+setShowPermissionHelp(true);
+        toast.error('🎥 Camera access needed for AR preview. Please allow camera permission in your browser.');
         return false;
       }
 
@@ -174,7 +174,7 @@ const permissionStatus = await checkPermissionStatus();
         setError(`🚫 Camera access was denied.\n\n${browserGuidance}\n\n✅ Refresh this page after enabling camera access.`);
         setHasPermission(false);
         setShowPermissionHelp(true);
-        toast.error('Camera permission denied. Follow the step-by-step guide below.');
+toast.error('🎥 Camera permission required. Please click "Allow" when your browser asks for camera access.');
         return;
       }
 
@@ -245,8 +245,8 @@ const permissionStatus = await checkPermissionStatus();
           'Click "Allow" when prompted or enable in browser settings';
         errorMessage = `🚫 Camera permission denied.\n\n${browserGuidance}\n\n✅ Refresh this page after enabling camera access.`;
         setHasPermission(false);
-        setShowPermissionHelp(true);
-        toast.error('Camera permission denied. Follow the step-by-step guide below.');
+setShowPermissionHelp(true);
+        toast.error('🎥 Camera access required for AR preview. Please enable camera permissions in your browser.');
       } else if (err.name === 'NotFoundError') {
         errorMessage = '📷 No camera found on this device. AR features require a camera.\n\n📱 Solutions:\n• Connect a webcam to your computer\n• Use a device with a built-in camera\n• Check camera connections and drivers\n\n🔄 Refresh after connecting a camera.';
         toast.error('Camera not found. Connect a camera device to use AR features.');
@@ -450,8 +450,8 @@ const browserGuidance = mediaService?.getBrowserSpecificPermissionGuidance() ||
             'Please enable camera access in your browser settings.';
           setError(`🚫 Camera access has been denied.\n\n${browserGuidance}\n\n✅ Refresh this page after enabling camera access.`);
           setHasPermission(false);
-          setShowPermissionHelp(true);
-          toast.error('Camera permission denied. Follow the step-by-step guide below.');
+setShowPermissionHelp(true);
+          toast.error('🎥 Please allow camera access to use AR preview. Check your browser\'s address bar for the camera icon.');
           return;
         }
 
@@ -475,8 +475,8 @@ const browserGuidance = mediaService?.getBrowserSpecificPermissionGuidance() ||
               'Please enable camera access in your browser settings.';
             setError(`🚫 Camera access denied.\n\n${browserGuidance}\n\n✅ Refresh this page after enabling camera access.`);
             setHasPermission(false);
-            setShowPermissionHelp(true);
-            toast.error('Camera permission needed for AR preview. Follow the guide below.');
+setShowPermissionHelp(true);
+            toast.error('🎥 AR preview requires camera access. Please allow camera permission and refresh the page.');
           } else if (err.name === 'NotFoundError') {
             setError('📷 No camera found. AR preview requires a camera device.\n\n📱 Solutions:\n• Connect a webcam\n• Use device with built-in camera\n• Check camera connections');
             setHasPermission(false);
@@ -614,14 +614,19 @@ const browserGuidance = mediaService?.getBrowserSpecificPermissionGuidance() ||
                     {hasPermission === false ? '🎥 Enable Camera for AR' : 'Start Camera'}
                   </Button>
                   {showPermissionHelp && (
-                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <h4 className="font-semibold text-blue-900 mb-2">📋 Need help enabling camera access?</h4>
-                      <div className="text-sm text-blue-800 space-y-2">
-                        <p><strong>Step 1:</strong> Look for the 🎥 camera icon in your browser's address bar</p>
-                        <p><strong>Step 2:</strong> Click it and select "Allow" or "Always allow"</p>
-                        <p><strong>Step 3:</strong> Refresh this page</p>
-                        <div className="mt-3 p-2 bg-blue-100 rounded text-xs">
-                          <strong>Still having trouble?</strong> Try opening this page in an incognito/private window first.
+<div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <h4 className="font-semibold text-blue-900 mb-3 flex items-center">
+                        🎥 <span className="ml-2">Enable Camera Access</span>
+                      </h4>
+                      <div className="text-sm text-blue-800 space-y-3">
+                        <div className="bg-blue-100 p-3 rounded-lg">
+                          <p className="font-medium mb-2">Quick Fix:</p>
+                          <p>1. Look for the 🎥 camera icon in your browser's address bar</p>
+                          <p>2. Click it and select <strong>"Allow"</strong> or <strong>"Always allow"</strong></p>
+                          <p>3. Refresh this page to activate AR preview</p>
+                        </div>
+                        <div className="text-xs text-blue-600 bg-white p-2 rounded border">
+                          <strong>💡 Pro tip:</strong> If you don't see the camera icon, try refreshing the page first, then look for a permission popup.
                         </div>
                       </div>
                     </div>

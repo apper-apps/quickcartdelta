@@ -24,14 +24,15 @@ function Error({ message, onRetry, className }) {
         icon: Shield,
         title: 'Camera Permission Required',
         description: 'Camera access is needed for AR preview and biometric authentication',
-        suggestions: [
-          'Click "Allow" when your browser asks for camera permission',
-          'Chrome: Click the camera icon in the address bar, then "Allow"',
-          'Firefox: Click the shield icon and select "Allow Camera"',
-          'Safari: Go to Safari > Settings > Websites > Camera and allow this site',
-          'Edge: Click the camera icon in the address bar and select "Allow"'
+suggestions: [
+          '🎥 Click "Allow" when your browser asks for camera permission',
+          '🌐 Chrome: Click the camera icon in the address bar → Select "Always allow"',
+          '🦊 Firefox: Click the shield icon → Select "Allow Camera"',
+          '🍎 Safari: Safari Menu → Settings → Websites → Camera → Allow this site',
+          '🔷 Edge: Click the camera icon in the address bar → Select "Allow"',
+          '🔄 Refresh the page after enabling permissions'
         ],
-        additionalInfo: 'If you previously denied access, you\'ll need to change your browser settings manually.'
+        additionalInfo: 'If you previously denied access, look for the camera icon in your browser\'s address bar to change permissions.'
       }
     } else if (isDeviceError) {
       return {
@@ -144,8 +145,8 @@ function Error({ message, onRetry, className }) {
           </button>
         )}
         
-        <p className="text-xs text-gray-500 mt-4 max-w-md">
-          💡 Tip: Look for a camera icon in your browser's address bar or check your browser's privacy settings
+<p className="text-xs text-gray-500 mt-4 max-w-md">
+          🎥 Look for the camera icon in your browser's address bar to enable permissions, or try refreshing the page first
         </p>
       </div>
     </div>

@@ -287,28 +287,35 @@ useEffect(() => {
             ) : (
 <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center max-w-xs">
-                  <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-3" />
-                  <p className="text-sm font-medium text-red-600 mb-2">Camera Access Required</p>
-                  <p className="text-xs text-red-500 mb-4 leading-relaxed">
+                  <div className="w-20 h-20 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
+                    <Camera className="w-10 h-10 text-blue-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Camera Access Required</h3>
+                  <p className="text-sm text-gray-600 mb-4 leading-relaxed">
                     {hasPermission === false 
-                      ? "Biometric authentication needs camera access. Click below to enable permissions in your browser."
-                      : "Please enable camera permissions and refresh the page to continue."
+                      ? "🔐 Biometric authentication needs camera access to verify your identity securely."
+                      : "Please enable camera permissions and refresh the page to continue with biometric authentication."
                     }
                   </p>
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <Button
                       onClick={startCamera}
-                      variant="secondary"
+                      variant="primary"
                       size="sm"
-                      className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200"
+                      className="w-full"
                     >
                       <Camera className="w-4 h-4 mr-2" />
-                      {hasPermission === false ? 'Enable Camera Access' : 'Try Again'}
+                      {hasPermission === false ? '🎥 Allow Camera Access' : 'Try Again'}
                     </Button>
                     {hasPermission === false && (
-                      <p className="text-xs text-gray-500 mt-2">
-                        💡 Look for camera icon 🎥 in your browser's address bar after clicking
-                      </p>
+                      <div className="bg-blue-50 p-3 rounded-lg">
+                        <p className="text-xs text-blue-700 font-medium mb-1">
+                          💡 After clicking above:
+                        </p>
+                        <p className="text-xs text-blue-600">
+                          Look for the 🎥 camera icon in your browser's address bar and click "Allow"
+                        </p>
+                      </div>
                     )}
                   </div>
                 </div>

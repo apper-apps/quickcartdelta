@@ -120,7 +120,7 @@ async getUserMedia(constraints = { video: true, audio: false }) {
   // Handle media errors with comprehensive error mapping
   handleMediaError(error) {
     const errorMessages = {
-      'NotAllowedError': 'Permission denied. Please allow camera/microphone access in your browser settings.',
+'NotAllowedError': '🎥 Camera permission required. Please click "Allow" when your browser asks for camera access, or enable it in your browser settings.',
       'NotFoundError': 'No camera/microphone found. Please connect a device and try again.',
       'NotReadableError': 'Camera/microphone is already in use by another application.',
       'OverconstrainedError': 'Camera/microphone constraints cannot be satisfied. Trying with basic settings.',
@@ -381,7 +381,7 @@ async getUserMedia(constraints = { video: true, audio: false }) {
 
     // If permissions are already denied, return early with enhanced guidance
     if (cameraStatus === 'denied') {
-      result.cameraError = `Camera permission was previously denied. ${this.getBrowserSpecificPermissionGuidance()} After enabling permissions, please refresh the page.`;
+result.cameraError = `🎥 Camera access was denied. ${this.getBrowserSpecificPermissionGuidance()} After enabling permissions, please refresh the page.`;
     }
     
     if (microphoneStatus === 'denied') {
@@ -468,7 +468,7 @@ async getUserMedia(constraints = { video: true, audio: false }) {
     
     if (status === 'denied') {
       const browserGuidance = this.getBrowserSpecificPermissionGuidance();
-      throw new Error(`Camera permission was previously denied. ${browserGuidance}\n\nAfter enabling permissions, please refresh the page.`);
+throw new Error(`🎥 Camera access was denied. ${browserGuidance}\n\nAfter enabling permissions, please refresh the page to activate camera features.`);
     }
 
     if (status === 'unavailable') {
@@ -514,16 +514,16 @@ async getUserMedia(constraints = { video: true, audio: false }) {
   getBrowserSpecificPermissionGuidance() {
     const userAgent = navigator.userAgent.toLowerCase();
     
-    if (userAgent.includes('chrome')) {
-      return 'To enable camera:\n1. Click the 🎥 camera icon in the address bar\n2. Select "Always allow on this site"\n3. Or go to chrome://settings/content/camera';
+if (userAgent.includes('chrome')) {
+      return '🎥 For Chrome: Click the camera icon in the address bar → Select "Always allow" → Refresh page';
     } else if (userAgent.includes('firefox')) {
-      return 'To enable camera:\n1. Click the 🛡️ shield icon in the address bar\n2. Click "Allow" for camera access\n3. Or go to about:preferences#privacy > Permissions > Camera';
+      return '🎥 For Firefox: Click the shield icon in the address bar → Select "Allow Camera" → Refresh page';
     } else if (userAgent.includes('safari')) {
-      return 'To enable camera:\n1. Safari > Settings > Websites > Camera\n2. Set this website to "Allow"\n3. Or click the camera icon in the address bar';
+      return '🎥 For Safari: Safari Menu → Settings → Websites → Camera → Set to "Allow" → Refresh page';
     } else if (userAgent.includes('edge')) {
-      return 'To enable camera:\n1. Click the 🎥 camera icon in the address bar\n2. Select "Allow"\n3. Or go to edge://settings/content/camera';
+      return '🎥 For Edge: Click the camera icon in the address bar → Select "Allow" → Refresh page';
     } else {
-      return 'To enable camera:\n1. Look for camera icon in your browser\'s address bar\n2. Click it and select "Allow"\n3. Check browser settings if needed';
+      return '🎥 Look for the camera icon in your browser\'s address bar → Click "Allow" → Refresh page';
     }
   }
 
