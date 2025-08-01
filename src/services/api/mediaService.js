@@ -118,9 +118,9 @@ async getUserMedia(constraints = { video: true, audio: false }) {
   }
 
   // Handle media errors with comprehensive error mapping
-  handleMediaError(error) {
+handleMediaError(error) {
     const errorMessages = {
-'NotAllowedError': '🎥 Camera permission required. Please click "Allow" when your browser asks for camera access, or enable it in your browser settings.',
+      'NotAllowedError': '🎥 Camera permission denied. Please click "Allow" when your browser asks for camera access.\n\n🌐 Browser-specific steps:\n• Chrome/Edge: Click camera icon in address bar → Allow\n• Firefox: Click shield icon → Allow Camera\n• Safari: Safari Menu → Settings → Websites → Camera → Allow\n\n🔄 Refresh the page after enabling permissions.',
       'NotFoundError': 'No camera/microphone found. Please connect a device and try again.',
       'NotReadableError': 'Camera/microphone is already in use by another application.',
       'OverconstrainedError': 'Camera/microphone constraints cannot be satisfied. Trying with basic settings.',

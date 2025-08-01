@@ -27,7 +27,7 @@ function Error({ message, onRetry, className }) {
 suggestions: [
           '🎥 Click "Allow" when your browser asks for camera permission',
           '🌐 Chrome: Click the camera icon in the address bar → Select "Always allow"',
-          '🦊 Firefox: Click the shield icon → Select "Allow Camera"',
+          '🧡 Firefox: Click the shield icon → Select "Allow Camera"',
           '🍎 Safari: Safari Menu → Settings → Websites → Camera → Allow this site',
           '🔷 Edge: Click the camera icon in the address bar → Select "Allow"',
           '🔄 Refresh the page after enabling permissions'
