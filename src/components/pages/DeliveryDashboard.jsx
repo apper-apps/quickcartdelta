@@ -1,33 +1,135 @@
-import React, { useState, useEffect } from 'react';
-import { deliveryService } from '@/services/api/deliveryService';
-import { routeOptimizer } from '@/services/api/routeOptimizer';
-import { toast } from 'react-toastify';
-import ApperIcon from '@/components/ApperIcon';
-import Button from '@/components/atoms/Button';
-import Badge from '@/components/atoms/Badge';
-import Loading from '@/components/ui/Loading';
-import Error from '@/components/ui/Error';
-import DeliveryMap from '@/components/molecules/DeliveryMap';
-import CustomerContact from '@/components/molecules/CustomerContact';
-import ProofOfDelivery from '@/components/molecules/ProofOfDelivery';
-import DeliveryMetrics from '@/components/molecules/DeliveryMetrics';
-
+import React, { useEffect, useState } from "react";
+import { toast } from "react-toastify";
+import { deliveryService } from "@/services/api/deliveryService";
+import { routeOptimizer } from "@/services/api/routeOptimizer";
+import ApperIcon from "@/components/ApperIcon";
+import CustomerContact from "@/components/molecules/CustomerContact";
+import ProofOfDelivery from "@/components/molecules/ProofOfDelivery";
+import DeliveryMetrics from "@/components/molecules/DeliveryMetrics";
+import DeliveryMap from "@/components/molecules/DeliveryMap";
+import Loading from "@/components/ui/Loading";
+import Error from "@/components/ui/Error";
+import Badge from "@/components/atoms/Badge";
+import Button from "@/components/atoms/Button";
 const DeliveryDashboard = () => {
-  const [orders, setOrders] = useState([]);
+const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [currentView, setCurrentView] = useState('queue'); // queue, map, contact, proof, metrics
+  const [currentView, setCurrentView] = useState('queue'); // queue, map, contact, proof, metrics, support
   const [driverLocation, setDriverLocation] = useState(null);
   const [optimizedRoute, setOptimizedRoute] = useState(null);
-
-  useEffect(() => {
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+useEffect(() => {
     loadDeliveryOrders();
     getCurrentLocation();
+    initializeVoiceCommands();
     // Set up real-time updates
     const interval = setInterval(loadDeliveryOrders, 30000); // Refresh every 30s
     return () => clearInterval(interval);
   }, []);
+
+  // Voice Commands Setup
+  const initializeVoiceCommands = () => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      setVoiceEnabled(true);
+    }
+  };
+
+  const startVoiceCommand = () => {
+    if (!voiceEnabled) return;
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    setIsListening(true);
+    
+    recognition.onresult = (event) => {
+      const command = event.results[0][0].transcript.toLowerCase();
+      processVoiceCommand(command);
+    };
+
+    recognition.onerror = (event) => {
+      console.error('Voice recognition error:', event.error);
+      toast.error('Voice command failed. Please try again.');
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.start();
+  };
+
+  const processVoiceCommand = (command) => {
+    if (command.includes('navigate to next delivery')) {
+      const nextOrder = orders.find(o => o.deliveryStatus === 'picked_up' || o.deliveryStatus === 'ready_for_pickup');
+      if (nextOrder) {
+        setSelectedOrder(nextOrder);
+        setCurrentView('map');
+        toast.success('Navigating to next delivery');
+      } else {
+        toast.info('No pending deliveries found');
+      }
+    } else if (command.includes('call customer')) {
+      const customerName = command.replace('call customer', '').trim();
+      const order = orders.find(o => o.customer?.name.toLowerCase().includes(customerName.toLowerCase()));
+      if (order) {
+        setSelectedOrder(order);
+        setCurrentView('contact');
+        toast.success(`Calling customer ${order.customer.name}`);
+      } else {
+        toast.error('Customer not found');
+      }
+    } else {
+      toast.info('Command not recognized. Try "Navigate to next delivery" or "Call customer [name]"');
+    }
+  };
+
+  // Emergency Support
+  const requestEmergencyHelp = async () => {
+    try {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(async (position) => {
+          const location = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            timestamp: new Date().toISOString()
+          };
+          
+          await deliveryService.reportEmergency('current-driver', 'help_needed', location);
+          toast.success('Emergency help requested. Dispatch has been notified with your location.');
+        });
+      } else {
+        await deliveryService.reportEmergency('current-driver', 'help_needed');
+        toast.success('Emergency help requested. Dispatch has been notified.');
+      }
+    } catch (error) {
+      toast.error('Failed to request help. Please call dispatch directly.');
+    }
+  };
+
+  const callDispatchHotline = () => {
+    const dispatchNumber = '+1-800-DISPATCH';
+    window.open(`tel:${dispatchNumber}`, '_self');
+    toast.info('Calling dispatch hotline...');
+  };
+
+  const reportIssue = async (orderId, issueType, description = '') => {
+    try {
+      await deliveryService.reportDeliveryIssue(orderId, issueType, description, driverLocation);
+      toast.success('Issue reported successfully');
+      loadDeliveryOrders(); // Refresh orders
+    } catch (error) {
+      toast.error('Failed to report issue');
+    }
+  };
 
   const loadDeliveryOrders = async () => {
     try {
@@ -101,7 +203,7 @@ const DeliveryDashboard = () => {
     }
   };
 
-  const getStatusColor = (status) => {
+const getStatusColor = (status) => {
     const colors = {
       'ready_for_pickup': 'ready-pickup',
       'picked_up': 'picked-up',
@@ -112,10 +214,18 @@ const DeliveryDashboard = () => {
   };
 
   const getPriorityIcon = (priority) => {
-    return priority === 'urgent' ? '🔴' : '🟢';
+    const icons = {
+      'urgent': '🔴',
+      'high': '🟡',
+      'normal': '🟢'
+    };
+    return icons[priority] || '🟢';
+  };
+return icons[priority] || '🟢';
   };
 
-  const renderOrderQueue = () => (
+const renderOrderQueue = () => (
+const renderOrderQueue = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Delivery Queue</h2>
@@ -242,14 +352,61 @@ const DeliveryDashboard = () => {
                   Navigate
                 </Button>
 
-                <Button 
-                  size="sm" 
-                  variant="danger"
-                  icon="AlertTriangle"
-                  onClick={() => updateOrderStatus(order.Id, 'delivery_failed', 'Issue reported by driver')}
-                >
-                  Report Issue
-                </Button>
+                <div className="relative">
+                  <Button 
+                    size="sm" 
+                    variant="danger"
+                    icon="AlertTriangle"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const rect = e.target.getBoundingClientRect();
+                      const dropdown = document.getElementById(`issue-dropdown-${order.Id}`);
+                      if (dropdown) {
+                        dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+                        dropdown.style.top = `${rect.bottom + 5}px`;
+                        dropdown.style.left = `${rect.left}px`;
+                      }
+                    }}
+                  >
+                    Report Issue
+                  </Button>
+                  
+                  <div 
+                    id={`issue-dropdown-${order.Id}`}
+                    className="absolute z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-2 min-w-48"
+                    style={{ display: 'none' }}
+                  >
+                    <div className="space-y-1">
+                      <button
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded"
+                        onClick={() => {
+                          reportIssue(order.Id, 'address_incorrect', 'Address information is incorrect or incomplete');
+                          document.getElementById(`issue-dropdown-${order.Id}`).style.display = 'none';
+                        }}
+                      >
+                        📍 Address Incorrect
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded"
+                        onClick={() => {
+                          reportIssue(order.Id, 'customer_unavailable', 'Customer is not available at delivery location');
+                          document.getElementById(`issue-dropdown-${order.Id}`).style.display = 'none';
+                        }}
+                      >
+                        👤 Customer Unavailable
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded"
+                        onClick={() => {
+                          reportIssue(order.Id, 'package_damaged', 'Package appears to be damaged during transport');
+                          document.getElementById(`issue-dropdown-${order.Id}`).style.display = 'none';
+                        }}
+                      >
+                        📦 Package Damaged
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           ))}
@@ -258,12 +415,111 @@ const DeliveryDashboard = () => {
     </div>
   );
 
-  const renderNavigation = () => (
+  const renderSupportSystem = () => (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold">Support System</h2>
+      
+      {/* Emergency Protocols */}
+      <div className="card p-6">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <ApperIcon name="AlertTriangle" size={20} className="text-red-600" />
+          Emergency Protocols
+        </h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Button
+            variant="error"
+            icon="HelpCircle"
+            onClick={requestEmergencyHelp}
+            className="h-16 text-lg"
+          >
+            🚨 Help Needed
+          </Button>
+          
+          <Button
+            variant="warning"
+            icon="Phone"
+            onClick={callDispatchHotline}
+            className="h-16 text-lg"
+          >
+            📞 Call Dispatch
+          </Button>
+        </div>
+        
+        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-sm text-red-800">
+            <strong>Emergency Help:</strong> Shares your live location with dispatch center and triggers immediate response protocol.
+          </p>
+        </div>
+      </div>
+
+      {/* Voice Commands */}
+      <div className="card p-6">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <ApperIcon name="Mic" size={20} className="text-blue-600" />
+          Voice Commands
+        </h3>
+        
+        <div className="flex items-center gap-4 mb-4">
+          <Button
+            variant={isListening ? "error" : "success"}
+            icon={isListening ? "MicOff" : "Mic"}
+            onClick={startVoiceCommand}
+            disabled={!voiceEnabled}
+          >
+            {isListening ? 'Stop Listening' : 'Start Voice Command'}
+          </Button>
+          
+          {!voiceEnabled && (
+            <p className="text-sm text-gray-500">Voice commands not available in this browser</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm font-medium text-blue-800">Available Commands:</p>
+            <ul className="text-sm text-blue-700 mt-1 space-y-1">
+              <li>• "Navigate to next delivery" - Opens map for next pending order</li>
+              <li>• "Call customer [name]" - Opens contact screen for specific customer</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* Current Location */}
+      {driverLocation && (
+        <div className="card p-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <ApperIcon name="MapPin" size={20} className="text-green-600" />
+            Current Location
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-gray-500">Latitude</p>
+              <p className="font-mono text-sm">{driverLocation.latitude?.toFixed(6)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Longitude</p>
+              <p className="font-mono text-sm">{driverLocation.longitude?.toFixed(6)}</p>
+            </div>
+          </div>
+          
+          <p className="text-xs text-gray-500 mt-2">
+            Last updated: {driverLocation.timestamp ? new Date(driverLocation.timestamp).toLocaleTimeString() : 'Unknown'}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+
+const renderNavigation = () => (
     <div className="flex gap-2 mb-6 p-1 bg-gray-100 rounded-lg">
       {[
         { key: 'queue', label: 'Queue', icon: 'List' },
         { key: 'map', label: 'Map', icon: 'Map' },
-        { key: 'metrics', label: 'Metrics', icon: 'BarChart3' }
+        { key: 'metrics', label: 'Analytics', icon: 'BarChart3' },
+        { key: 'support', label: 'Support', icon: 'HelpCircle' }
       ].map(({ key, label, icon }) => (
         <Button
           key={key}
@@ -282,7 +538,7 @@ const DeliveryDashboard = () => {
   if (loading) return <Loading />;
   if (error) return <Error message={error} onRetry={loadDeliveryOrders} />;
 
-  return (
+return (
     <div className="container mx-auto px-4 py-6">
       <div className="flex items-center gap-3 mb-6">
         <ApperIcon name="Truck" size={32} className="text-primary" />
@@ -331,8 +587,9 @@ const DeliveryDashboard = () => {
       {currentView === 'metrics' && (
         <DeliveryMetrics />
       )}
+      
+      {currentView === 'support' && renderSupportSystem()}
     </div>
   );
-};
-
+}
 export default DeliveryDashboard;

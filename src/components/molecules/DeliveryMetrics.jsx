@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { deliveryService } from '@/services/api/deliveryService';
-import { toast } from 'react-toastify';
-import ApperIcon from '@/components/ApperIcon';
-import Button from '@/components/atoms/Button';
-import Loading from '@/components/ui/Loading';
-import Error from '@/components/ui/Error';
+import React, { useEffect, useState } from "react";
+import { toast } from "react-toastify";
+import { deliveryService } from "@/services/api/deliveryService";
+import ApperIcon from "@/components/ApperIcon";
+import Loading from "@/components/ui/Loading";
+import Error from "@/components/ui/Error";
+import Button from "@/components/atoms/Button";
 
 const DeliveryMetrics = () => {
   const [metrics, setMetrics] = useState(null);
@@ -48,10 +48,10 @@ const DeliveryMetrics = () => {
   if (loading) return <Loading />;
   if (error) return <Error message={error} onRetry={loadMetrics} />;
 
-  return (
+return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Delivery Metrics</h2>
+        <h2 className="text-2xl font-bold">Performance Analytics</h2>
         <div className="flex gap-2">
           {['today', 'week', 'month'].map((p) => (
             <Button
@@ -68,6 +68,77 @@ const DeliveryMetrics = () => {
 
       {metrics && (
         <>
+          {/* Performance Analytics Table */}
+          <div className="card p-6">
+            <h3 className="text-lg font-semibold mb-4">Key Performance Metrics</h3>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Metric</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Display Format</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  <tr>
+                    <td className="py-4 px-4 font-medium">On-time Rate</td>
+                    <td className="py-4 px-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold text-green-600">
+                          {metrics.delivered > 0 ? Math.round((metrics.onTimeDeliveries / metrics.delivered) * 100) : 0}%
+                        </span>
+                        <span className="text-green-600 text-sm flex items-center">
+                          <ApperIcon name="TrendingUp" size={14} className="mr-1" />
+                          (▲{metrics.onTimeRateTrend || 2}%)
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-4 px-4 font-medium">Daily Deliveries</td>
+                    <td className="py-4 px-4">
+                      <span className="text-lg font-bold">
+                        {metrics.delivered}/30 target
+                      </span>
+                      <div className="w-32 bg-gray-200 rounded-full h-1.5 mt-1">
+                        <div 
+                          className="bg-blue-600 h-1.5 rounded-full" 
+                          style={{ width: `${Math.min((metrics.delivered / 30) * 100, 100)}%` }}
+                        ></div>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-4 px-4 font-medium">Avg. Time/Drop</td>
+                    <td className="py-4 px-4">
+                      <span className="text-lg font-bold">
+                        {(metrics.averageDeliveryTime || 8.2).toFixed(1)} min
+                      </span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-4 px-4 font-medium">Customer Rating</td>
+                    <td className="py-4 px-4">
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <span key={star} className={`text-lg ${star <= Math.floor(metrics.customerRating || 4.6) ? 'text-yellow-400' : 'text-gray-300'}`}>
+                              ★
+                            </span>
+                          ))}
+                        </div>
+                        <span className="text-lg font-bold">
+                          ({(metrics.customerRating || 4.6).toFixed(1)}/5)
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           {/* Key Metrics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="card p-4">
@@ -119,7 +190,7 @@ const DeliveryMetrics = () => {
             </div>
           </div>
 
-          {/* Performance Metrics */}
+          {/* Performance Overview */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="card p-6">
               <h3 className="text-lg font-semibold mb-4">Performance Overview</h3>
@@ -163,34 +234,46 @@ const DeliveryMetrics = () => {
             </div>
 
             <div className="card p-6">
-              <h3 className="text-lg font-semibold mb-4">Daily Breakdown</h3>
+              <h3 className="text-lg font-semibold mb-4">Customer Satisfaction</h3>
               
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <ApperIcon name="CheckCircle" size={16} className="text-green-600" />
-                    <span className="text-green-800 font-medium">Completed</span>
+              <div className="space-y-4">
+                <div className="text-center">
+                  <div className="text-4xl mb-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <span key={star} className={`${star <= Math.floor(metrics.customerRating || 4.6) ? 'text-yellow-400' : 'text-gray-300'}`}>
+                        ★
+                      </span>
+                    ))}
                   </div>
-                  <span className="font-bold text-green-600">{metrics.delivered}</span>
+                  <p className="text-2xl font-bold">{(metrics.customerRating || 4.6).toFixed(1)}/5.0</p>
+                  <p className="text-sm text-gray-600">Average Customer Rating</p>
                 </div>
-
-                <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <ApperIcon name="Clock" size={16} className="text-yellow-600" />
-                    <span className="text-yellow-800 font-medium">In Progress</span>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>5 stars</span>
+                    <span>68%</span>
                   </div>
-                  <span className="font-bold text-yellow-600">{metrics.inProgress}</span>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-yellow-400 h-2 rounded-full" style={{ width: '68%' }}></div>
+                  </div>
+                  
+                  <div className="flex justify-between text-sm">
+                    <span>4 stars</span>
+                    <span>24%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-yellow-400 h-2 rounded-full" style={{ width: '24%' }}></div>
+                  </div>
+                  
+                  <div className="flex justify-between text-sm">
+                    <span>3 stars</span>
+                    <span>6%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-yellow-400 h-2 rounded-full" style={{ width: '6%' }}></div>
+                  </div>
                 </div>
-
-                {metrics.failed > 0 && (
-                  <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <ApperIcon name="XCircle" size={16} className="text-red-600" />
-                      <span className="text-red-800 font-medium">Failed</span>
-                    </div>
-                    <span className="font-bold text-red-600">{metrics.failed}</span>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -205,11 +288,11 @@ const DeliveryMetrics = () => {
                   🏆
                 </div>
                 <p className="font-medium">Daily Goal</p>
-                <p className="text-sm text-gray-600">{metrics.delivered}/10 deliveries</p>
+                <p className="text-sm text-gray-600">{metrics.delivered}/30 deliveries</p>
                 <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                   <div 
                     className="bg-gradient-to-r from-green-400 to-green-600 h-2 rounded-full" 
-                    style={{ width: `${Math.min((metrics.delivered / 10) * 100, 100)}%` }}
+                    style={{ width: `${Math.min((metrics.delivered / 30) * 100, 100)}%` }}
                   ></div>
                 </div>
               </div>

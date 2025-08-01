@@ -1,5 +1,4 @@
-import { orderService } from './orderService';
-
+import { orderService } from "@/services/api/orderService";
 class DeliveryService {
   constructor() {
     this.activeDeliveries = new Map();
@@ -82,7 +81,7 @@ class DeliveryService {
     );
   }
 
-  async getDeliveryMetrics(driverId, period = 'today') {
+async getDeliveryMetrics(driverId, period = 'today') {
     await this.delay();
     
     const now = new Date();
@@ -120,23 +119,65 @@ class DeliveryService {
           const end = new Date(d.deliveryTimeline?.find(t => t.status === 'delivered')?.timestamp || d.updatedAt);
           return sum + (end - start);
         }, 0) / delivered.length / (1000 * 60) // Convert to minutes
-      : 0;
+      : 8.2; // Default average time
+
+    const onTimeDeliveries = delivered.filter(d => {
+      if (!d.deliveryWindow?.end) return true;
+      const deliveredAt = new Date(d.deliveryTimeline?.find(t => t.status === 'delivered')?.timestamp);
+      const windowEnd = new Date(d.deliveryWindow.end);
+      return deliveredAt <= windowEnd;
+    }).length;
+
+    // Calculate customer rating based on delivery performance
+    const customerRating = this.calculateCustomerRating(delivered, onTimeDeliveries, averageDeliveryTime);
 
     return {
       totalDeliveries: deliveries.length,
       delivered: delivered.length,
       failed: failed.length,
       inProgress: inProgress.length,
-      successRate: deliveries.length > 0 ? (delivered.length / deliveries.length) * 100 : 0,
+      successRate: deliveries.length > 0 ? (delivered.length / deliveries.length) * 100 : 98,
       averageDeliveryTime: Math.round(averageDeliveryTime),
-      onTimeDeliveries: delivered.filter(d => {
-        if (!d.deliveryWindow?.end) return true;
-        const deliveredAt = new Date(d.deliveryTimeline?.find(t => t.status === 'delivered')?.timestamp);
-        const windowEnd = new Date(d.deliveryWindow.end);
-        return deliveredAt <= windowEnd;
-      }).length
+      onTimeDeliveries,
+      onTimeRateTrend: 2, // Mock trend data
+      customerRating
     };
   }
+
+  calculateCustomerRating(delivered, onTimeDeliveries, averageTime) {
+    let rating = 5.0;
+    
+    // Reduce rating based on late deliveries
+    if (delivered.length > 0) {
+      const onTimeRate = onTimeDeliveries / delivered.length;
+      if (onTimeRate < 0.9) rating -= 0.5;
+      if (onTimeRate < 0.8) rating -= 0.3;
+    }
+    
+    // Reduce rating based on delivery time
+    if (averageTime > 15) rating -= 0.2;
+    if (averageTime > 20) rating -= 0.2;
+    
+    return Math.max(rating, 3.0); // Minimum rating of 3.0
+  }
+
+  async reportEmergency(driverId, emergencyType, location = null) {
+    await this.delay();
+    
+    const emergencyReport = {
+      driverId,
+      emergencyType,
+      location,
+      timestamp: new Date().toISOString(),
+      status: 'active'
+    };
+
+    // In a real app, this would send to dispatch center
+    console.log('Emergency reported:', emergencyReport);
+    
+    return emergencyReport;
+  }
+}
 
   async reportDeliveryIssue(orderId, issueType, description, location = null) {
     await this.delay();
@@ -196,8 +237,7 @@ class DeliveryService {
     localStorage.removeItem('offlineDeliveries');
     return results;
   }
-
-  saveOfflineDelivery(orderId, status, location, notes) {
+saveOfflineDelivery(orderId, status, location, notes) {
     const offlineData = JSON.parse(localStorage.getItem('offlineDeliveries') || '[]');
     offlineData.push({
       orderId,
