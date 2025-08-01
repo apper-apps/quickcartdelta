@@ -1,24 +1,25 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { toggleWishlist } from "@/store/wishlistSlice";
-import { addToComparison, removeFromComparison } from "@/store/comparisonSlice";
-import { addToHistory } from "@/store/browsingSlice";
 import { toast } from "react-toastify";
 import { motion } from "framer-motion";
 import ApperIcon from "@/components/ApperIcon";
 import Badge from "@/components/atoms/Badge";
 import Button from "@/components/atoms/Button";
+import { addToComparison, removeFromComparison } from "@/store/comparisonSlice";
+import { addToHistory } from "@/store/browsingSlice";
+import { toggleWishlist } from "@/store/wishlistSlice";
 import { addToCart } from "@/store/cartSlice";
 
 const ProductCard = ({ product, className = "" }) => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const [imageError, setImageError] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
   const wishlistItems = useSelector((state) => state.wishlist.items);
   const comparisonItems = useSelector((state) => state.comparison.items);
   const isInWishlist = wishlistItems.some(item => item.Id === product.Id);
   const isInComparison = comparisonItems.some(item => item.Id === product.Id);
-  
   const handleAddToCart = (e) => {
     e.stopPropagation();
     dispatch(addToCart({ product, quantity: 1 }));
@@ -95,12 +96,30 @@ className="p-2 bg-white/80 backdrop-blur-sm rounded-full hover:bg-white hover:sc
       </div>
 
       {/* Product Image */}
-      <div className="aspect-square mb-4 overflow-hidden rounded-lg bg-gray-100">
+<div className="aspect-square mb-4 overflow-hidden rounded-lg bg-gray-100 relative">
+        {imageLoading && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
+          </div>
+        )}
         <img
-          src={product.images[0]}
+          src={imageError ? `https://via.placeholder.com/400x400/e5e7eb/6b7280?text=${encodeURIComponent(product.title.slice(0, 20))}` : product.images[0]}
           alt={product.title}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
+          onLoad={() => setImageLoading(false)}
+          onError={() => {
+            setImageError(true);
+            setImageLoading(false);
+          }}
         />
+        {imageError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+            <div className="text-center p-4">
+              <ApperIcon name="ImageOff" size={32} className="mx-auto mb-2 text-gray-400" />
+              <p className="text-xs text-gray-500">Image unavailable</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Product Info */}

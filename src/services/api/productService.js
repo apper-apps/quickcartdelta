@@ -342,7 +342,40 @@ dropPercentage: Math.round((1 - product.price / (product.price * 1.2)) * 100),
       return product ? [product] : [];
     }
     
-    return [];
+return [];
+  }
+
+  // Get placeholder image for failed image loads
+  getPlaceholderImage(productTitle = "Product", width = 400, height = 400) {
+    const encodedTitle = encodeURIComponent(productTitle.slice(0, 20));
+    return `https://via.placeholder.com/${width}x${height}/e5e7eb/6b7280?text=${encodedTitle}`;
+  }
+
+  // Validate image URL and provide fallback
+  async validateImageUrl(url, fallbackTitle = "Product") {
+    try {
+      return new Promise((resolve) => {
+        const img = new Image();
+        const timeout = setTimeout(() => {
+          resolve(this.getPlaceholderImage(fallbackTitle));
+        }, 5000); // 5 second timeout
+
+        img.onload = () => {
+          clearTimeout(timeout);
+          resolve(url);
+        };
+
+        img.onerror = () => {
+          clearTimeout(timeout);
+          resolve(this.getPlaceholderImage(fallbackTitle));
+        };
+
+        img.src = url;
+      });
+    } catch (error) {
+      console.warn('Image validation failed:', error);
+      return this.getPlaceholderImage(fallbackTitle);
+    }
   }
 }
 

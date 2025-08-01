@@ -25,14 +25,15 @@ const ProductDetail = () => {
 const wishlistItems = useSelector((state) => state.wishlist.items);
   const comparisonItems = useSelector((state) => state.comparison.items);
   
-  // State declarations - must be before useEffect hooks that reference them
+// State declarations - must be before useEffect hooks that reference them
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState("description");
-  
+  const [imageErrors, setImageErrors] = useState({});
+  const [imageLoading, setImageLoading] = useState({});
   // Derived state calculations
   const isInWishlist = wishlistItems.some(item => item.Id === parseInt(id));
   const isInComparison = comparisonItems.some(item => item.Id === parseInt(id));
@@ -66,18 +67,30 @@ const handleWishlistToggle = () => {
   useEffect(() => {
     loadProduct();
   }, [id]);
-  const loadProduct = async () => {
+const loadProduct = async () => {
     try {
       setLoading(true);
       setError(null);
       const productData = await productService.getById(parseInt(id));
       setProduct(productData);
+      // Reset image states when product changes
+      setImageErrors({});
+      setImageLoading({});
     } catch (err) {
       setError("Product not found");
       console.error("Product detail error:", err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleImageError = (imageIndex) => {
+    setImageErrors(prev => ({ ...prev, [imageIndex]: true }));
+    setImageLoading(prev => ({ ...prev, [imageIndex]: false }));
+  };
+
+  const handleImageLoad = (imageIndex) => {
+    setImageLoading(prev => ({ ...prev, [imageIndex]: false }));
   };
 
   const handleAddToCart = () => {
@@ -138,7 +151,7 @@ const handleWishlistToggle = () => {
       <div className="grid lg:grid-cols-2 gap-12">
         {/* Product Images */}
         <div className="space-y-4">
-          <motion.div 
+<motion.div 
             className="aspect-square bg-gray-100 rounded-2xl overflow-hidden relative"
             layoutId={`product-image-${product.Id}`}
           >
@@ -147,11 +160,31 @@ const handleWishlistToggle = () => {
                 -{discountPercent}%
               </Badge>
             )}
+            {imageLoading[selectedImage] && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                <div className="animate-spin rounded-full h-12 w-12 border-3 border-primary border-t-transparent"></div>
+              </div>
+            )}
             <img
-              src={product.images[selectedImage]}
+              src={imageErrors[selectedImage] ? 
+                `https://via.placeholder.com/600x600/e5e7eb/6b7280?text=${encodeURIComponent(product.title.slice(0, 30))}` : 
+                product.images[selectedImage]
+              }
               alt={product.title}
-              className="w-full h-full object-cover"
+              className={`w-full h-full object-cover transition-opacity duration-300 ${
+                imageLoading[selectedImage] ? 'opacity-0' : 'opacity-100'
+              }`}
+              onLoad={() => handleImageLoad(selectedImage)}
+              onError={() => handleImageError(selectedImage)}
             />
+            {imageErrors[selectedImage] && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                <div className="text-center p-6">
+                  <ApperIcon name="ImageOff" size={48} className="mx-auto mb-3 text-gray-400" />
+                  <p className="text-sm text-gray-500">Image unavailable</p>
+                </div>
+              </div>
+            )}
           </motion.div>
           
           {/* Thumbnail Images */}
