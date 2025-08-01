@@ -50,7 +50,8 @@ return (
                   <Route path="/search" element={<Search />} />
                   <Route path="/cart" element={<Cart />} />
                   <Route path="/checkout" element={<Checkout />} />
-                  <Route path="/order-confirmation" element={<OrderConfirmation />} />
+<Route path="/order-confirmation" element={<OrderConfirmation />} />
+                  <Route path="/order/:id" element={<OrderConfirmation />} />
                   <Route path="/wishlist" element={<Wishlist />} />
                   <Route path="/compare" element={<Compare />} />
                   <Route path="/loyalty" element={<Loyalty />} />
