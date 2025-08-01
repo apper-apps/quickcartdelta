@@ -213,15 +213,16 @@ const getStatusColor = (status) => {
     return colors[status] || 'default';
   };
 
-  const getPriorityIcon = (priority) => {
+const getPriorityIcon = (priority) => {
     const icons = {
       'urgent': '🔴',
       'high': '🟡',
       'normal': '🟢'
     };
-};
     return icons[priority] || '🟢';
   };
+
+  const renderOrderQueue = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Delivery Queue</h2>
