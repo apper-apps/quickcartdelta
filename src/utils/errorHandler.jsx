@@ -105,21 +105,35 @@ export class ErrorHandler {
         toast.error('Security restrictions prevent camera access. Please check your browser settings.');
       }
 } else if (error.message?.includes('Illegal invocation')) {
-      toast.error('Browser API error detected. Refreshing automatically to resolve...', {
-        autoClose: 2000,
+      toast.error('🔄 Camera API context error detected. Auto-refreshing to resolve...\n\n💡 This is a browser compatibility issue that resolves with page refresh.', {
+        autoClose: 2500,
         style: { whiteSpace: 'pre-line' }
       });
       // Auto-refresh after shorter delay for better UX
       setTimeout(() => {
+        console.log('Auto-refreshing to resolve MediaDevices API context binding issue...');
         window.location.reload();
-      }, 2000);
-    } else if (error.message?.includes('OverconstrainedError')) {
-      toast.error('Camera constraints not supported. Trying with basic settings...', {
+      }, 2500);
+    } else if (error.message?.includes('OverconstrainedError') || error.name === 'OverconstrainedError') {
+      toast.error('📹 Camera constraints not supported. Trying with basic settings...\n\n💡 Your camera may not support the requested resolution.', {
         autoClose: 5000,
         style: { whiteSpace: 'pre-line' }
       });
+    } else if (error.name === 'SecurityError') {
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+        toast.error('🔒 Camera requires secure connection (HTTPS).\n\n💡 Please use https:// URL or localhost for camera access.', {
+          autoClose: 7000,
+          style: { whiteSpace: 'pre-line' }
+        });
+      } else {
+        toast.error('🔒 Security restrictions prevent camera access.\n\n💡 Check browser security settings and permissions.', {
+          autoClose: 6000,
+          style: { whiteSpace: 'pre-line' }
+        });
+      }
     } else {
-      toast.error(this.getErrorMessage(error), {
+      const enhancedMessage = this.getErrorMessage(error);
+      toast.error(`🎥 ${enhancedMessage}\n\n💡 Try refreshing the page or check camera permissions.`, {
         autoClose: 6000,
         style: { whiteSpace: 'pre-line' }
       });

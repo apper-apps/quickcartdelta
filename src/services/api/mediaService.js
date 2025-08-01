@@ -296,16 +296,28 @@ async getUserMedia(constraints = { video: true, audio: false }) {
 // Enhanced permission status checking with comprehensive fallback detection
   async checkPermissionStatus(permissionName = 'camera') {
     try {
+      // First check if MediaDevices API is available
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        console.warn('MediaDevices API not available');
+        return 'unsupported';
+      }
+
       if (!navigator?.permissions?.query) {
-        console.warn('Permissions API not available, using fallback detection');
+        console.warn('Permissions API not available, using enhanced fallback detection');
         // Enhanced fallback: try to detect permission status through getUserMedia attempt
         try {
           const constraints = {
-            video: permissionName === 'camera' ? { facingMode: 'environment' } : false,
+            video: permissionName === 'camera' ? { 
+              width: { ideal: 640 }, 
+              height: { ideal: 480 },
+              facingMode: 'user' 
+            } : false,
             audio: permissionName === 'microphone'
           };
           
-          const testStream = await navigator.mediaDevices.getUserMedia(constraints);
+          // Use bound method to prevent "Illegal invocation"
+          const mediaDevices = navigator.mediaDevices;
+          const testStream = await mediaDevices.getUserMedia.call(mediaDevices, constraints);
           if (testStream) {
             testStream.getTracks().forEach(track => track.stop());
             console.log(`${permissionName} permission detected as granted via fallback`);
@@ -316,6 +328,7 @@ async getUserMedia(constraints = { video: true, audio: false }) {
           if (testError.name === 'NotAllowedError') return 'denied';
           if (testError.name === 'NotFoundError') return 'unavailable';
           if (testError.name === 'NotSupportedError') return 'unsupported';
+          if (testError.name === 'SecurityError') return 'blocked';
           return 'prompt';
         }
         return 'unknown';
@@ -326,6 +339,10 @@ async getUserMedia(constraints = { video: true, audio: false }) {
       return result.state; // 'granted', 'denied', or 'prompt'
     } catch (error) {
       console.warn(`Permission status check failed for ${permissionName}:`, error);
+      // Enhanced fallback for browsers that don't support permission queries
+      if (error.name === 'TypeError' && error.message?.includes('camera')) {
+        return 'unsupported';
+      }
       return 'unknown';
     }
   }

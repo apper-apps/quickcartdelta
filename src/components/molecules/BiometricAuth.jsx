@@ -285,19 +285,32 @@ useEffect(() => {
                 )}
               </>
             ) : (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
+<div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center max-w-xs">
                   <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-3" />
-                  <p className="text-sm font-medium text-red-600">Camera Access Required</p>
-                  <p className="text-xs text-red-500 mt-1">Please enable camera permissions and refresh</p>
-                  <Button
-onClick={startCamera}
-                    variant="secondary"
-                    size="sm"
-                    className="mt-3"
-                  >
-                    {hasPermission === false ? 'Request Camera Access' : 'Try Again'}
-                  </Button>
+                  <p className="text-sm font-medium text-red-600 mb-2">Camera Access Required</p>
+                  <p className="text-xs text-red-500 mb-4 leading-relaxed">
+                    {hasPermission === false 
+                      ? "Biometric authentication needs camera access. Click below to enable permissions in your browser."
+                      : "Please enable camera permissions and refresh the page to continue."
+                    }
+                  </p>
+                  <div className="space-y-2">
+                    <Button
+                      onClick={startCamera}
+                      variant="secondary"
+                      size="sm"
+                      className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200"
+                    >
+                      <Camera className="w-4 h-4 mr-2" />
+                      {hasPermission === false ? 'Enable Camera Access' : 'Try Again'}
+                    </Button>
+                    {hasPermission === false && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        💡 Look for camera icon 🎥 in your browser's address bar after clicking
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
