@@ -127,15 +127,16 @@ function Error({ message, onRetry, className }) {
               <div className="mt-4 pt-3 border-t border-gray-200">
                 <p className="text-xs text-gray-500 italic">
                   💡 {errorDetails.additionalInfo}
-                </p>
+</p>
               </div>
             )}
-</div>
+          </div>
         )}
         
         {/* Retry Button */}
         {onRetry && (
           <button
+            onClick={onRetry}
             className="inline-flex items-center px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg"
           >
             <RefreshCw className="w-4 h-4 mr-2" />
@@ -149,5 +150,6 @@ function Error({ message, onRetry, className }) {
       </div>
     </div>
   )
+}
 
 export default Error
