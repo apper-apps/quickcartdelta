@@ -133,9 +133,18 @@ whileTap={{ scale: 0.95 }}
                 </div>
               </div>
             </button>
-            {/* User Menu */}
+{/* User Menu & Delivery Access */}
             <div className="hidden sm:flex items-center gap-2">
-<Button 
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                icon="Truck"
+                onClick={() => navigate('/delivery')}
+                className="text-blue-600 hover:text-blue-700"
+              >
+                Driver
+              </Button>
+              <Button 
                 variant="ghost" 
                 size="sm" 
                 icon="User"
@@ -145,7 +154,7 @@ whileTap={{ scale: 0.95 }}
               </Button>
             </div>
           </div>
-</div>
+        </div>
 
         {/* Navigation - Desktop */}
         <nav className="hidden md:flex items-center justify-center py-3 border-t border-gray-100">

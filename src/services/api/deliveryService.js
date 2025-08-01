@@ -1,8 +1,26 @@
 import { orderService } from "@/services/api/orderService";
+
 class DeliveryService {
   constructor() {
     this.activeDeliveries = new Map();
     this.driverLocation = null;
+    this.earningsData = {
+      basePay: 1200,
+      bonuses: 0,
+      deductions: 0,
+      deliveryRate: 35, // Rs per delivery
+      bonusThresholds: {
+        onTime: 50, // Rs per on-time delivery
+        customer: 25, // Rs per 5-star rating
+        efficiency: 100 // Rs for completing route under time
+      }
+    };
+    this.vehicleMetrics = {
+      fuelEfficiency: 15.2,
+      maintenanceAlerts: [],
+      temperatureLog: 4.2,
+      coolerCapacity: 85
+    };
   }
 
   delay(ms = 400) {
@@ -131,6 +149,9 @@ async getDeliveryMetrics(driverId, period = 'today') {
     // Calculate customer rating based on delivery performance
     const customerRating = this.calculateCustomerRating(delivered, onTimeDeliveries, averageDeliveryTime);
 
+    // Calculate earnings data
+    const earnings = this.calculateEarnings(delivered, onTimeDeliveries, customerRating, averageDeliveryTime);
+
     return {
       totalDeliveries: deliveries.length,
       delivered: delivered.length,
@@ -140,7 +161,42 @@ async getDeliveryMetrics(driverId, period = 'today') {
       averageDeliveryTime: Math.round(averageDeliveryTime),
       onTimeDeliveries,
       onTimeRateTrend: 2, // Mock trend data
-      customerRating
+      customerRating,
+      earnings,
+      incentiveProgress: {
+        current: delivered.length,
+        target: 10,
+        reward: 200,
+        progressText: `${10 - delivered.length} more deliveries for ₹200 bonus`
+      }
+    };
+  }
+
+  calculateEarnings(delivered, onTimeDeliveries, customerRating, averageTime) {
+    const baseEarnings = delivered.length * this.earningsData.deliveryRate;
+    
+    // On-time bonus
+    const onTimeBonus = onTimeDeliveries * this.earningsData.bonusThresholds.onTime;
+    
+    // Customer rating bonus (for ratings 4.5+)
+    const ratingBonus = customerRating >= 4.5 ? delivered.length * this.earningsData.bonusThresholds.customer : 0;
+    
+    // Efficiency bonus (for average time < 30 minutes)
+    const efficiencyBonus = averageTime < 30 ? this.earningsData.bonusThresholds.efficiency : 0;
+    
+    const totalBonuses = onTimeBonus + ratingBonus + efficiencyBonus;
+    
+    return {
+      basePay: this.earningsData.basePay,
+      deliveryEarnings: baseEarnings,
+      bonuses: {
+        onTime: onTimeBonus,
+        customerRating: ratingBonus,
+        efficiency: efficiencyBonus,
+        total: totalBonuses
+      },
+      deductions: this.earningsData.deductions,
+      totalEarnings: this.earningsData.basePay + baseEarnings + totalBonuses - this.earningsData.deductions
     };
   }
 
@@ -176,7 +232,7 @@ async getDeliveryMetrics(driverId, period = 'today') {
     console.log('Emergency reported:', emergencyReport);
     
 return emergencyReport;
-  }
+}
 
   async reportDeliveryIssue(orderId, issueType, description, location = null) {
     await this.delay();
@@ -210,6 +266,107 @@ return emergencyReport;
     return order;
   }
 
+  // Vehicle Management
+  async updateVehicleMetrics(metrics) {
+    await this.delay();
+    this.vehicleMetrics = { ...this.vehicleMetrics, ...metrics };
+    
+    // Store in localStorage for persistence
+    localStorage.setItem('vehicleMetrics', JSON.stringify(this.vehicleMetrics));
+    
+    return this.vehicleMetrics;
+  }
+
+  async getVehicleStatus() {
+    await this.delay();
+    
+    // Load from localStorage if available
+    const stored = localStorage.getItem('vehicleMetrics');
+    if (stored) {
+      this.vehicleMetrics = { ...this.vehicleMetrics, ...JSON.parse(stored) };
+    }
+    
+    return {
+      ...this.vehicleMetrics,
+      batteryLevel: 85,
+      gpsStatus: 'active',
+      lastMaintenance: '2024-01-15',
+      nextMaintenance: '2024-02-15',
+      totalKmToday: 185,
+      fuelRemaining: 45 // liters
+    };
+  }
+
+  async logTemperature(temperature) {
+    await this.delay();
+    
+    const tempLog = JSON.parse(localStorage.getItem('temperatureLog') || '[]');
+    tempLog.push({
+      temperature,
+      timestamp: new Date().toISOString(),
+      status: temperature >= 2 && temperature <= 8 ? 'optimal' : 'alert'
+    });
+    
+    // Keep only last 24 hours of data
+    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const filteredLog = tempLog.filter(entry => new Date(entry.timestamp) > dayAgo);
+    
+    localStorage.setItem('temperatureLog', JSON.stringify(filteredLog));
+    
+    this.vehicleMetrics.temperatureLog = temperature;
+    return filteredLog;
+  }
+
+  // Safety & Fatigue Management
+  async trackWorkingHours(driverId) {
+    await this.delay();
+    
+    const today = new Date().toDateString();
+    const workData = JSON.parse(localStorage.getItem('workingHours') || '{}');
+    
+    if (!workData[today]) {
+      workData[today] = {
+        startTime: new Date().toISOString(),
+        totalHours: 0,
+        breaks: []
+      };
+    }
+    
+    // Calculate hours worked today
+    const startTime = new Date(workData[today].startTime);
+    const now = new Date();
+    const hoursWorked = (now - startTime) / (1000 * 60 * 60);
+    
+    workData[today].totalHours = hoursWorked;
+    
+    localStorage.setItem('workingHours', JSON.stringify(workData));
+    
+    return {
+      hoursToday: hoursWorked,
+      fatigueAlert: hoursWorked >= 6,
+      recommendedBreak: hoursWorked >= 4 && hoursWorked % 2 < 0.1
+    };
+  }
+
+  async recordBreak(duration) {
+    await this.delay();
+    
+    const today = new Date().toDateString();
+    const workData = JSON.parse(localStorage.getItem('workingHours') || '{}');
+    
+    if (workData[today]) {
+      workData[today].breaks.push({
+        startTime: new Date().toISOString(),
+        duration: duration,
+        type: duration >= 30 ? 'meal' : 'rest'
+      });
+      
+      localStorage.setItem('workingHours', JSON.stringify(workData));
+    }
+    
+    return workData[today];
+  }
+
   // Offline capability
   async syncOfflineDeliveries() {
     const offlineData = localStorage.getItem('offlineDeliveries');
@@ -236,7 +393,8 @@ return emergencyReport;
     localStorage.removeItem('offlineDeliveries');
     return results;
   }
-saveOfflineDelivery(orderId, status, location, notes) {
+
+  saveOfflineDelivery(orderId, status, location, notes) {
     const offlineData = JSON.parse(localStorage.getItem('offlineDeliveries') || '[]');
     offlineData.push({
       orderId,
@@ -246,6 +404,41 @@ saveOfflineDelivery(orderId, status, location, notes) {
       timestamp: new Date().toISOString()
     });
     localStorage.setItem('offlineDeliveries', JSON.stringify(offlineData));
+  }
+
+  // Emergency & Security
+  async reportEmergency(driverId, emergencyType, location = null) {
+    await this.delay();
+    
+    const emergency = {
+      id: Date.now(),
+      driverId,
+      type: emergencyType,
+      location,
+      timestamp: new Date().toISOString(),
+      status: 'active'
+    };
+    
+    // Store emergency data
+    const emergencies = JSON.parse(localStorage.getItem('emergencies') || '[]');
+    emergencies.push(emergency);
+    localStorage.setItem('emergencies', JSON.stringify(emergencies));
+    
+    // In real app, would send to dispatch immediately
+    console.log('🚨 EMERGENCY REPORTED:', emergency);
+    
+    return emergency;
+  }
+
+  // Data privacy - blur sensitive addresses
+  blurAddress(address) {
+    if (!address) return '';
+    
+    const parts = address.split(' ');
+    if (parts.length <= 2) return address;
+    
+    // Keep first and last part, blur middle
+    return `${parts[0]} ${'*'.repeat(parts.slice(1, -1).join(' ').length)} ${parts[parts.length - 1]}`;
   }
 }
 
