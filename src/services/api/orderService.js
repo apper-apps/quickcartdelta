@@ -150,7 +150,7 @@ async create(orderData) {
   }
 
   async delete(id) {
-    await this.delay();
+await this.delay();
     const index = this.orders.findIndex(o => o.Id === id);
     if (index === -1) {
       throw new Error("Order not found");
@@ -162,6 +162,60 @@ async create(orderData) {
   async getByStatus(status) {
     await this.delay();
     return this.orders.filter(o => o.status === status);
+  }
+
+  async updateDeliveryStatus(id, status, location = null, notes = '') {
+    await this.delay();
+    const order = this.orders.find(o => o.Id === id);
+    if (!order) {
+      throw new Error("Order not found");
+    }
+    
+    order.deliveryStatus = status;
+    order.lastUpdated = new Date().toISOString();
+    if (location) {
+      order.currentLocation = location;
+    }
+    if (notes) {
+      order.deliveryNotes = notes;
+    }
+    
+    // Add delivery timeline entry
+    if (!order.deliveryTimeline) order.deliveryTimeline = [];
+    order.deliveryTimeline.push({
+      status,
+      timestamp: new Date().toISOString(),
+      location,
+      notes
+    });
+    
+    return { ...order };
+  }
+
+  async getDeliveryOrders() {
+    await this.delay();
+    return this.orders.filter(o => 
+      ['ready_for_pickup', 'picked_up', 'in_transit', 'out_for_delivery'].includes(o.deliveryStatus)
+    ).sort((a, b) => {
+      // Priority sort: urgent first, then by delivery window
+      if (a.priority === 'urgent' && b.priority !== 'urgent') return -1;
+      if (b.priority === 'urgent' && a.priority !== 'urgent') return 1;
+      return new Date(a.deliveryWindow?.start || a.createdAt) - new Date(b.deliveryWindow?.start || b.createdAt);
+    });
+  }
+
+  async assignDriver(orderId, driverId) {
+    await this.delay();
+    const order = this.orders.find(o => o.Id === orderId);
+    if (!order) {
+      throw new Error("Order not found");
+    }
+    
+    order.assignedDriver = driverId;
+    order.deliveryStatus = 'assigned';
+    order.lastUpdated = new Date().toISOString();
+    
+    return { ...order };
   }
 }
 

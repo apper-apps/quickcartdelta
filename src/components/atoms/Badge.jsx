@@ -9,7 +9,13 @@ const Badge = ({ children, variant = "default", className, ...props }) => {
     success: "bg-gradient-to-r from-success to-green-600 text-white",
     warning: "bg-gradient-to-r from-warning to-orange-600 text-white",
     error: "bg-gradient-to-r from-error to-red-600 text-white",
-    sale: "sale-badge"
+    sale: "sale-badge",
+    urgent: "bg-gradient-to-r from-red-500 to-red-600 text-white animate-pulse",
+    normal: "bg-gradient-to-r from-green-500 to-green-600 text-white",
+    'ready-pickup': "bg-gradient-to-r from-blue-500 to-blue-600 text-white",
+    'picked-up': "bg-gradient-to-r from-yellow-500 to-yellow-600 text-white",
+    'in-transit': "bg-gradient-to-r from-purple-500 to-purple-600 text-white",
+    'delivered': "bg-gradient-to-r from-green-500 to-green-600 text-white"
   };
 
   return (

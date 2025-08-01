@@ -19,6 +19,7 @@ import ProductDetail from "@/components/pages/ProductDetail";
 import Category from "@/components/pages/Category";
 import Compare from "@/components/pages/Compare";
 import Cart from "@/components/pages/Cart";
+import DeliveryDashboard from "@/components/pages/DeliveryDashboard";
 import { store } from "@/store/store";
 
 function App() {
@@ -44,7 +45,7 @@ return (
                   </button>
                 </div>
               )}>
-                <Routes>
+<Routes>
                   <Route path="/" element={<Home />} />
                   <Route path="/category/:id" element={<Category />} />
                   <Route path="/product/:id" element={<ProductDetail />} />
@@ -59,6 +60,7 @@ return (
                   <Route path="/pos" element={<POS />} />
                   <Route path="/marketplace" element={<MarketplaceIntegration />} />
 <Route path="/account" element={<Account />} />
+                  <Route path="/delivery" element={<DeliveryDashboard />} />
                 </Routes>
               </ErrorBoundary>
             </Layout>
