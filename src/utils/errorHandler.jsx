@@ -72,28 +72,104 @@ export class ErrorHandler {
     });
   }
   
-  // Media-specific error handler
+// Media-specific error handler with enhanced permission guidance
   static handleMediaError(error, context = 'Media Operation') {
     console.error(`Media Error in ${context}:`, {
       error: error.message,
       name: error.name,
       originalError: error.originalError,
       mediaDevicesSupported: !!(navigator.mediaDevices?.getUserMedia),
-      isSecure: location.protocol === 'https:'
+      isSecure: location.protocol === 'https:',
+      userAgent: navigator.userAgent,
+      permissions: navigator.permissions ? 'supported' : 'not supported'
     });
     
-    // Provide specific guidance for media errors
+    // Provide specific guidance for media errors with detailed instructions
     if (error.name === 'NotAllowedError') {
-      toast.error('Camera/microphone permission denied. Please click the camera icon in your browser\'s address bar to allow access.');
+      const browserGuidance = this.getBrowserSpecificGuidance();
+      toast.error(
+        `Camera/microphone permission denied. ${browserGuidance}`,
+        { 
+          autoClose: 8000,
+          style: { whiteSpace: 'pre-line' }
+        }
+      );
     } else if (error.name === 'NotFoundError') {
       toast.error('No camera/microphone found. Please connect a device and refresh the page.');
     } else if (error.name === 'NotReadableError') {
       toast.error('Camera/microphone is being used by another application. Please close other apps and try again.');
+    } else if (error.name === 'SecurityError') {
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+        toast.error('Camera access requires HTTPS. Please use a secure connection.');
+      } else {
+        toast.error('Security restrictions prevent camera access. Please check your browser settings.');
+      }
     } else if (error.message?.includes('Illegal invocation')) {
-      toast.error('Browser compatibility issue. Please refresh the page or try a different browser.');
+      toast.error('Browser API error detected. The page will refresh automatically to resolve this issue.');
+      // Auto-refresh after showing the error
+      setTimeout(() => {
+        window.location.reload();
+      }, 3000);
     } else {
       toast.error(this.getErrorMessage(error));
     }
+  }
+
+  // Get browser-specific permission guidance
+  static getBrowserSpecificGuidance() {
+    const userAgent = navigator.userAgent.toLowerCase();
+    
+    if (userAgent.includes('chrome')) {
+      return 'To enable camera access:\n1. Click the camera icon in the address bar\n2. Select "Always allow"\n3. Refresh the page';
+    } else if (userAgent.includes('firefox')) {
+      return 'To enable camera access:\n1. Click the shield icon in the address bar\n2. Select "Allow" for camera\n3. Refresh the page';
+    } else if (userAgent.includes('safari')) {
+      return 'To enable camera access:\n1. Go to Safari > Preferences > Websites\n2. Select "Camera" from the left sidebar\n3. Set this website to "Allow"\n4. Refresh the page';
+    } else if (userAgent.includes('edge')) {
+      return 'To enable camera access:\n1. Click the camera icon in the address bar\n2. Select "Allow"\n3. Refresh the page';
+    } else {
+      return 'To enable camera access:\n1. Look for a camera icon in your browser\'s address bar\n2. Click it and select "Allow"\n3. Refresh the page';
+    }
+  }
+
+  // Check if environment supports media access
+  static checkMediaEnvironment() {
+    const issues = [];
+    
+    // Check HTTPS requirement
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+      issues.push('HTTPS required for camera access');
+    }
+    
+    // Check browser support
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      issues.push('MediaDevices API not supported');
+    }
+    
+    // Check permissions API support
+    if (!navigator?.permissions?.query) {
+      issues.push('Permissions API not supported (will use fallback)');
+    }
+    
+    return {
+      isSupported: issues.length === 0,
+      issues,
+      recommendations: this.getEnvironmentRecommendations(issues)
+    };
+  }
+
+  static getEnvironmentRecommendations(issues) {
+    const recommendations = [];
+    
+    if (issues.some(issue => issue.includes('HTTPS'))) {
+      recommendations.push('Use HTTPS or localhost for camera access');
+    }
+    
+    if (issues.some(issue => issue.includes('MediaDevices'))) {
+      recommendations.push('Update to a modern browser (Chrome 53+, Firefox 36+, Safari 11+)');
+    }
+    
+    return recommendations;
   }
 }
 

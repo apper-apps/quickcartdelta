@@ -39,10 +39,68 @@ useEffect(() => {
     }
   };
 
-const startCamera = useCallback(async () => {
+// Check camera permission status before requesting access
+  const checkPermissionStatus = useCallback(async () => {
+    try {
+      if (!navigator?.permissions?.query) {
+        return 'unknown'; // Permissions API not supported
+      }
+      
+      const result = await navigator.permissions.query({ name: 'camera' });
+      return result.state; // 'granted', 'denied', or 'prompt'
+    } catch (error) {
+      console.warn('Permission status check failed:', error);
+      return 'unknown';
+    }
+  }, []);
+
+  const requestCameraPermission = useCallback(async () => {
+    try {
+      // First check if we already have permission
+      const permissionStatus = await checkPermissionStatus();
+      
+      if (permissionStatus === 'denied') {
+        setError('Camera access was previously denied. Please click the camera icon in your browser\'s address bar to enable access, then refresh the page.');
+        setHasPermission(false);
+        return false;
+      }
+
+      // Try to get media to trigger permission request
+      const stream = await mediaService.getUserMedia({ 
+        video: { facingMode: 'environment' }, 
+        audio: false 
+      });
+      
+      if (stream) {
+        // Stop the stream immediately - we just wanted to check permission
+        stream.getTracks().forEach(track => track.stop());
+        setHasPermission(true);
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Permission request failed:', error);
+      setHasPermission(false);
+      
+      if (error.name === 'NotAllowedError') {
+        setError('Camera permission denied. To use AR features, please:\n1. Click "Allow" when prompted for camera access\n2. Or click the camera icon in your browser\'s address bar\n3. Refresh the page after enabling access');
+      }
+      
+      return false;
+    }
+  }, [checkPermissionStatus]);
+
+  const startCamera = useCallback(async () => {
     // Enhanced browser and API validation
     if (!navigator?.mediaDevices?.getUserMedia) {
       setError('Camera not supported in this browser. Please use a modern browser like Chrome, Firefox, or Safari.');
+      return;
+    }
+
+    // Check HTTPS requirement
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+      setError('Camera access requires HTTPS. Please use a secure connection.');
       return;
     }
     
@@ -50,19 +108,20 @@ const startCamera = useCallback(async () => {
       setIsLoading(true);
       setError(null);
       
-      const mediaDevices = navigator.mediaDevices;
-      if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
-        throw new Error('getUserMedia not properly available');
-      }
+      // Check permission status first
+      const permissionStatus = await checkPermissionStatus();
       
-      // Enhanced bound function with additional safety checks
-      const getUserMediaBound = function(constraints) {
-        // Double-check context before calling
-        if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
-          throw new Error('MediaDevices context lost');
-        }
-        return mediaDevices.getUserMedia.call(mediaDevices, constraints);
-      };
+      if (permissionStatus === 'denied') {
+        setError('Camera access was denied. Please enable camera access in your browser settings and refresh the page.');
+        setHasPermission(false);
+        return;
+      }
+
+      // If permission is not granted, show guidance before requesting
+      if (permissionStatus === 'prompt') {
+        setError(null); // Clear any previous errors
+        toast.info('Please allow camera access when prompted to use AR features.');
+      }
       
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
@@ -70,27 +129,20 @@ const startCamera = useCallback(async () => {
       
       let stream;
       try {
-        stream = await getUserMediaBound({
-          video: { 
-            facingMode: facingMode,
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
-          audio: false
-        });
+        // Try preferred camera settings
+        stream = await mediaService.getCameraStream(facingMode);
       } catch (err) {
         console.warn('Preferred camera not available, trying fallback:', err);
         try {
-          stream = await getUserMediaBound({
-            video: { 
-              facingMode: 'environment',
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
-            },
-            audio: false
-          });
+          // Fallback to basic camera
+          stream = await mediaService.getCameraStream('environment');
         } catch (fallbackErr) {
-          throw fallbackErr;
+          // Last resort - try any available camera
+          try {
+            stream = await mediaService.getUserMedia({ video: true, audio: false });
+          } catch (finalErr) {
+            throw finalErr;
+          }
         }
       }
       
@@ -106,6 +158,7 @@ const startCamera = useCallback(async () => {
         }
         
         setIsActive(true);
+        toast.success('Camera started successfully!');
       }
       
     } catch (err) {
@@ -113,7 +166,7 @@ const startCamera = useCallback(async () => {
       let errorMessage = 'Camera access failed';
       
       if (err.name === 'NotAllowedError') {
-        errorMessage = 'Camera permission denied. Please click "Allow" when prompted, or enable camera access in your browser settings. For Chrome: Click the camera icon in the address bar. For Firefox: Click on the shield icon. For Safari: Go to Safari > Settings > Websites > Camera.';
+        errorMessage = 'Camera permission denied. To enable camera access:\n\n• Chrome: Click the camera icon in the address bar\n• Firefox: Click the shield icon and select "Allow"\n• Safari: Go to Safari > Preferences > Websites > Camera\n\nThen refresh the page.';
         setHasPermission(false);
       } else if (err.name === 'NotFoundError') {
         errorMessage = 'No camera found on this device. Please connect a camera and refresh the page.';
@@ -128,11 +181,11 @@ const startCamera = useCallback(async () => {
       }
       
       setError(errorMessage);
-      toast.error(errorMessage);
+      toast.error('Camera access failed. Check the AR preview for detailed instructions.');
     } finally {
       setIsLoading(false);
     }
-  }, [facingMode]);
+  }, [facingMode, checkPermissionStatus]);
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -202,29 +255,25 @@ const startCamera = useCallback(async () => {
 }, [product, isCapturing]);
 
 const switchCamera = useCallback(async () => {
-    if (!streamRef.current) return;
+    if (!streamRef.current) {
+      toast.warning('Please start the camera first before switching.');
+      return;
+    }
     
     try {
       if (!navigator?.mediaDevices) {
         throw new Error('MediaDevices API not supported in this browser');
       }
       
-      const mediaDevices = navigator.mediaDevices;
-      if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
-        throw new Error('Camera switching not supported in this browser');
-      }
-      
-      // Enhanced context binding to prevent "Illegal invocation"
-      const getUserMediaBound = function(constraints) {
-        // Double-check context before calling
-        if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
-          throw new Error('MediaDevices context lost during camera switch');
-        }
-        return mediaDevices.getUserMedia.call(mediaDevices, constraints);
-      };
-      
       setIsLoading(true);
       setError(null);
+      
+      // Check permission status before switching
+      const permissionStatus = await checkPermissionStatus();
+      if (permissionStatus === 'denied') {
+        setError('Camera permission denied. Please enable camera access in your browser settings.');
+        return;
+      }
       
       // Stop current stream
       streamRef.current.getTracks().forEach(track => track.stop());
@@ -232,28 +281,39 @@ const switchCamera = useCallback(async () => {
       // Toggle facing mode
       const newFacingMode = facingMode === 'environment' ? 'user' : 'environment';
       
-      // Request opposite camera
-      const stream = await getUserMediaBound({
-        video: {
-          facingMode: newFacingMode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: false
-      });
-      
-      if (stream && videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
+      try {
+        // Use mediaService for consistent error handling
+        const stream = await mediaService.getCameraStream(newFacingMode);
+        
+        if (stream && videoRef.current) {
+          videoRef.current.srcObject = stream;
+          streamRef.current = stream;
+          try {
+            await videoRef.current.play();
+          } catch (playError) {
+            console.warn('Video play failed:', playError);
+          }
+        }
+        
+        // Update facing mode state
+        setFacingMode(newFacingMode);
+        toast.success(`Switched to ${newFacingMode === 'user' ? 'front' : 'back'} camera`);
+        
+      } catch (switchError) {
+        // Try to restart with original camera if switching fails
+        console.warn('Camera switch failed, attempting to restore original camera:', switchError);
         try {
-          await videoRef.current.play();
-        } catch (playError) {
-          console.warn('Video play failed:', playError);
+          const fallbackStream = await mediaService.getCameraStream(facingMode);
+          if (fallbackStream && videoRef.current) {
+            videoRef.current.srcObject = fallbackStream;
+            streamRef.current = fallbackStream;
+            await videoRef.current.play();
+          }
+          throw new Error('Camera switch failed, but original camera restored');
+        } catch (restoreError) {
+          throw switchError; // Throw original error if restore also fails
         }
       }
-      
-      // Update facing mode state
-      setFacingMode(newFacingMode);
       
     } catch (err) {
       console.error('Camera switch error:', err);
@@ -270,11 +330,11 @@ const switchCamera = useCallback(async () => {
       }
       
       setError(errorMessage);
-      toast.error(errorMessage);
+      toast.error('Camera switch failed. Check the AR preview for details.');
     } finally {
       setIsLoading(false);
     }
-  }, [facingMode]);
+  }, [facingMode, checkPermissionStatus]);
 
 const handleClose = useCallback(() => {
     stopCamera();
