@@ -10,6 +10,7 @@ import Search from "@/components/pages/Search";
 import Loyalty from "@/components/pages/Loyalty";
 import MarketplaceIntegration from "@/components/pages/MarketplaceIntegration";
 import Wishlist from "@/components/pages/Wishlist";
+import Account from "@/components/pages/Account";
 import Checkout from "@/components/pages/Checkout";
 import OrderConfirmation from "@/components/pages/OrderConfirmation";
 import Home from "@/components/pages/Home";
@@ -57,6 +58,7 @@ return (
                   <Route path="/loyalty" element={<Loyalty />} />
                   <Route path="/pos" element={<POS />} />
                   <Route path="/marketplace" element={<MarketplaceIntegration />} />
+<Route path="/account" element={<Account />} />
                 </Routes>
               </ErrorBoundary>
             </Layout>

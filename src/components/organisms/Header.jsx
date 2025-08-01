@@ -135,7 +135,12 @@ whileTap={{ scale: 0.95 }}
             </button>
             {/* User Menu */}
             <div className="hidden sm:flex items-center gap-2">
-              <Button variant="ghost" size="sm" icon="User">
+<Button 
+                variant="ghost" 
+                size="sm" 
+                icon="User"
+                onClick={() => navigate('/account')}
+              >
                 Account
               </Button>
             </div>
