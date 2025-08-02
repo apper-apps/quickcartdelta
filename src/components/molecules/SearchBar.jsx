@@ -120,8 +120,23 @@ setSpeechSupported('webkitSpeechRecognition' in window || 'SpeechRecognition' in
       setIsListening(false);
     };
 
-    recognition.onerror = () => {
+recognition.onerror = (event) => {
       setIsListening(false);
+      
+      // Enhanced error handling for speech recognition
+      const error = {
+        name: event.error || 'SpeechRecognitionError',
+        message: `Voice recognition error: ${event.error}`,
+        originalError: event
+      };
+
+      // Use the enhanced error handler for consistent UX
+      import('@/utils/errorHandler').then(({ ErrorHandler }) => {
+        ErrorHandler.handleSpeechRecognitionError(error, 'Voice Search');
+      }).catch(console.error);
+
+      // Provide immediate user feedback
+      console.warn('Speech recognition failed:', event.error);
     };
 
     recognition.onend = () => {

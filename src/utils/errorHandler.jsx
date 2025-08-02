@@ -18,10 +18,15 @@ export class ErrorHandler {
     toast.error(errorMessage);
   }
   
-  static getErrorMessage(error) {
-    // Media API specific errors
+static getErrorMessage(error) {
+    // Media API specific errors (camera and microphone)
     if (error.message?.includes('getUserMedia') || error.message?.includes('MediaDevices')) {
       return 'Camera/microphone access failed. Please check your permissions and try again.';
+    }
+    
+    // Speech Recognition specific errors
+    if (error.message?.includes('Voice recognition') || error.message?.includes('SpeechRecognition')) {
+      return 'Voice recognition failed. Please check microphone permissions and try again.';
     }
     
     if (error.message?.includes('Illegal invocation')) {
@@ -38,7 +43,15 @@ export class ErrorHandler {
       'SecurityError': 'Security error. Please ensure you\'re using HTTPS.',
       'AbortError': 'Operation was aborted. Please try again.',
       'NotSupportedError': 'This feature is not supported in your browser.',
-      'TypeError': 'Invalid parameters provided.'
+      'TypeError': 'Invalid parameters provided.',
+      // Speech Recognition errors
+      'not-allowed': 'Microphone permission denied. Please allow microphone access.',
+      'no-speech': 'No speech detected. Please try speaking clearly.',
+      'audio-capture': 'Audio capture failed. Check microphone connection.',
+      'network': 'Network error during voice recognition. Check connection.',
+      'service-not-allowed': 'Voice recognition service not allowed.',
+      'bad-grammar': 'Speech recognition grammar error.',
+      'language-not-supported': 'Language not supported for voice recognition.'
     };
     
     return errorMap[error.name] || error.message || 'An unexpected error occurred.';
@@ -140,6 +153,47 @@ export class ErrorHandler {
     }
   }
 
+  // Speech Recognition specific error handler
+  static handleSpeechRecognitionError(error, context = 'Speech Recognition') {
+    console.error(`Speech Recognition Error in ${context}:`, {
+      error: error.message,
+      name: error.name,
+      originalError: error.originalError,
+      speechRecognitionSupported: !!(window.SpeechRecognition || window.webkitSpeechRecognition),
+      isSecure: location.protocol === 'https:',
+      userAgent: navigator.userAgent,
+      permissions: navigator.permissions ? 'supported' : 'not supported'
+    });
+
+    // Provide specific guidance for speech recognition errors
+    if (error.name === 'not-allowed' || error.message?.includes('not-allowed')) {
+      const browserGuidance = this.getMicrophonePermissionGuidance();
+      toast.error(
+        `🎤 Microphone permission denied. ${browserGuidance}`,
+        { 
+          autoClose: 8000,
+          style: { whiteSpace: 'pre-line' }
+        }
+      );
+    } else if (error.name === 'no-speech') {
+      toast.error('🔇 No speech detected. Please speak clearly and try again.');
+    } else if (error.name === 'audio-capture') {
+      toast.error('🎤 Microphone capture failed. Please check your microphone connection.');
+    } else if (error.name === 'network') {
+      toast.error('🌐 Network error during voice recognition. Please check your connection.');
+    } else if (error.name === 'service-not-allowed') {
+      toast.error('🚫 Voice recognition service not allowed. Please enable the feature in your browser.');
+    } else if (error.name === 'language-not-supported') {
+      toast.error('🌍 Current language not supported for voice recognition.');
+    } else {
+      const enhancedMessage = this.getErrorMessage(error);
+      toast.error(`🎤 ${enhancedMessage}\n\n💡 Try checking microphone permissions or refresh the page.`, {
+        autoClose: 6000,
+        style: { whiteSpace: 'pre-line' }
+      });
+    }
+  }
+
 // Enhanced browser-specific permission guidance with visual cues
   static getBrowserSpecificGuidance() {
     const userAgent = navigator.userAgent.toLowerCase();
@@ -157,18 +211,40 @@ export class ErrorHandler {
     }
   }
 
-  // Check if environment supports media access
+  // Microphone-specific permission guidance
+  static getMicrophonePermissionGuidance() {
+    const userAgent = navigator.userAgent.toLowerCase();
+    
+    if (userAgent.includes('chrome')) {
+      return 'Chrome Setup:\n🎤 Click microphone icon in address bar → "Always allow"\n⚙️ Or: Settings → Privacy → Site Settings → Microphone\n↻ Refresh page after enabling';
+    } else if (userAgent.includes('firefox')) {
+      return 'Firefox Setup:\n🛡️ Click shield icon in address bar → "Allow Microphone"\n⚙️ Or: Settings → Privacy → Permissions → Microphone\n↻ Refresh page after enabling';
+    } else if (userAgent.includes('safari')) {
+      return 'Safari Setup:\n⚙️ Safari → Settings → Websites → Microphone → "Allow"\n🎤 Or click microphone icon in address bar if visible\n↻ Refresh page after enabling';
+    } else if (userAgent.includes('edge')) {
+      return 'Edge Setup:\n🎤 Click microphone icon in address bar → "Allow"\n⚙️ Or: Settings → Site permissions → Microphone\n↻ Refresh page after enabling';
+    } else {
+      return 'Browser Setup:\n🎤 Look for microphone icon in address bar → "Allow"\n⚙️ Check browser settings → Privacy → Microphone\n↻ Refresh page after enabling';
+    }
+  }
+
+// Check if environment supports media access (camera and microphone)
   static checkMediaEnvironment() {
     const issues = [];
     
     // Check HTTPS requirement
     if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-      issues.push('HTTPS required for camera access');
+      issues.push('HTTPS required for camera/microphone access');
     }
     
     // Check browser support
     if (!navigator?.mediaDevices?.getUserMedia) {
       issues.push('MediaDevices API not supported');
+    }
+    
+    // Check Speech Recognition support
+    if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) {
+      issues.push('Speech Recognition API not supported');
     }
     
     // Check permissions API support
@@ -183,15 +259,19 @@ export class ErrorHandler {
     };
   }
 
-  static getEnvironmentRecommendations(issues) {
+static getEnvironmentRecommendations(issues) {
     const recommendations = [];
     
     if (issues.some(issue => issue.includes('HTTPS'))) {
-      recommendations.push('Use HTTPS or localhost for camera access');
+      recommendations.push('Use HTTPS or localhost for camera/microphone access');
     }
     
     if (issues.some(issue => issue.includes('MediaDevices'))) {
       recommendations.push('Update to a modern browser (Chrome 53+, Firefox 36+, Safari 11+)');
+    }
+    
+    if (issues.some(issue => issue.includes('Speech Recognition'))) {
+      recommendations.push('Voice search requires Chrome 25+, Firefox 44+, or Safari 14+');
     }
     
     return recommendations;
@@ -314,6 +394,8 @@ isMediaDeviceError(error) {
     return message.includes('getusermedia') || 
            message.includes('mediadevices') || 
            message.includes('illegal invocation') ||
+           message.includes('voice recognition') ||
+           message.includes('speechrecognition') ||
            (message.includes('illegal invocation') && stack.includes('getusermedia'));
   }
 
