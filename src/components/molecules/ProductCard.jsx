@@ -8,19 +8,25 @@ import ApperIcon from "@/components/ApperIcon";
 import ARPreview from "@/components/molecules/ARPreview";
 import Badge from "@/components/atoms/Badge";
 import Button from "@/components/atoms/Button";
+import { addToCart } from "@/store/cartSlice";
 import { addToComparison, removeFromComparison } from "@/store/comparisonSlice";
 import { addToHistory } from "@/store/browsingSlice";
 import { toggleWishlist } from "@/store/wishlistSlice";
-import { addToCart, applyDynamicPricing } from "@/store/cartSlice";
-function ProductCard({ product, className = '', listIndex = null }) {
-  // CRITICAL: All hooks must be called at component top level before any conditional logic
+import { applyDynamicPricing } from "@/store/pricingSlice";
+function ProductCard({ product, className, listIndex }) {
+  console.log('🎯 ProductCard rendering with product:', product?.Id, product?.name);
+  
+  // ✅ ALL HOOKS CALLED AT TOP LEVEL - NO CONDITIONAL CALLS
+  // These hooks are called unconditionally at component initialization
   const navigate = useNavigate()
   const dispatch = useDispatch()
   const wishlistItems = useSelector(state => state.wishlist.items)
   const comparisonItems = useSelector(state => state.comparison.items)
   const cartItems = useSelector(state => state.cart.items)
   const browsingHistory = useSelector(state => state.browsing.history)
+  const loyaltyData = useSelector((state) => state.loyalty);
   
+  // State hooks - also called unconditionally at top level
   const [arData, setArData] = useState(null)
   const [imageLoading, setImageLoading] = useState(true)
   const [imageError, setImageError] = useState(false)
@@ -28,8 +34,6 @@ function ProductCard({ product, className = '', listIndex = null }) {
   const [arCapability, setArCapability] = useState(null);
   const [dynamicPrice, setDynamicPrice] = useState(product?.price || 0);
   const [personalizedDiscount, setPersonalizedDiscount] = useState(0);
-  const loyaltyData = useSelector((state) => state.loyalty);
-
   // Enhanced product enhancements useEffect - moved to top level
   useEffect(() => {
     if (!product?.Id) return; // Guard clause for invalid product
