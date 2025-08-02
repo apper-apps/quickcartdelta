@@ -1572,8 +1572,8 @@ async executeZoneAction(zoneId, action) {
         impact: 'High priority routing activated, +15% assignment preference'
       },
       'assign_backup': {
-        message: `Backup driver has been assigned to zone ${zoneId}`,
-        impact: 'Additional driver capacity +8 orders, ETA reduced by 12 minutes'
+        message: `Backup personnel dispatched to zone ${zoneId}`,
+        impact: 'Additional driver capacity +8 orders, ETA reduced by 12 minutes, Support team activated'
       },
       'reroute': {
         message: `Traffic rerouting has been activated for zone ${zoneId}`,
@@ -1586,6 +1586,10 @@ async executeZoneAction(zoneId, action) {
       'cod_intervention': {
         message: `COD compliance intervention initiated for zone ${zoneId}`,
         impact: 'Manual review triggered, temporary assignment hold for verification'
+      },
+      'dispatch_backup': {
+        message: `Backup personnel dispatched to assist agents in zone ${zoneId}`,
+        impact: 'Additional support team deployed, agent assistance ETA: 8-12 minutes, +2 backup agents assigned'
       }
     };
 
@@ -1686,6 +1690,119 @@ async executeZoneAction(zoneId, action) {
     
     console.log('✅ Concurrent COD simulation completed:', results);
 return results;
+  }
+
+  // Enhanced backup personnel dispatch
+  async dispatchBackupPersonnel(zoneId, assistanceType = 'general', priority = 'normal') {
+    await this.delay(600);
+    
+    const backupTypes = {
+      'general': {
+        team: ['Senior Agent', 'Technical Support'],
+        eta: '8-12 minutes',
+        capabilities: ['Order assistance', 'Technical troubleshooting', 'Customer communication']
+      },
+      'cod_support': {
+        team: ['COD Specialist', 'Compliance Officer'],
+        eta: '10-15 minutes', 
+        capabilities: ['COD verification', 'Discrepancy resolution', 'Financial audit']
+      },
+      'technical': {
+        team: ['IT Support', 'App Specialist'],
+        eta: '5-10 minutes',
+        capabilities: ['App troubleshooting', 'GPS calibration', 'Device support']
+      },
+      'emergency': {
+        team: ['Emergency Response', 'Security Support'],
+        eta: '3-8 minutes',
+        capabilities: ['Emergency assistance', 'Security support', 'Crisis management']
+      }
+    };
+
+    const backup = backupTypes[assistanceType] || backupTypes['general'];
+    
+    const dispatch = {
+      id: Date.now(),
+      zoneId,
+      assistanceType,
+      priority,
+      team: backup.team,
+      eta: backup.eta,
+      capabilities: backup.capabilities,
+      status: 'dispatched',
+      timestamp: new Date().toISOString(),
+      trackingId: `BACKUP-${zoneId}-${Date.now()}`
+    };
+
+    // Store dispatch record
+    const dispatches = JSON.parse(localStorage.getItem('backupDispatches') || '[]');
+    dispatches.push(dispatch);
+    localStorage.setItem('backupDispatches', JSON.stringify(dispatches));
+
+    // Simulate assignment to zone
+    const zones = await this.getDeliveryZones();
+    const targetZone = zones.find(z => z.Id === zoneId);
+    
+    if (targetZone) {
+      // Broadcast dispatch notification
+      this.broadcastUpdate('backup_dispatched', {
+        dispatch,
+        zone: targetZone,
+        message: `🚁 Backup team dispatched to ${targetZone.name}`,
+        details: `${backup.team.join(' & ')} en route - ETA: ${backup.eta}`
+      });
+    }
+
+    console.log(`🚁 Backup personnel dispatched:`, dispatch);
+    
+    return {
+      success: true,
+      dispatch,
+      message: `Backup team dispatched to zone ${zoneId}`,
+      eta: backup.eta,
+      team: backup.team,
+      trackingId: dispatch.trackingId
+    };
+  }
+
+  // Get active backup dispatches
+  async getActiveBackupDispatches() {
+    await this.delay(300);
+    
+    const dispatches = JSON.parse(localStorage.getItem('backupDispatches') || '[]');
+    const cutoffTime = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours ago
+    
+    return dispatches.filter(dispatch => 
+      dispatch.status === 'dispatched' && 
+      new Date(dispatch.timestamp) > cutoffTime
+    );
+  }
+
+  // Complete backup assignment
+  async completeBackupAssignment(trackingId, outcome = 'resolved') {
+    await this.delay(400);
+    
+    const dispatches = JSON.parse(localStorage.getItem('backupDispatches') || '[]');
+    const dispatchIndex = dispatches.findIndex(d => d.trackingId === trackingId);
+    
+    if (dispatchIndex >= 0) {
+      dispatches[dispatchIndex].status = 'completed';
+      dispatches[dispatchIndex].outcome = outcome;
+      dispatches[dispatchIndex].completedAt = new Date().toISOString();
+      
+      localStorage.setItem('backupDispatches', JSON.stringify(dispatches));
+      
+      // Broadcast completion
+      this.broadcastUpdate('backup_completed', {
+        trackingId,
+        outcome,
+        dispatch: dispatches[dispatchIndex]
+      });
+      
+      return dispatches[dispatchIndex];
+    }
+    
+    throw new Error('Backup dispatch not found');
   }
 
   // Performance Reports Methods

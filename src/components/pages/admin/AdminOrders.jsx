@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ApperIcon from '@/components/ApperIcon';
 import Badge from '@/components/atoms/Badge';
 import { toast } from 'react-toastify';
-
+import { deliveryService } from '@/services/api/deliveryService';
 const AdminOrders = () => {
   const [orders, setOrders] = useState([
     { 
@@ -233,8 +233,7 @@ const AdminOrders = () => {
     }
     setSelectedOrders([]);
   };
-
-  const handleSelectOrder = (orderId) => {
+const handleSelectOrder = (orderId) => {
     setSelectedOrders(prev => 
       prev.includes(orderId) 
         ? prev.filter(id => id !== orderId)
@@ -250,6 +249,46 @@ const AdminOrders = () => {
     }
   };
 
+  const handleDispatchBackup = async () => {
+    try {
+      // Determine most urgent zone based on current orders
+      const urgentZones = filteredOrders
+        .filter(order => order.priority === 'urgent' || order.status === 'pending')
+        .reduce((acc, order) => {
+          const zone = order.deliveryZone || 'Downtown';
+          acc[zone] = (acc[zone] || 0) + 1;
+          return acc;
+        }, {});
+
+      const mostUrgentZone = Object.entries(urgentZones)
+        .sort(([,a], [,b]) => b - a)[0]?.[0] || 'Downtown';
+
+      const zoneId = { 'Downtown': 1, 'Midtown': 2, 'Uptown': 3, 'Brooklyn': 4, 'Queens': 5 }[mostUrgentZone] || 1;
+
+      const result = await deliveryService.executeZoneAction(zoneId, 'assign_backup');
+      
+      toast.success(`✅ ${result.message}`, {
+        position: "top-right",
+        autoClose: 4000
+      });
+
+      // Show impact details
+      setTimeout(() => {
+        toast.info(`📈 Impact: ${result.impact}`, {
+          position: "top-right",
+          autoClose: 6000
+        });
+      }, 1000);
+
+    } catch (error) {
+      toast.error('❌ Failed to dispatch backup personnel', {
+        position: "top-right",
+        autoClose: 3000
+      });
+      console.error('Backup dispatch error:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background p-4 md:p-6">
       {/* Header with Discrepancy Analytics */}
@@ -258,13 +297,20 @@ const AdminOrders = () => {
           <h1 className="text-2xl font-bold text-gray-900 mb-1">Order Management</h1>
           <p className="text-gray-600">Manage orders and handle COD discrepancies</p>
         </div>
-        <div className="flex items-center space-x-2 mt-4 md:mt-0">
+<div className="flex items-center space-x-2 mt-4 md:mt-0">
           <button
             onClick={() => setShowDiscrepancyPanel(!showDiscrepancyPanel)}
             className="btn-secondary flex items-center"
           >
             <ApperIcon name="AlertTriangle" size={16} className="mr-2" />
             Discrepancies ({discrepancyOrders.length})
+          </button>
+          <button
+            onClick={handleDispatchBackup}
+            className="bg-gradient-to-r from-blue-500 to-blue-600 text-white font-medium px-4 py-2 rounded-lg transition-all duration-200 hover:from-blue-600 hover:to-blue-700 hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg flex items-center"
+          >
+            <ApperIcon name="Users" size={16} className="mr-2" />
+            Dispatch Backup
           </button>
           <button
             onClick={() => toast.info('Export all orders')}
@@ -505,7 +551,7 @@ const AdminOrders = () => {
                     {order.date}
                   </td>
                   <td className="px-4 py-4">
-                    <div className="flex items-center space-x-2">
+<div className="flex items-center space-x-2">
                       <button
                         onClick={() => toast.info(`View order #${order.id} details`)}
                         className="p-1 hover:bg-gray-200 rounded"
@@ -546,6 +592,13 @@ const AdminOrders = () => {
                                 className="block w-full text-left px-2 py-1 hover:bg-gray-100 text-sm text-red-600"
                               >
                                 Escalate to Manager
+                              </button>
+                              <button
+                                onClick={() => handleDispatchBackup()}
+                                className="block w-full text-left px-2 py-1 hover:bg-blue-100 text-sm text-blue-600 border-t border-gray-200 mt-1 pt-2"
+                              >
+                                <ApperIcon name="Users" size={14} className="inline mr-1" />
+                                Request Backup Support
                               </button>
                             </div>
                           </div>
