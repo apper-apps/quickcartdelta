@@ -24,8 +24,6 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
         },
         onOfflineReady() {
           console.log('App ready to work offline');
-          // Optional: Show toast notification
-          // toast.success('App is ready to work offline!');
         },
         onRegistered(registration) {
           console.log('Service Worker registered successfully:', registration);
@@ -37,27 +35,8 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
       });
       
     } catch (error) {
-      // Fallback for when PWA features are not available
+      // Graceful fallback - app works without PWA features
       console.warn('PWA features not available:', error);
-      
-      // Only attempt manual registration if virtual:pwa-register fails
-      try {
-        const registration = await navigator.serviceWorker.register('/sw.js', {
-          scope: '/',
-          updateViaCache: 'none'
-        });
-        console.log('Fallback Service Worker registered:', registration);
-      } catch (fallbackError) {
-        console.warn('Fallback Service Worker registration also failed:', fallbackError);
-        // Don't throw error - app should work without PWA features
-      }
-    }
-  });
-  
-  // Handle service worker messages for manual refresh
-  navigator.serviceWorker.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'SKIP_WAITING') {
-      window.location.reload();
     }
   });
 }
