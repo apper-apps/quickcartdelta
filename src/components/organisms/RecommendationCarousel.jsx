@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useSelector } from "react-redux";
+import { toast } from "react-toastify";
 import { productService } from "@/services/api/productService";
-import ProductCard from "@/components/molecules/ProductCard";
-import Button from "@/components/atoms/Button";
 import ApperIcon from "@/components/ApperIcon";
+import ProductCard from "@/components/molecules/ProductCard";
 import Loading from "@/components/ui/Loading";
 import Error from "@/components/ui/Error";
-import { toast } from "react-toastify";
+import Button from "@/components/atoms/Button";
 
 const RecommendationCarousel = ({ 
   title = "Recommended for You", 
@@ -77,28 +77,23 @@ try {
     setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
   };
 
-  const scrollTo = (direction) => {
+const scrollTo = (direction) => {
     if (!carouselRef.current) return;
     
     const cardWidth = 280; // Approximate card width + gap
     const scrollAmount = cardWidth * 2; // Scroll 2 cards at a time
-    const currentScroll = carouselRef.current.scrollLeft;
     
-    const newScroll = direction === 'left' 
-      ? Math.max(0, currentScroll - scrollAmount)
-      : currentScroll + scrollAmount;
-    
-    carouselRef.current.scrollTo({
-      left: newScroll,
-      behavior: 'smooth'
-    });
-    
-    // Update current index for mobile dots
-    const newIndex = Math.round(newScroll / cardWidth);
-    setCurrentIndex(Math.max(0, Math.min(newIndex, recommendations.length - 1)));
+    if (direction === 'left') {
+      carouselRef.current.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+      setCurrentIndex(Math.max(0, currentIndex - 2));
+    } else {
+      carouselRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+      setCurrentIndex(Math.min(recommendations.length - 2, currentIndex + 2));
+    }
   };
 
   const handleTouchStart = (e) => {
+    setTouchEnd(0);
     setTouchStart(e.targetTouches[0].clientX);
   };
 
@@ -112,7 +107,7 @@ try {
     const distance = touchStart - touchEnd;
     const isLeftSwipe = distance > 50;
     const isRightSwipe = distance < -50;
-    
+
     if (isLeftSwipe && canScrollRight) {
       scrollTo('right');
     }
@@ -225,9 +220,14 @@ try {
         </div>
       </div>
 
-      {/* Fade overlays for visual indication */}
-      <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-white to-transparent pointer-events-none opacity-50" />
-      <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent pointer-events-none opacity-50" />
+{/* Fade overlays for visual indication */}
+        {canScrollLeft && (
+          <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-white to-transparent pointer-events-none opacity-50" />
+        )}
+        {canScrollRight && (
+          <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent pointer-events-none opacity-50" />
+        )}
+      </div>
     </div>
   );
 };

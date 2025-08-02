@@ -12,17 +12,38 @@ import { addToComparison, removeFromComparison } from "@/store/comparisonSlice";
 import { addToHistory } from "@/store/browsingSlice";
 import { toggleWishlist } from "@/store/wishlistSlice";
 import { addToCart, applyDynamicPricing } from "@/store/cartSlice";
-const ProductCard = ({ product, className = "" }) => {
-  const navigate = useNavigate();
-const dispatch = useDispatch();
-  const [imageError, setImageError] = useState(false);
-  const [imageLoading, setImageLoading] = useState(true);
-  const wishlistItems = useSelector((state) => state.wishlist.items);
-  const comparisonItems = useSelector((state) => state.comparison.items);
-  const cartItems = useSelector((state) => state.cart.items || []);
-  const browsingHistory = useSelector((state) => state.browsing.history || []);
-  const isInWishlist = wishlistItems.some(item => item.Id === product.Id);
-  const isInComparison = comparisonItems.some(item => item.Id === product.Id);
+function ProductCard({ product, className = '', listIndex = null }) {
+  // Early return with error boundary if product is invalid
+  if (!product) {
+    console.warn('⚠️ ProductCard received invalid product data:', product);
+    return (
+      <div className={`card p-4 ${className}`}>
+        <div className="text-center text-gray-500">
+          <ApperIcon name="alert-circle" className="w-8 h-8 mx-auto mb-2" />
+          <p className="text-sm">Product data unavailable</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Generate unique identifier for debugging duplicate keys
+  const productKey = product.id || `unknown-${listIndex || Math.random()}`;
+  
+  const navigate = useNavigate()
+  const dispatch = useDispatch()
+  const wishlistItems = useSelector(state => state.wishlist.items)
+  const comparisonItems = useSelector(state => state.comparison.items)
+  const cartItems = useSelector(state => state.cart.items)
+const browsingHistory = useSelector(state => state.browsing.history)
+  
+  const [arData, setArData] = useState(null)
+  const [imageLoading, setImageLoading] = useState(true)
+  const [imageError, setImageError] = useState(false)
+  
+  // Computed values for component state
+  const isInWishlist = wishlistItems.some(item => item.id === product.id)
+  const isInComparison = comparisonItems.some(item => item.id === product.id)
+  
   const handleAddToCart = (e) => {
     e.stopPropagation();
     dispatch(addToCart({ product, quantity: 1 }));
