@@ -1,60 +1,95 @@
-import React, { useState, useEffect } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { removeFromWishlist, clearWishlist, markAlertAsRead } from '@/store/wishlistSlice';
-import { addToCart } from '@/store/cartSlice';
-import { toast } from 'react-toastify';
-import ApperIcon from '@/components/ApperIcon';
-import Button from '@/components/atoms/Button';
-import Badge from '@/components/atoms/Badge';
-import Loading from '@/components/ui/Loading';
-import Empty from '@/components/ui/Empty';
-
+import React, { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
+import { motion, AnimatePresence } from "framer-motion";
+import { Filter, Heart, Share2, ShoppingCart, Trash2 } from "lucide-react";
+import { wishlistService } from "@/services/api/wishlistService";
+import ApperIcon from "@/components/ApperIcon";
+import ProductCard from "@/components/molecules/ProductCard";
+import Loading from "@/components/ui/Loading";
+import Error from "@/components/ui/Error";
+import Empty from "@/components/ui/Empty";
+import Badge from "@/components/atoms/Badge";
+import Button from "@/components/atoms/Button";
+import { clearWishlist, removeFromWishlist, markAlertAsRead } from "@/store/wishlistSlice";
+import { addToCart } from "@/store/cartSlice";
 const Wishlist = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const wishlistItems = useSelector((state) => state.wishlist.items);
-  const priceAlerts = useSelector((state) => state.wishlist.priceAlerts);
-  const [loading, setLoading] = useState(true);
+  const { items, loading, error, priceAlerts } = useSelector(state => state.wishlist);
+  const [sortBy, setSortBy] = useState('dateAdded');
+  const [filterBy, setFilterBy] = useState('all');
+  const [localLoading, setLocalLoading] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
 
+  // Use items as wishlistItems for consistency
+  const wishlistItems = items || [];
+
   useEffect(() => {
-    // Simulate loading
-    const timer = setTimeout(() => setLoading(false), 500);
-    return () => clearTimeout(timer);
+    const fetchWishlist = async () => {
+      try {
+        setLocalLoading(true);
+        const wishlistData = await wishlistService.getWishlist();
+        // Dispatch to store if needed
+      } catch (error) {
+        toast.error('Failed to load wishlist');
+      } finally {
+        setLocalLoading(false);
+      }
+    };
+
+    fetchWishlist();
   }, []);
 
-  const handleRemoveItem = (productId, productTitle) => {
-    dispatch(removeFromWishlist(productId));
+  const handleRemoveFromWishlist = async (productId) => {
+    try {
+      dispatch(removeFromWishlist(productId));
+      await wishlistService.removeFromWishlist(productId);
+      toast.success('Removed from wishlist');
+    } catch (error) {
+      toast.error('Failed to remove from wishlist');
+    }
   };
 
-  const handleAddToCart = (item) => {
-    dispatch(addToCart({
-      Id: item.Id,
-      title: item.title,
-      price: item.currentPrice,
-      images: item.images,
-      quantity: 1
-    }));
+const handleAddToCart = async (product) => {
+    try {
+      dispatch(addToCart(product));
+      toast.success('Added to cart');
+    } catch (error) {
+      toast.error('Failed to add to cart');
+    }
+  };
+
+  const handleClearWishlist = async () => {
+    try {
+      dispatch(clearWishlist());
+      await wishlistService.clearWishlist();
+      toast.success('Wishlist cleared');
+    } catch (error) {
+      toast.error('Failed to clear wishlist');
+    }
+  };
+
+  const handleRemoveItem = async (productId, productTitle) => {
+    try {
+      dispatch(removeFromWishlist(productId));
+      await wishlistService.removeFromWishlist(productId);
+      toast.success(`${productTitle} removed from wishlist`);
+    } catch (error) {
+      toast.error('Failed to remove from wishlist');
+    }
   };
 
   const handleViewProduct = (productId) => {
     navigate(`/product/${productId}`);
   };
 
-  const handleClearWishlist = () => {
-    if (window.confirm('Are you sure you want to clear your entire wishlist?')) {
-      dispatch(clearWishlist());
-    }
-  };
-
   const handleMarkAlertRead = (alertId) => {
     dispatch(markAlertAsRead(alertId));
   };
 
-  const unreadAlerts = priceAlerts.filter(alert => !alert.read);
-
+  const unreadAlerts = (priceAlerts || []).filter(alert => !alert.read);
   if (loading) {
     return <Loading />;
   }
