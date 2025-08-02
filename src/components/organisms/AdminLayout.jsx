@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import ApperIcon from '@/components/ApperIcon';
-import { toast } from 'react-toastify';
+import React, { useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import ApperIcon from '@/components/ApperIcon'
+import toast from 'react-hot-toast';
 
 const AdminLayout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -23,7 +23,7 @@ const AdminLayout = ({ children }) => {
     return location.pathname.startsWith(path);
   };
 
-  const handleLogout = () => {
+const handleLogout = () => {
     toast.success('Logged out successfully');
     // Navigate to main app or login
   };
@@ -43,7 +43,7 @@ const AdminLayout = ({ children }) => {
             <h1 className="ml-3 text-lg font-semibold text-gray-900">Admin Panel</h1>
           </div>
           <div className="flex items-center space-x-2">
-            <button
+<button
               onClick={() => toast.info('Notifications')}
               className="p-2 rounded-lg hover:bg-gray-100 relative"
             >
@@ -71,7 +71,7 @@ const AdminLayout = ({ children }) => {
           <div className="hidden lg:flex items-center justify-between p-6 border-b border-gray-200">
             <h1 className="text-xl font-bold text-gray-900">Admin Panel</h1>
             <div className="flex items-center space-x-2">
-              <button
+<button
                 onClick={() => toast.info('Notifications')}
                 className="p-2 rounded-lg hover:bg-gray-100 relative"
               >
