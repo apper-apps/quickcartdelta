@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { toast } from 'react-toastify';
-import { marketplaceService } from '@/services/api/marketplaceService';
-import { productService } from '@/services/api/productService';
-import { notificationService } from '@/services/api/notificationService';
-import Button from '@/components/atoms/Button';
-import Badge from '@/components/atoms/Badge';
-import ApperIcon from '@/components/ApperIcon';
-import Loading from '@/components/ui/Loading';
-import Error from '@/components/ui/Error';
-
+import React, { useEffect, useState } from "react";
+import toast from "react-hot-toast";
+import { AlertTriangle, Check, ChevronRight, ExternalLink } from "lucide-react";
+import { notificationService } from "@/services/api/notificationService";
+import { marketplaceService } from "@/services/api/marketplaceService";
+import { productService } from "@/services/api/productService";
+import ApperIcon from "@/components/ApperIcon";
+import Loading from "@/components/ui/Loading";
+import Error from "@/components/ui/Error";
+import POS from "@/components/pages/POS";
+import Badge from "@/components/atoms/Badge";
+import Button from "@/components/atoms/Button";
 const MarketplaceIntegration = () => {
   const [integrations, setIntegrations] = useState({
     ebay: { connected: false, status: 'disconnected', lastSync: null },
