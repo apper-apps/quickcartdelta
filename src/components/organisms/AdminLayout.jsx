@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ApperIcon } from '@/components/ApperIcon';
+import ApperIcon from '@/components/ApperIcon';
 import { toast } from 'react-toastify';
 
 const AdminLayout = ({ children }) => {
