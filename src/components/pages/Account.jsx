@@ -1,8 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { toast } from "react-hot-toast";
-import { Bell, CreditCard, Edit, Eye, EyeOff, Mail, MapPin, Phone, Save, Shield, User, X } from "lucide-react";
-import Loading from "@/components/ui/Loading";
+import toast from "react-hot-toast";
+import { 
+  User, 
+  Edit, 
+  Save, 
+  X, 
+  Eye, 
+  EyeOff, 
+  Bell, 
+  Shield, 
+  CreditCard, 
+  MapPin 
+} from "lucide-react";
 import Error from "@/components/ui/Error";
 import Empty from "@/components/ui/Empty";
 import Badge from "@/components/atoms/Badge";
