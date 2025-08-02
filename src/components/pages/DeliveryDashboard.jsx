@@ -2022,13 +2022,14 @@ const renderTeamDashboard = () => (
                     >
                       Assign Backup
                     </Button>
-                    <Button
+<Button
                       size="sm"
                       variant="ghost"
                       icon="Route"
                       onClick={() => handleZoneAction(alert.zoneId, 'reroute')}
+                      className="text-orange-600 hover:bg-orange-50 border-orange-200"
                     >
-                      Reroute
+                      Emergency Reroute
                     </Button>
                   </div>
                 </div>

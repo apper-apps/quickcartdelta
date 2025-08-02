@@ -12,12 +12,16 @@ class RouteOptimizer {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  async optimizeRoute(startLocation, orders) {
+async optimizeRoute(startLocation, orders, trafficIncidents = []) {
     await this.delay();
 
     if (!orders || orders.length === 0) {
       return { stops: [], totalDistance: 0, estimatedTime: 0 };
     }
+
+    // Check for active traffic incidents and update restricted zones
+    const activeIncidents = await this.getActiveTrafficIncidents();
+    this.updateRestrictedZonesForTraffic([...trafficIncidents, ...activeIncidents]);
 
     // Convert orders to delivery points
     const deliveryPoints = orders.map(order => ({
@@ -25,30 +29,34 @@ class RouteOptimizer {
       location: this.parseAddress(order.deliveryAddress),
       priority: order.priority,
       deliveryWindow: order.deliveryWindow,
-      customer: order.customer
+      customer: order.customer,
+      currentRoute: order.currentRoute // Track existing route for rerouting
     }));
 
     // Apply clustering for nearby deliveries
     const clusters = this.clusterDeliveries(deliveryPoints);
     
-    // Optimize route within each cluster
+    // Optimize route within each cluster with traffic awareness
     const optimizedClusters = await Promise.all(
-      clusters.map(cluster => this.optimizeCluster(startLocation, cluster))
+      clusters.map(cluster => this.optimizeClusterWithTraffic(startLocation, cluster, activeIncidents))
     );
 
     // Combine clusters into final route
     const finalRoute = this.combineOptimizedClusters(startLocation, optimizedClusters);
     
-    // Calculate total metrics
+    // Calculate total metrics with traffic impact
     const totalDistance = this.calculateTotalDistance(startLocation, finalRoute.stops);
-    const estimatedTime = this.calculateEstimatedTime(totalDistance, finalRoute.stops.length);
+    const estimatedTime = this.calculateEstimatedTimeWithTraffic(totalDistance, finalRoute.stops.length, activeIncidents);
 
     return {
       stops: finalRoute.stops,
-      totalDistance: Math.round(totalDistance * 100) / 100, // Round to 2 decimal places
+      totalDistance: Math.round(totalDistance * 100) / 100,
       estimatedTime: Math.round(estimatedTime),
       clusters: optimizedClusters.length,
-      avoidedZones: finalRoute.avoidedZones || []
+      avoidedZones: finalRoute.avoidedZones || [],
+      trafficIncidents: activeIncidents,
+      reroutedOrders: finalRoute.reroutedOrders || [],
+      alternativeRoutes: finalRoute.alternativeRoutes || []
     };
   }
 
@@ -187,10 +195,10 @@ class RouteOptimizer {
     return R * c;
   }
 
-  calculateDistanceWithTraffic(point1, point2) {
+calculateDistanceWithTraffic(point1, point2, trafficIncidents = []) {
     const baseDistance = this.calculateDistance(point1, point2);
     
-    // Simulate traffic conditions based on time of day
+    // Base traffic conditions based on time of day
     const hour = new Date().getHours();
     let trafficMultiplier = 1;
 
@@ -201,6 +209,10 @@ class RouteOptimizer {
     } else if (hour >= 22 || hour <= 6) {
       trafficMultiplier = 0.8; // Low traffic
     }
+
+    // Check for traffic incidents affecting this route segment
+    const incidentImpact = this.calculateIncidentImpact(point1, point2, trafficIncidents);
+    trafficMultiplier *= (1 + incidentImpact);
 
     return baseDistance * trafficMultiplier;
   }
@@ -303,6 +315,220 @@ class RouteOptimizer {
         { instruction: "Arrive at destination on the right", distance: 0, duration: 0 }
       ]
     };
+};
+  }
+
+  // Traffic incident detection and management
+  async getActiveTrafficIncidents() {
+    await this.delay(200);
+    
+    // Simulate real-time traffic incident detection
+    const incidents = [
+      {
+        id: 'INC001',
+        type: 'accident',
+        location: { lat: 40.7580, lng: -73.9855 },
+        severity: 'high',
+        radius: 800, // meters
+        delay: 15, // minutes additional delay
+        description: 'Multi-vehicle accident blocking 2 lanes',
+        estimatedClearance: new Date(Date.now() + 45 * 60000), // 45 minutes
+        alternativeRoutes: ['route_a', 'route_b']
+      },
+      {
+        id: 'INC002',
+        type: 'construction',
+        location: { lat: 40.7505, lng: -73.9934 },
+        severity: 'medium',
+        radius: 500,
+        delay: 8,
+        description: 'Lane closure for emergency repairs',
+        estimatedClearance: new Date(Date.now() + 2 * 60 * 60000), // 2 hours
+        alternativeRoutes: ['route_c']
+      }
+    ];
+
+    // Filter active incidents (not cleared yet)
+    return incidents.filter(incident => 
+      incident.estimatedClearance > new Date()
+    );
+  }
+
+  updateRestrictedZonesForTraffic(incidents) {
+    // Add traffic incidents to restricted zones temporarily
+    const trafficZones = incidents.map(incident => ({
+      ...incident.location,
+      radius: incident.radius,
+      type: 'traffic_incident',
+      hours: '24', // Active until cleared
+      severity: incident.severity,
+      delay: incident.delay,
+      incidentId: incident.id
+    }));
+
+    // Merge with existing restricted zones
+    this.restrictedZones = [
+      ...this.restrictedZones.filter(zone => zone.type !== 'traffic_incident'),
+      ...trafficZones
+    ];
+  }
+
+  calculateIncidentImpact(point1, point2, incidents) {
+    let totalImpact = 0;
+
+    for (const incident of incidents) {
+      // Check if route segment passes near incident
+      const distanceToIncident = Math.min(
+        this.calculateDistance(point1, incident.location),
+        this.calculateDistance(point2, incident.location)
+      );
+
+      if (distanceToIncident <= incident.radius / 1000) { // Convert radius to km
+        // Calculate impact based on severity and distance
+        const impactFactor = incident.severity === 'high' ? 0.8 : 
+                           incident.severity === 'medium' ? 0.4 : 0.2;
+        
+        const distanceFactor = 1 - (distanceToIncident / (incident.radius / 1000));
+        totalImpact += impactFactor * distanceFactor;
+      }
+    }
+
+    return Math.min(totalImpact, 2.0); // Cap at 200% additional time
+  }
+
+  async optimizeClusterWithTraffic(startLocation, clusterPoints, incidents) {
+    // Enhanced cluster optimization with traffic awareness
+    const sortedPoints = clusterPoints.sort((a, b) => {
+      // Urgent deliveries first
+      if (a.priority === 'urgent' && b.priority !== 'urgent') return -1;
+      if (b.priority === 'urgent' && a.priority !== 'urgent') return 1;
+
+      // Avoid traffic-impacted routes for time-sensitive deliveries
+      const aTrafficImpact = this.calculateIncidentImpact(startLocation, a.location, incidents);
+      const bTrafficImpact = this.calculateIncidentImpact(startLocation, b.location, incidents);
+      
+      if (a.priority === 'urgent' || b.priority === 'urgent') {
+        return aTrafficImpact - bTrafficImpact;
+      }
+
+      // Then by delivery window
+      if (a.deliveryWindow && b.deliveryWindow) {
+        return new Date(a.deliveryWindow.start) - new Date(b.deliveryWindow.start);
+      }
+
+      return 0;
+    });
+
+    // Apply traffic-aware nearest neighbor algorithm
+    const optimizedOrder = await this.nearestNeighborWithTraffic(startLocation, sortedPoints, incidents);
+    
+    return {
+      points: optimizedOrder,
+      startLocation,
+      avoidedZones: this.checkRestrictedZones(optimizedOrder),
+      trafficReroutes: this.identifyReroutedDeliveries(clusterPoints, optimizedOrder)
+    };
+  }
+
+  async rerouteForTrafficIncident(orderId, currentRoute, incidentLocation, severity = 'high') {
+    await this.delay(300);
+
+    // Generate alternative route avoiding incident area
+    const avoidanceRadius = severity === 'high' ? 1.5 : 
+                           severity === 'medium' ? 1.0 : 0.5; // km
+
+    const alternativeRoute = await this.calculateAlternativeRoute(
+      currentRoute.startLocation,
+      currentRoute.destination,
+      incidentLocation,
+      avoidanceRadius
+    );
+
+    const additionalTime = this.calculateRerouteDelay(currentRoute, alternativeRoute);
+    const additionalDistance = alternativeRoute.totalDistance - currentRoute.totalDistance;
+
+    return {
+      orderId,
+      originalRoute: currentRoute,
+      alternativeRoute,
+      rerouteReason: 'traffic_incident',
+      incidentLocation,
+      additionalTime: Math.round(additionalTime),
+      additionalDistance: Math.round(additionalDistance * 100) / 100,
+      estimatedDelay: Math.max(additionalTime - 5, 0), // Account for time saved avoiding traffic
+      timestamp: new Date().toISOString(),
+      approved: false // Requires dispatcher approval for significant delays
+    };
+  }
+
+  async calculateAlternativeRoute(start, destination, avoidLocation, avoidanceRadius) {
+    // Simulate alternative route calculation
+    const detourFactor = 1.2; // 20% longer route to avoid incident
+    const baseDistance = this.calculateDistance(start, destination);
+    
+    return {
+      stops: [
+        { location: start, instruction: "Start route" },
+        { 
+          location: this.calculateDetourPoint(start, destination, avoidLocation, avoidanceRadius),
+          instruction: "Detour around traffic incident"
+        },
+        { location: destination, instruction: "Arrive at destination" }
+      ],
+      totalDistance: baseDistance * detourFactor,
+      estimatedTime: this.calculateEstimatedTime(baseDistance * detourFactor, 1),
+      avoidedIncidents: [avoidLocation]
+    };
+  }
+
+  calculateDetourPoint(start, destination, avoid, radius) {
+    // Calculate a point that maintains distance from incident
+    const midpoint = {
+      lat: (start.lat + destination.lat) / 2,
+      lng: (start.lng + destination.lng) / 2
+    };
+
+    // Offset perpendicular to the incident
+    const offset = radius / 111; // Rough conversion to degrees
+    return {
+      lat: midpoint.lat + (Math.random() - 0.5) * offset,
+      lng: midpoint.lng + (Math.random() - 0.5) * offset
+    };
+  }
+
+  calculateRerouteDelay(originalRoute, alternativeRoute) {
+    return alternativeRoute.estimatedTime - originalRoute.estimatedTime;
+  }
+
+  identifyReroutedDeliveries(originalOrder, optimizedOrder) {
+    const rerouted = [];
+    
+    for (let i = 0; i < originalOrder.length; i++) {
+      const originalIndex = originalOrder.findIndex(p => p.orderId === optimizedOrder[i]?.orderId);
+      if (originalIndex !== -1 && originalIndex !== i) {
+        rerouted.push({
+          orderId: optimizedOrder[i].orderId,
+          originalPosition: originalIndex,
+          newPosition: i,
+          reason: 'traffic_optimization'
+        });
+      }
+    }
+    
+    return rerouted;
+  }
+
+  calculateEstimatedTimeWithTraffic(distance, numberOfStops, incidents = []) {
+    // Base calculation
+    let travelTime = (distance / 25) * 60; // 25 km/h average city speed
+    const stopTime = numberOfStops * 5; // 5 minutes per stop
+
+    // Add delay for traffic incidents
+    const incidentDelay = incidents.reduce((total, incident) => {
+      return total + (incident.delay || 0);
+    }, 0);
+
+    return travelTime + stopTime + incidentDelay;
   }
 }
 

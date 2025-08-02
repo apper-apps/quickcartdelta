@@ -1576,8 +1576,9 @@ async executeZoneAction(zoneId, action) {
         impact: 'Additional driver capacity +8 orders, ETA reduced by 12 minutes, Support team activated'
       },
       'reroute': {
-        message: `Traffic rerouting has been activated for zone ${zoneId}`,
-        impact: 'Alternative routes calculated, estimated time savings: 8-15 minutes'
+        message: `Emergency rerouting activated for zone ${zoneId} due to traffic/accidents`,
+        impact: 'Alternative routes calculated, traffic incidents avoided, estimated time savings: 8-25 minutes',
+        rerouteType: 'traffic_incident'
       },
       'emergency_support': {
         message: `Emergency support dispatched to zone ${zoneId}`,
@@ -1597,6 +1598,12 @@ async executeZoneAction(zoneId, action) {
       throw new Error('Invalid zone action');
     }
 
+    // Execute rerouting for traffic incidents
+    if (action === 'reroute') {
+      const rerouteResult = await this.executeEmergencyRerouting(zoneId);
+      actions[action].rerouteDetails = rerouteResult;
+    }
+
     // Simulate action execution with enhanced tracking
     console.log(`🎯 Executing ${action} for zone ${zoneId}`);
     
@@ -1607,7 +1614,8 @@ async executeZoneAction(zoneId, action) {
       actionType: action,
       timestamp: new Date().toISOString(),
       executedBy: 'admin',
-      details: actions[action]
+      details: actions[action],
+      impactedOrders: action === 'reroute' ? actions[action].rerouteDetails?.affectedOrders : []
     };
 
     // Store audit entry
@@ -1625,8 +1633,214 @@ async executeZoneAction(zoneId, action) {
       timestamp: new Date(),
       zoneId,
       action,
-      auditId: auditEntry.timestamp
+      auditId: auditEntry.timestamp,
+      rerouteDetails: actions[action].rerouteDetails
     };
+  }
+
+  async executeEmergencyRerouting(zoneId) {
+    await this.delay(1200);
+
+    try {
+      // Get all active orders in the zone
+      const zoneOrders = await this.getOrdersInZone(zoneId);
+      const affectedOrders = zoneOrders.filter(order => 
+        ['picked_up', 'in_transit'].includes(order.status)
+      );
+
+      if (affectedOrders.length === 0) {
+        return {
+          affectedOrders: [],
+          message: 'No active deliveries to reroute in this zone'
+        };
+      }
+
+      // Simulate traffic incident detection
+      const trafficIncident = {
+        id: `INCIDENT_${zoneId}_${Date.now()}`,
+        type: 'traffic_congestion',
+        location: this.getZoneCenter(zoneId),
+        severity: 'high',
+        description: 'Major traffic congestion detected, initiating emergency rerouting',
+        estimatedDuration: 45, // minutes
+        alternativeRoutesAvailable: true
+      };
+
+      // Process rerouting for each affected order
+      const rerouteResults = [];
+      
+      for (const order of affectedOrders) {
+        const rerouteResult = await this.rerouteSingleOrder(order, trafficIncident);
+        rerouteResults.push(rerouteResult);
+        
+        // Update order with new route information
+        await this.updateOrderRoute(order.Id, rerouteResult.newRoute);
+        
+        // Notify driver of route change
+        await this.notifyDriverOfReroute(order.assignedDriver, rerouteResult);
+      }
+
+      // Log emergency rerouting event
+      const rerouteEvent = {
+        eventId: trafficIncident.id,
+        zoneId,
+        timestamp: new Date().toISOString(),
+        incident: trafficIncident,
+        affectedOrderCount: affectedOrders.length,
+        totalTimeSaved: rerouteResults.reduce((sum, result) => sum + (result.timeSaved || 0), 0),
+        totalDistanceAdded: rerouteResults.reduce((sum, result) => sum + (result.distanceAdded || 0), 0),
+        rerouteResults
+      };
+
+      // Store emergency rerouting log
+      const emergencyLog = JSON.parse(localStorage.getItem('emergencyReroutingLog') || '[]');
+      emergencyLog.push(rerouteEvent);
+      localStorage.setItem('emergencyReroutingLog', JSON.stringify(emergencyLog));
+
+      return {
+        success: true,
+        affectedOrders: affectedOrders.map(o => o.Id),
+        incident: trafficIncident,
+        rerouteResults,
+        totalTimeSaved: rerouteEvent.totalTimeSaved,
+        totalDistanceAdded: rerouteEvent.totalDistanceAdded,
+        message: `Successfully rerouted ${affectedOrders.length} deliveries around traffic incident`
+      };
+
+    } catch (error) {
+      console.error('Emergency rerouting failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        affectedOrders: [],
+        message: 'Emergency rerouting failed - manual intervention required'
+      };
+    }
+  }
+
+  async getOrdersInZone(zoneId) {
+    // Simulate getting orders within a specific zone
+    const allOrders = await this.getDeliveryQueue();
+    
+    // Mock zone boundaries (in real app, would use actual geographical boundaries)
+    const zoneBoundaries = {
+      'zone-1': { minLat: 40.750, maxLat: 40.760, minLng: -73.990, maxLng: -73.980 },
+      'zone-2': { minLat: 40.760, maxLat: 40.770, minLng: -73.990, maxLng: -73.980 },
+      'zone-3': { minLat: 40.770, maxLat: 40.780, minLng: -73.990, maxLng: -73.980 }
+    };
+
+    const boundary = zoneBoundaries[zoneId];
+    if (!boundary) return [];
+
+    return allOrders.filter(order => {
+      // Parse delivery address to coordinates (mock implementation)
+      const coords = this.parseAddressToCoords(order.deliveryAddress);
+      return coords.lat >= boundary.minLat && coords.lat <= boundary.maxLat &&
+             coords.lng >= boundary.minLng && coords.lng <= boundary.maxLng;
+    });
+  }
+
+  getZoneCenter(zoneId) {
+    const zoneCenters = {
+      'zone-1': { lat: 40.755, lng: -73.985 },
+      'zone-2': { lat: 40.765, lng: -73.985 },
+      'zone-3': { lat: 40.775, lng: -73.985 }
+    };
+    return zoneCenters[zoneId] || { lat: 40.7589, lng: -73.9851 };
+  }
+
+  async rerouteSingleOrder(order, incident) {
+    const currentRoute = order.currentRoute || {
+      startLocation: { lat: 40.7589, lng: -73.9851 },
+      destination: this.parseAddressToCoords(order.deliveryAddress),
+      estimatedTime: 30,
+      distance: 5.2
+    };
+
+    // Calculate alternative route avoiding incident area
+    const alternativeRoute = {
+      startLocation: currentRoute.startLocation,
+      destination: currentRoute.destination,
+      waypoints: [
+        { lat: incident.location.lat + 0.01, lng: incident.location.lng + 0.01 }, // Detour point
+      ],
+      estimatedTime: currentRoute.estimatedTime + 8, // Additional 8 minutes
+      distance: currentRoute.distance + 1.5, // Additional 1.5 km
+      avoidedIncident: incident.id,
+      rerouteReason: 'traffic_incident_avoidance'
+    };
+
+    return {
+      orderId: order.Id,
+      originalRoute: currentRoute,
+      newRoute: alternativeRoute,
+      timeSaved: Math.max(0, 15 - 8), // Time saved by avoiding traffic minus detour time
+      distanceAdded: 1.5,
+      rerouteReason: incident.type,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  async updateOrderRoute(orderId, newRoute) {
+    // Update order with new route information
+    const updateData = {
+      currentRoute: newRoute,
+      routeUpdatedAt: new Date().toISOString(),
+      rerouteHistory: [
+        ...(await this.getOrderRerouteHistory(orderId)),
+        {
+          timestamp: new Date().toISOString(),
+          reason: newRoute.rerouteReason,
+          additionalTime: newRoute.estimatedTime - (newRoute.originalTime || 30),
+          additionalDistance: newRoute.distance - (newRoute.originalDistance || 5.2)
+        }
+      ]
+    };
+
+    // This would integrate with orderService to update the order
+    console.log(`Updated route for order ${orderId}:`, updateData);
+    return updateData;
+  }
+
+  async notifyDriverOfReroute(driverId, rerouteResult) {
+    if (!driverId) return;
+
+    const notification = {
+      type: 'route_update',
+      driverId,
+      orderId: rerouteResult.orderId,
+      message: `Route updated due to traffic incident. New ETA: ${rerouteResult.newRoute.estimatedTime} minutes`,
+      details: {
+        reason: rerouteResult.rerouteReason,
+        additionalTime: rerouteResult.newRoute.estimatedTime - rerouteResult.originalRoute.estimatedTime,
+        additionalDistance: rerouteResult.distanceAdded,
+        newWaypoints: rerouteResult.newRoute.waypoints
+      },
+      timestamp: new Date().toISOString(),
+      priority: 'high'
+    };
+
+    // Store notification (in real app, would send push notification)
+    const notifications = JSON.parse(localStorage.getItem(`driver_notifications_${driverId}`) || '[]');
+    notifications.unshift(notification);
+    localStorage.setItem(`driver_notifications_${driverId}`, JSON.stringify(notifications.slice(0, 50)));
+
+    console.log(`Notified driver ${driverId} of reroute:`, notification);
+    return notification;
+  }
+
+  parseAddressToCoords(address) {
+    // Mock address parsing (in real app, would use geocoding API)
+    return {
+      lat: 40.7589 + (Math.random() - 0.5) * 0.02,
+      lng: -73.9851 + (Math.random() - 0.5) * 0.02
+    };
+  }
+
+  async getOrderRerouteHistory(orderId) {
+    // Get historical reroute data for an order
+    const history = JSON.parse(localStorage.getItem(`reroute_history_${orderId}`) || '[]');
+    return history;
   }
 
   // Testing protocol method for 500 concurrent COD orders
@@ -1705,10 +1919,15 @@ return results;
       'cod_support': {
         team: ['COD Specialist', 'Compliance Officer'],
         eta: '10-15 minutes', 
-        capabilities: ['COD verification', 'Discrepancy resolution', 'Financial audit']
+capabilities: ['COD verification', 'Discrepancy resolution', 'Financial audit']
+      },
+      'traffic_management': {
+        team: ['Traffic Coordinator', 'Route Specialist'],
+        eta: '3-5 minutes',
+        capabilities: ['Emergency rerouting', 'Traffic incident response', 'Route optimization']
       },
       'technical': {
-        team: ['IT Support', 'App Specialist'],
+team: ['IT Support', 'App Specialist'],
         eta: '5-10 minutes',
         capabilities: ['App troubleshooting', 'GPS calibration', 'Device support']
       },
@@ -1717,7 +1936,7 @@ return results;
         eta: '3-8 minutes',
         capabilities: ['Emergency assistance', 'Security support', 'Crisis management']
       }
-    };
+};
 
     const backup = backupTypes[assistanceType] || backupTypes['general'];
     
@@ -1726,12 +1945,13 @@ return results;
       zoneId,
       assistanceType,
       priority,
-      team: backup.team,
+team: backup.team,
       eta: backup.eta,
       capabilities: backup.capabilities,
       status: 'dispatched',
       timestamp: new Date().toISOString(),
-      trackingId: `BACKUP-${zoneId}-${Date.now()}`
+      trackingId: `BACKUP-${zoneId}-${Date.now()}`,
+      trafficAware: assistanceType === 'traffic_management'
     };
 
     // Store dispatch record
