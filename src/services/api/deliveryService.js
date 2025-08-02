@@ -285,6 +285,89 @@ async completeDelivery(orderId, proofData) {
 
     return order;
   }
+// COD Settlement Management
+  async getCodSettlement() {
+    await this.delay();
+    
+    const today = new Date().toDateString();
+    const settlementData = this.calculateDailySettlement();
+    
+    return {
+      agentName: 'Ali Raza',
+      date: today,
+      expectedAmount: settlementData.expectedAmount,
+      collectedAmount: settlementData.collectedAmount,
+      shortage: settlementData.shortage,
+      status: settlementData.shortage === 0 ? 'complete' : settlementData.shortage > 0 ? 'shortage' : 'pending',
+      totalOrders: settlementData.totalOrders,
+      completedOrders: settlementData.completedOrders,
+      collectionRate: settlementData.collectionRate,
+      settlementTime: new Date().toLocaleTimeString(),
+      lastUpdated: new Date().toISOString()
+    };
+  }
+
+  calculateDailySettlement() {
+    // Get stored settlement data or create default
+    const stored = localStorage.getItem('dailySettlement');
+    let settlement;
+    
+    if (stored) {
+      settlement = JSON.parse(stored);
+      // Check if it's from today
+      const storedDate = new Date(settlement.date).toDateString();
+      const today = new Date().toDateString();
+      
+      if (storedDate !== today) {
+        // New day, reset settlement
+        settlement = this.createNewSettlement();
+      }
+    } else {
+      settlement = this.createNewSettlement();
+    }
+    
+    // Save updated settlement
+    localStorage.setItem('dailySettlement', JSON.stringify(settlement));
+    
+    return settlement;
+  }
+
+  createNewSettlement() {
+    // Example settlement data matching the request
+    const expectedAmount = 8950;
+    const collectedAmount = 8950;
+    const shortage = expectedAmount - collectedAmount;
+    
+    return {
+      date: new Date().toISOString(),
+      expectedAmount,
+      collectedAmount,
+      shortage,
+      totalOrders: 12,
+      completedOrders: 12,
+      collectionRate: Math.round((collectedAmount / expectedAmount) * 100)
+    };
+  }
+
+  async updateSettlementData(orderAmount, collected = true) {
+    await this.delay();
+    
+    const settlement = this.calculateDailySettlement();
+    
+    if (collected) {
+      settlement.collectedAmount += orderAmount;
+      settlement.completedOrders += 1;
+    }
+    
+    settlement.expectedAmount += orderAmount;
+    settlement.totalOrders += 1;
+    settlement.shortage = settlement.expectedAmount - settlement.collectedAmount;
+    settlement.collectionRate = Math.round((settlement.collectedAmount / settlement.expectedAmount) * 100);
+    
+    localStorage.setItem('dailySettlement', JSON.stringify(settlement));
+    
+    return settlement;
+  }
 
   // Vehicle Management
   async updateVehicleMetrics(metrics) {
@@ -465,9 +548,9 @@ async completeDelivery(orderId, proofData) {
 async getTeamDrivers() {
     await this.delay(600);
     
-    const drivers = [
+const drivers = [
       { 
-        Id: 1, 
+        Id: 1,
         name: 'Alex Chen', 
         status: 'active', 
         zone: 'Downtown', 

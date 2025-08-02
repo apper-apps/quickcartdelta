@@ -59,7 +59,7 @@ const [orders, setOrders] = useState([]);
       reward: 500
     }
   });
-
+const [settlementData, setSettlementData] = useState(null);
   // Assignment & COD Management State
   const [availableDrivers, setAvailableDrivers] = useState([]);
   const [assignmentMode, setAssignmentMode] = useState('manual'); // manual, proximity, capacity, skill
@@ -98,9 +98,9 @@ const [orders, setOrders] = useState([]);
 useEffect(() => {
     loadDeliveryOrders();
     loadAvailableDrivers();
-    loadCodBalances();
+loadCodBalances();
+    loadSettlementData();
     getCurrentLocation();
-    initializeVoiceCommands();
     initializeTestingProtocols();
     monitorPerformanceMetrics();
     
@@ -108,6 +108,7 @@ useEffect(() => {
     const interval = setInterval(() => {
       loadDeliveryOrders();
       loadAvailableDrivers();
+      loadSettlementData();
       syncAssignments();
     }, 30000); // Refresh every 30s
     return () => clearInterval(interval);
@@ -379,6 +380,16 @@ const getCurrentLocation = () => {
       5: 750
     };
     setCodBalances(balances);
+};
+
+  const loadSettlementData = async () => {
+    try {
+      const settlement = await deliveryService.getCodSettlement();
+      setSettlementData(settlement);
+    } catch (error) {
+      console.error('Error loading settlement data:', error);
+      toast.error('Failed to load COD settlement data');
+    }
   };
 
   const syncAssignments = async () => {
@@ -386,6 +397,9 @@ const getCurrentLocation = () => {
     try {
       // In real app, would sync with backend and push notifications
       console.log('Syncing assignments with delivery personnel apps...');
+      
+      // Also sync COD settlement data
+      await loadSettlementData();
     } catch (error) {
       console.error('Assignment sync failed:', error);
     }
@@ -1342,6 +1356,147 @@ const renderNavigation = () => (
             </span>
           </div>
         </div>
+      </div>
+{/* Daily Settlement Report */}
+      <div className="card p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold">Daily Settlement Report</h3>
+          <Badge variant={settlementData?.status === 'complete' ? 'success' : settlementData?.status === 'shortage' ? 'error' : 'warning'}>
+            {settlementData?.status === 'complete' ? 'Complete' : settlementData?.status === 'shortage' ? 'Shortage' : 'Pending'}
+          </Badge>
+        </div>
+
+        {settlementData ? (
+          <div className="space-y-4">
+            {/* Agent Info */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Agent</p>
+                  <p className="font-semibold text-lg">{settlementData.agentName}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-600">Date</p>
+                  <p className="font-medium">{new Date().toLocaleDateString()}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Settlement Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Expected COD</p>
+                    <p className="text-xl font-bold text-blue-600">₹ {settlementData.expectedAmount.toLocaleString()}</p>
+                  </div>
+                  <ApperIcon name="Calculator" size={24} className="text-blue-500" />
+                </div>
+              </div>
+
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Received</p>
+                    <p className="text-xl font-bold text-green-600">₹ {settlementData.collectedAmount.toLocaleString()}</p>
+                  </div>
+                  <ApperIcon name="Wallet" size={24} className="text-green-500" />
+                </div>
+              </div>
+
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Shortage</p>
+                    <p className={`text-xl font-bold ${settlementData.shortage === 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      ₹ {settlementData.shortage.toLocaleString()}
+                    </p>
+                  </div>
+                  {settlementData.shortage === 0 ? (
+                    <ApperIcon name="CheckCircle" size={24} className="text-green-500" />
+                  ) : (
+                    <ApperIcon name="AlertTriangle" size={24} className="text-red-500" />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Status Indicator */}
+            <div className={`p-4 rounded-lg border-l-4 ${
+              settlementData.shortage === 0 
+                ? 'bg-green-50 border-green-400' 
+                : 'bg-red-50 border-red-400'
+            }`}>
+              <div className="flex items-center space-x-2">
+                {settlementData.shortage === 0 ? (
+                  <ApperIcon name="CheckCircle" size={20} className="text-green-600" />
+                ) : (
+                  <ApperIcon name="AlertCircle" size={20} className="text-red-600" />
+                )}
+                <span className={`font-medium ${
+                  settlementData.shortage === 0 ? 'text-green-800' : 'text-red-800'
+                }`}>
+                  {settlementData.shortage === 0 
+                    ? '✅ All COD amounts collected successfully' 
+                    : `❌ Shortage of ₹${settlementData.shortage.toLocaleString()} detected`
+                  }
+                </span>
+              </div>
+            </div>
+
+            {/* Settlement Details */}
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h4 className="font-medium mb-3 text-gray-700">Settlement Breakdown</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Total COD Orders:</span>
+                  <span className="font-medium">{settlementData.totalOrders}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Completed COD Orders:</span>
+                  <span className="font-medium">{settlementData.completedOrders}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Collection Rate:</span>
+                  <span className="font-medium">{settlementData.collectionRate}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Settlement Time:</span>
+                  <span className="font-medium">{settlementData.settlementTime}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex space-x-3 pt-2">
+              <Button 
+                onClick={() => {
+                  toast.success('Settlement report downloaded successfully');
+                }}
+                className="flex-1"
+                variant="secondary"
+              >
+                <ApperIcon name="Download" size={16} className="mr-2" />
+                Download Report
+              </Button>
+              <Button 
+                onClick={() => {
+                  toast.success('Settlement data refreshed');
+                  loadSettlementData();
+                }}
+                variant="primary"
+              >
+                <ApperIcon name="RefreshCw" size={16} className="mr-2" />
+                Refresh
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <ApperIcon name="FileText" size={48} className="mx-auto text-gray-400 mb-4" />
+            <p className="text-gray-500">Loading settlement data...</p>
+          </div>
+        )}
       </div>
 
       {/* Incentive Tracker */}
