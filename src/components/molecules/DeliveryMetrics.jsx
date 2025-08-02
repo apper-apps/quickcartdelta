@@ -136,7 +136,8 @@ setError(null);
   if (loading) return <Loading />;
   if (error) return <Error message={error} onRetry={loadMetrics} />;
 
-return (
+
+  return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -317,7 +318,7 @@ return (
                 <div className="mt-6 p-4 bg-gradient-to-r from-green-100 to-blue-100 rounded-lg border">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold text-gray-800">Total Earnings</span>
-<span className="text-2xl font-bold text-green-700">
+                    <span className="text-2xl font-bold text-green-700">
                       ₹{metrics.earnings.totalEarnings}
                     </span>
                   </div>
@@ -359,6 +360,294 @@ return (
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Performance Reports Section */}
+          <div className="card p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <ApperIcon name="FileText" size={20} className="text-indigo-600" />
+                Performance Reports
+              </h3>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon="RefreshCw" 
+                  onClick={refreshAnalytics}
+                  disabled={loading}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon="Download"
+                  onClick={exportReport}
+                >
+                  Export Report
+                </Button>
+              </div>
+            </div>
+
+            {/* Weekly Efficiency Rankings */}
+            <div className="mb-8">
+              <h4 className="text-md font-semibold mb-4 flex items-center gap-2">
+                <ApperIcon name="Trophy" size={18} className="text-yellow-600" />
+                Weekly Efficiency Rankings
+              </h4>
+              
+              {agentPerformance.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2 border-blue-200">
+                      <tr>
+                        <th className="text-left py-3 px-4 font-semibold text-blue-800">Rank</th>
+                        <th className="text-left py-3 px-4 font-semibold text-blue-800">Driver</th>
+                        <th className="text-left py-3 px-4 font-semibold text-blue-800">Efficiency Score</th>
+                        <th className="text-left py-3 px-4 font-semibold text-blue-800">Deliveries</th>
+                        <th className="text-left py-3 px-4 font-semibold text-blue-800">Avg Time</th>
+                        <th className="text-left py-3 px-4 font-semibold text-blue-800">Success Rate</th>
+                        <th className="text-left py-3 px-4 font-semibold text-blue-800">Trend</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {agentPerformance
+                        .map(agent => ({
+                          ...agent,
+                          efficiencyScore: Math.round(((100 - agent.avgDelay) + agent.codAccuracy + (agent.rating * 20)) / 3)
+                        }))
+                        .sort((a, b) => b.efficiencyScore - a.efficiencyScore)
+                        .map((agent, index) => (
+                          <tr key={agent.id} className={`hover:bg-gray-50 ${index < 3 ? 'bg-gradient-to-r from-yellow-50 to-orange-50' : ''}`}>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className={`font-bold text-lg ${
+                                  index === 0 ? 'text-yellow-600' :
+                                  index === 1 ? 'text-gray-500' :
+                                  index === 2 ? 'text-amber-600' : 'text-gray-400'
+                                }`}>
+                                  #{index + 1}
+                                </span>
+                                {index < 3 && (
+                                  <span className="text-lg">
+                                    {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div>
+                                <p className="font-medium text-gray-900">{agent.name}</p>
+                                <p className="text-sm text-gray-500">{agent.zone}</p>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className={`font-bold text-lg ${
+                                  agent.efficiencyScore >= 90 ? 'text-green-600' :
+                                  agent.efficiencyScore >= 80 ? 'text-yellow-600' : 'text-red-600'
+                                }`}>
+                                  {agent.efficiencyScore}
+                                </span>
+                                <div className={`w-16 h-2 rounded-full ${
+                                  agent.efficiencyScore >= 90 ? 'bg-green-200' :
+                                  agent.efficiencyScore >= 80 ? 'bg-yellow-200' : 'bg-red-200'
+                                }`}>
+                                  <div 
+                                    className={`h-2 rounded-full ${
+                                      agent.efficiencyScore >= 90 ? 'bg-green-500' :
+                                      agent.efficiencyScore >= 80 ? 'bg-yellow-500' : 'bg-red-500'
+                                    }`}
+                                    style={{ width: `${agent.efficiencyScore}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="font-medium">{agent.deliveriesCompleted}</span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className={`font-medium ${
+                                agent.avgDelay <= 20 ? 'text-green-600' :
+                                agent.avgDelay <= 30 ? 'text-yellow-600' : 'text-red-600'
+                              }`}>
+                                {agent.avgDelay}m
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className={`font-medium ${getStatusColor(agent.codAccuracy)}`}>
+                                {agent.codAccuracy}%
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-1">
+                                <span className={`text-sm ${
+                                  Math.random() > 0.5 ? 'text-green-600' : 'text-red-600'
+                                }`}>
+                                  {Math.random() > 0.5 ? '↗' : '↘'}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {Math.random() > 0.5 ? 'Improving' : 'Declining'}
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <ApperIcon name="Trophy" size={48} className="mx-auto text-gray-400 mb-4" />
+                  <p className="text-gray-500">No ranking data available</p>
+                </div>
+              )}
+            </div>
+
+            {/* Customer Feedback Analysis */}
+            <div>
+              <h4 className="text-md font-semibold mb-4 flex items-center gap-2">
+                <ApperIcon name="MessageSquare" size={18} className="text-purple-600" />
+                Customer Feedback Analysis
+              </h4>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Feedback Summary */}
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-4 rounded-lg border border-purple-200">
+                    <h5 className="font-medium text-purple-800 mb-3">Overall Satisfaction</h5>
+                    <div className="flex items-center gap-4">
+                      <div className="text-center">
+                        <p className="text-3xl font-bold text-purple-700">4.7</p>
+                        <div className="flex justify-center gap-1 mt-1">
+                          {[1,2,3,4,5].map(star => (
+                            <ApperIcon 
+                              key={star} 
+                              name="Star" 
+                              size={16} 
+                              className={`${star <= 4.7 ? 'text-yellow-500 fill-current' : 'text-gray-300'}`} 
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm w-6">5★</span>
+                            <div className="flex-1 bg-gray-200 rounded-full h-2">
+                              <div className="bg-green-500 h-2 rounded-full" style={{ width: '68%' }}></div>
+                            </div>
+                            <span className="text-sm text-gray-600">68%</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm w-6">4★</span>
+                            <div className="flex-1 bg-gray-200 rounded-full h-2">
+                              <div className="bg-blue-500 h-2 rounded-full" style={{ width: '22%' }}></div>
+                            </div>
+                            <span className="text-sm text-gray-600">22%</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm w-6">3★</span>
+                            <div className="flex-1 bg-gray-200 rounded-full h-2">
+                              <div className="bg-yellow-500 h-2 rounded-full" style={{ width: '7%' }}></div>
+                            </div>
+                            <span className="text-sm text-gray-600">7%</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm w-6">2★</span>
+                            <div className="flex-1 bg-gray-200 rounded-full h-2">
+                              <div className="bg-orange-500 h-2 rounded-full" style={{ width: '2%' }}></div>
+                            </div>
+                            <span className="text-sm text-gray-600">2%</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm w-6">1★</span>
+                            <div className="flex-1 bg-gray-200 rounded-full h-2">
+                              <div className="bg-red-500 h-2 rounded-full" style={{ width: '1%' }}></div>
+                            </div>
+                            <span className="text-sm text-gray-600">1%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gradient-to-br from-blue-50 to-cyan-50 p-4 rounded-lg border border-blue-200">
+                    <h5 className="font-medium text-blue-800 mb-3">Feedback Trends</h5>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-blue-700">Response Rate</span>
+                        <span className="font-bold text-blue-800">78%</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-blue-700">Avg Response Time</span>
+                        <span className="font-bold text-blue-800">2.3 days</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-blue-700">Weekly Growth</span>
+                        <span className="font-bold text-green-600">+12%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Common Feedback Themes */}
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200">
+                    <h5 className="font-medium text-green-800 mb-3">Positive Feedback</h5>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span className="text-sm text-green-700">Fast delivery times</span>
+                        <span className="text-xs text-green-600">(89%)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span className="text-sm text-green-700">Professional service</span>
+                        <span className="text-xs text-green-600">(82%)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span className="text-sm text-green-700">Accurate COD handling</span>
+                        <span className="text-xs text-green-600">(75%)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span className="text-sm text-green-700">Good communication</span>
+                        <span className="text-xs text-green-600">(68%)</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gradient-to-br from-red-50 to-pink-50 p-4 rounded-lg border border-red-200">
+                    <h5 className="font-medium text-red-800 mb-3">Areas for Improvement</h5>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                        <span className="text-sm text-red-700">Delivery time delays</span>
+                        <span className="text-xs text-red-600">(18%)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                        <span className="text-sm text-red-700">Package handling</span>
+                        <span className="text-xs text-red-600">(12%)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                        <span className="text-sm text-red-700">Location accuracy</span>
+                        <span className="text-xs text-red-600">(8%)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                        <span className="text-sm text-red-700">COD discrepancies</span>
+                        <span className="text-xs text-red-600">(5%)</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Analytics & Reporting Section */}
@@ -674,5 +963,4 @@ return (
     </div>
   );
 };
-
 export default DeliveryMetrics;

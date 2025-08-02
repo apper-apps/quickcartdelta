@@ -2206,7 +2206,7 @@ const renderTeamDashboard = () => (
         </div>
       </div>
 
-      {renderNavigation()}
+{renderNavigation()}
 
       {loading && <Loading />}
       {error && <Error message={error} onRetry={loadDeliveryOrders} />}

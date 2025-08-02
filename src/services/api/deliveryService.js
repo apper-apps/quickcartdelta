@@ -1687,6 +1687,91 @@ async executeZoneAction(zoneId, action) {
     console.log('✅ Concurrent COD simulation completed:', results);
 return results;
   }
+
+  // Performance Reports Methods
+  async getWeeklyEfficiencyRankings() {
+    await this.delay(500);
+    
+    const drivers = await this.getTeamDrivers();
+    const weeklyData = drivers.map(driver => {
+      const efficiencyScore = Math.round(((100 - (driver.avgDelay || 25)) + (driver.complianceScore || 90) + (driver.rating * 20)) / 3);
+      const weeklyDeliveries = Math.floor(Math.random() * 30) + 10; // 10-40 deliveries per week
+      const avgTime = Math.floor(Math.random() * 20) + 15; // 15-35 minutes
+      const successRate = Math.floor(Math.random() * 15) + 85; // 85-100%
+      
+      return {
+        ...driver,
+        efficiencyScore,
+        weeklyDeliveries,
+        avgTime,
+        successRate,
+        trend: Math.random() > 0.5 ? 'up' : 'down',
+        trendValue: Math.floor(Math.random() * 10) + 1
+      };
+    });
+    
+    return weeklyData.sort((a, b) => b.efficiencyScore - a.efficiencyScore);
+  }
+
+  async getCustomerFeedbackAnalysis(period = 'week') {
+    await this.delay(400);
+    
+    const feedbackData = {
+      overallSatisfaction: 4.7,
+      responseRate: 78,
+      avgResponseTime: 2.3, // days
+      weeklyGrowth: 12, // percentage
+      
+      ratingDistribution: {
+        5: 68,
+        4: 22,
+        3: 7,
+        2: 2,
+        1: 1
+      },
+      
+      positiveFeedback: [
+        { theme: 'Fast delivery times', percentage: 89 },
+        { theme: 'Professional service', percentage: 82 },
+        { theme: 'Accurate COD handling', percentage: 75 },
+        { theme: 'Good communication', percentage: 68 }
+      ],
+      
+      improvementAreas: [
+        { issue: 'Delivery time delays', percentage: 18 },
+        { issue: 'Package handling', percentage: 12 },
+        { issue: 'Location accuracy', percentage: 8 },
+        { issue: 'COD discrepancies', percentage: 5 }
+      ],
+      
+      feedbackTrends: {
+        satisfaction: {
+          current: 4.7,
+          previous: 4.5,
+          change: 0.2
+        },
+        complaints: {
+          current: 3,
+          previous: 8,
+          change: -5
+        },
+        recommendations: {
+          current: 92,
+          previous: 87,
+          change: 5
+        }
+      },
+      
+      topComments: [
+        "Great service! Driver was very professional and delivered on time.",
+        "Fast delivery and accurate COD collection. Highly recommended!",
+        "Could improve on delivery time estimation, but overall good experience.",
+        "Excellent communication throughout the delivery process."
+      ]
+    };
+    
+    return feedbackData;
+  }
 }
 
 export const deliveryService = new DeliveryService();
