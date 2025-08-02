@@ -3,7 +3,7 @@ import { useSelector, useDispatch } from "react-redux";
 import { motion } from "framer-motion";
 import { loyaltyService } from "@/services/api/loyaltyService";
 import { redeemReward } from "@/store/loyaltySlice";
-import { toast } from "react-toastify";
+import { toast } from "react-hot-toast";
 import Button from "@/components/atoms/Button";
 import Badge from "@/components/atoms/Badge";
 import Loading from "@/components/ui/Loading";
