@@ -6,6 +6,8 @@ import wishlistReducer from "./wishlistSlice";
 import browsingReducer from "./browsingSlice";
 import loyaltyReducer from "./loyaltySlice";
 import localizationReducer from "./localizationSlice";
+import discrepancyReducer from "./discrepancySlice";
+
 export const store = configureStore({
   reducer: {
     cart: cartReducer,
@@ -15,11 +17,16 @@ export const store = configureStore({
     browsing: browsingReducer,
     loyalty: loyaltyReducer,
     localization: localizationReducer,
+    discrepancy: discrepancyReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: {
-        ignoredActions: [],
+        ignoredActions: [
+          'discrepancy/addDiscrepancy',
+          'discrepancy/addCustomerVerification',
+          'discrepancy/addAgentDeduction'
+        ],
       },
     }),
 });

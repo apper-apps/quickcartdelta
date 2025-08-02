@@ -1,7 +1,9 @@
+import React from "react";
 import { orderService } from "@/services/api/orderService";
+import Error from "@/components/ui/Error";
 
 class DeliveryService {
-  constructor() {
+constructor() {
     this.activeDeliveries = new Map();
     this.driverLocation = null;
     this.earningsData = {
@@ -13,6 +15,13 @@ class DeliveryService {
         onTime: 50, // Rs per on-time delivery
         customer: 25, // Rs per 5-star rating
         efficiency: 100 // Rs for completing route under time
+      },
+      // Enhanced discrepancy deduction settings
+      discrepancyDeductions: {
+        threshold: 50, // Minimum amount for auto-deduction
+        percentage: 100, // Percentage of discrepancy to deduct (100% = full amount)
+        maxDaily: 500, // Maximum daily deductions per agent
+        escalationThreshold: 200 // Amount that triggers immediate escalation
       }
     };
     this.vehicleMetrics = {
@@ -28,6 +37,11 @@ class DeliveryService {
     this.webhookSubscribers = new Set();
     this.networkStatus = 'online';
     this.lastSyncTimestamp = new Date().toISOString();
+    
+    // Discrepancy tracking
+    this.discrepancyTracker = new Map();
+    this.customerVerifications = new Map();
+    this.agentDeductions = new Map();
     
     // Initialize real-time monitoring
     this.initializeRealtimeSync();
@@ -311,7 +325,7 @@ async getDeliveryMetrics(driverId, period = 'today') {
     };
   }
 
-  calculateEarnings(delivered, onTimeDeliveries, customerRating, averageTime) {
+calculateEarnings(delivered, onTimeDeliveries, customerRating, averageTime, driverId = null) {
     const baseEarnings = delivered.length * this.earningsData.deliveryRate;
     
     // On-time bonus
@@ -325,6 +339,10 @@ async getDeliveryMetrics(driverId, period = 'today') {
     
     const totalBonuses = onTimeBonus + ratingBonus + efficiencyBonus;
     
+    // Calculate discrepancy deductions
+    const discrepancyDeductions = this.calculateDiscrepancyDeductions(driverId);
+    const totalDeductions = this.earningsData.deductions + discrepancyDeductions.total;
+    
     return {
       basePay: this.earningsData.basePay,
       deliveryEarnings: baseEarnings,
@@ -334,9 +352,54 @@ async getDeliveryMetrics(driverId, period = 'today') {
         efficiency: efficiencyBonus,
         total: totalBonuses
       },
-      deductions: this.earningsData.deductions,
-      totalEarnings: this.earningsData.basePay + baseEarnings + totalBonuses - this.earningsData.deductions
+      deductions: {
+        standard: this.earningsData.deductions,
+        discrepancy: discrepancyDeductions.total,
+        discrepancyBreakdown: discrepancyDeductions.breakdown,
+        total: totalDeductions
+      },
+      totalEarnings: this.earningsData.basePay + baseEarnings + totalBonuses - totalDeductions,
+      discrepancyImpact: discrepancyDeductions.total > 0 ? {
+        totalDeducted: discrepancyDeductions.total,
+        ordersAffected: discrepancyDeductions.breakdown.length,
+        averageDiscrepancy: discrepancyDeductions.breakdown.length > 0 
+          ? Math.round(discrepancyDeductions.total / discrepancyDeductions.breakdown.length) 
+          : 0
+      } : null
     };
+  }
+
+  // New method to calculate discrepancy deductions
+  calculateDiscrepancyDeductions(driverId) {
+    if (!driverId) {
+      return { total: 0, breakdown: [] };
+    }
+
+    const deductions = JSON.parse(localStorage.getItem('agentDeductions') || '[]');
+    const driverDeductions = deductions.filter(d => 
+      d.driverId === driverId && 
+      d.reason === 'cod_discrepancy' &&
+      this.isToday(d.timestamp)
+    );
+
+    const total = driverDeductions.reduce((sum, d) => sum + d.amount, 0);
+    
+    return {
+      total,
+      breakdown: driverDeductions.map(d => ({
+        orderId: d.orderId,
+        amount: d.amount,
+        timestamp: d.timestamp,
+        autoProcessed: d.autoProcessed
+      }))
+    };
+  }
+
+  // Helper method to check if timestamp is today
+  isToday(timestamp) {
+    const today = new Date().toDateString();
+    const date = new Date(timestamp).toDateString();
+return today === date;
   }
 
   calculateCustomerRating(delivered, onTimeDeliveries, averageTime) {
@@ -401,14 +464,16 @@ async completeDelivery(orderId, proofData) {
 
     const codAmount = proofData.codAmount || order.codAmount || order.total;
     const dueAmount = order.codAmount || order.total;
+    const discrepancy = Math.abs(codAmount - dueAmount);
     
     const codData = {
       collectedAmount: codAmount,
       dueAmount,
-      discrepancy: Math.abs(codAmount - dueAmount),
+      discrepancy,
       collectedBy: proofData.driverId || order.assignedDriver,
       timestamp,
-      digitalReceiptGenerated: true
+      digitalReceiptGenerated: true,
+      discrepancyHandled: discrepancy > 0
     };
     
     // Enhanced proof data with GPS verification
@@ -420,35 +485,41 @@ async completeDelivery(orderId, proofData) {
       complianceVerified: true,
       codData
     };
+
+    // Pre-delivery discrepancy tracking
+    if (discrepancy > 0) {
+      await this.trackDiscrepancy(orderId, discrepancy, order.assignedDriver);
+    }
     
-    const updatedOrder = await orderService.update(orderId, {
-      deliveryStatus: 'delivered',
-      deliveredAt: timestamp,
-      proofOfDelivery: enhancedProofData,
-      completedBy: proofData.driverId || order.assignedDriver,
-      codCollected: true,
-      codCollectedAmount: codAmount,
-      codDiscrepancy: codData.discrepancy,
-      digitalReceiptGenerated: true,
-      gpsVerified: !!enhancedProofData.gpsLocation
-    });
+    const updatedOrder = await orderService.updateDeliveryStatus(
+      orderId, 
+      'delivered', 
+      enhancedProofData.gpsLocation, 
+      proofData.notes || '', 
+      codData
+    );
 
     // Remove from active deliveries
     this.activeDeliveries.delete(orderId);
 
-    // Update settlement data
-    await this.updateSettlementData(codAmount, true);
+    // Update settlement data with discrepancy consideration
+    await this.updateSettlementData(codAmount, true, discrepancy);
 
-    // Add to sync queue
+    // Add to sync queue with discrepancy data
     this.addToSyncQueue({
       type: 'delivery_completed',
       orderId,
       proofData: enhancedProofData,
       codData,
+      discrepancyData: discrepancy > 0 ? {
+        amount: discrepancy,
+        customerVerificationSent: true,
+        agentDeductionProcessed: discrepancy >= this.earningsData.discrepancyDeductions.threshold
+      } : null,
       timestamp
     });
 
-    // Broadcast completion with customer notification
+    // Enhanced broadcast with discrepancy notifications
     this.broadcastUpdate('delivery_completed', {
       orderId,
       order: updatedOrder,
@@ -456,13 +527,42 @@ async completeDelivery(orderId, proofData) {
       smsNotification: {
         phone: order.shipping?.phone,
         message: `✅ ORDER #${orderId} Delivered (${new Date().toLocaleTimeString()})
-💰 Collected: ₹${codAmount} ${codData.discrepancy === 0 ? '(No discrepancy)' : `(₹${codData.discrepancy} discrepancy)`}
+💰 Collected: ₹${codAmount} ${discrepancy === 0 ? '(No discrepancy)' : `(₹${discrepancy} discrepancy)`}
 📍 GPS Verified: ${enhancedProofData.gpsLocation?.lat?.toFixed(6)}° N, ${enhancedProofData.gpsLocation?.lng?.toFixed(6)}° E
 📧 Digital receipt: ${enhancedProofData.digitalReceiptId}`
-      }
+      },
+      ...(discrepancy > 0 && {
+        discrepancyHandling: {
+          customerVerificationSent: true,
+          agentNotified: true,
+          deductionProcessed: discrepancy >= this.earningsData.discrepancyDeductions.threshold
+        }
+      })
     });
 
     return updatedOrder;
+  }
+
+  // New method for discrepancy tracking
+  async trackDiscrepancy(orderId, discrepancy, driverId) {
+    const discrepancyData = {
+      orderId,
+      driverId,
+      amount: discrepancy,
+      timestamp: new Date().toISOString(),
+      status: 'detected',
+      customerVerificationSent: true,
+      agentDeductionProcessed: discrepancy >= this.earningsData.discrepancyDeductions.threshold
+    };
+
+    this.discrepancyTracker.set(orderId, discrepancyData);
+    
+    // Store persistently
+    const discrepancies = JSON.parse(localStorage.getItem('discrepancyTracker') || '[]');
+    discrepancies.push(discrepancyData);
+    localStorage.setItem('discrepancyTracker', JSON.stringify(discrepancies));
+
+    console.log('📊 Discrepancy tracked:', discrepancyData);
   }
 // COD Settlement Management
 async getCodSettlement() {
@@ -617,15 +717,67 @@ async getCodSettlement() {
     }
     
     return Math.max(0, Math.round(score));
-  }
+}
 
+  // Enhanced discrepancy management
   getDiscrepancies(transactions) {
     return transactions.filter(t => t.discrepancy && t.discrepancy > 0);
+  }
+
+  getDiscrepancyAnalytics(driverId = null) {
+    const discrepancies = JSON.parse(localStorage.getItem('discrepancyTracker') || '[]');
+    const filtered = driverId ? discrepancies.filter(d => d.driverId === driverId) : discrepancies;
+    
+    const today = filtered.filter(d => this.isToday(d.timestamp));
+    const thisWeek = filtered.filter(d => this.isThisWeek(d.timestamp));
+    
+    return {
+      total: filtered.length,
+      today: today.length,
+      thisWeek: thisWeek.length,
+      totalAmount: filtered.reduce((sum, d) => sum + d.amount, 0),
+      averageAmount: filtered.length > 0 ? Math.round(filtered.reduce((sum, d) => sum + d.amount, 0) / filtered.length) : 0,
+      customerVerificationRate: filtered.length > 0 ? Math.round((filtered.filter(d => d.customerVerificationSent).length / filtered.length) * 100) : 0,
+      autoDeductionRate: filtered.length > 0 ? Math.round((filtered.filter(d => d.agentDeductionProcessed).length / filtered.length) * 100) : 0
+    };
+  }
+
+  async resolveDiscrepancy(orderId, resolution, notes = '') {
+    const discrepancies = JSON.parse(localStorage.getItem('discrepancyTracker') || '[]');
+    const index = discrepancies.findIndex(d => d.orderId === orderId);
+    
+    if (index >= 0) {
+      discrepancies[index].status = 'resolved';
+      discrepancies[index].resolution = resolution;
+      discrepancies[index].resolutionNotes = notes;
+      discrepancies[index].resolvedAt = new Date().toISOString();
+      
+      localStorage.setItem('discrepancyTracker', JSON.stringify(discrepancies));
+      
+      // Notify relevant parties
+      this.broadcastUpdate('discrepancy_resolved', {
+        orderId,
+        resolution,
+        discrepancy: discrepancies[index]
+      });
+      
+      return discrepancies[index];
+    }
+    
+    throw new Error('Discrepancy not found');
   }
 
   calculateGpsVerificationRate(transactions) {
     const gpsVerified = transactions.filter(t => t.location && t.location.verified);
     return transactions.length > 0 ? Math.round((gpsVerified.length / transactions.length) * 100) : 0;
+  }
+
+  // Helper method for week filtering
+  isThisWeek(timestamp) {
+    const now = new Date();
+    const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
+    const date = new Date(timestamp);
+    return date >= weekStart;
   }
 
   // Vehicle Management

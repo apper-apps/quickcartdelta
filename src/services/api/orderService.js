@@ -334,7 +334,7 @@ async updateDeliveryStatus(id, status, location = null, notes = '', codData = nu
       order.deliveryNotes = notes;
     }
     
-    // Enhanced COD handling for delivered orders
+    // Enhanced COD handling with discrepancy management
     if (status === 'delivered' && codData) {
       const codAmount = codData.collectedAmount || order.codAmount || order.total;
       const dueAmount = order.codAmount || order.total;
@@ -347,13 +347,47 @@ async updateDeliveryStatus(id, status, location = null, notes = '', codData = nu
       order.codRecordedAt = timestamp;
       order.digitalReceiptId = `RCP-${id}-${Date.now()}`;
       
-      // Update agent wallet balance
+      // Immediate discrepancy handling
+      if (discrepancy > 0) {
+        // Set discrepancy status and verification requirements
+        order.discrepancyStatus = 'pending_verification';
+        order.discrepancyDetectedAt = timestamp;
+        order.customerVerificationRequired = true;
+        order.agentDeductionPending = discrepancy >= 50; // Deduction threshold
+        
+        // Immediate customer SMS for verification
+        await this.sendCustomerVerificationSMS(order, discrepancy);
+        
+        // Auto-deduct from agent if above threshold
+        if (discrepancy >= 50 && order.assignedDriver) {
+          await this.processAgentDeduction(order.assignedDriver, discrepancy, id);
+          order.agentDeductionProcessed = true;
+          order.agentDeductionAmount = discrepancy;
+          order.agentDeductionAt = timestamp;
+        }
+        
+        // Generate enhanced compliance alert
+        await this.generateComplianceAlert({
+          type: 'cod_discrepancy',
+          severity: discrepancy >= 100 ? 'high' : discrepancy >= 50 ? 'medium' : 'low',
+          orderId: id,
+          driverId: order.assignedDriver,
+          discrepancy,
+          collectedAmount: codAmount,
+          dueAmount,
+          timestamp,
+          customerVerificationSent: true,
+          agentDeductionProcessed: order.agentDeductionProcessed || false
+        });
+      }
+
+      // Update agent wallet balance (original collection)
       if (order.assignedDriver) {
         const currentBalance = this.agentWalletLimits.get(order.assignedDriver) || 0;
         this.agentWalletLimits.set(order.assignedDriver, Math.max(0, currentBalance - dueAmount));
       }
 
-      // Add to COD ledger
+      // Add to COD ledger with discrepancy tracking
       await this.addCodTransaction({
         type: 'collection',
         orderId: id,
@@ -361,24 +395,14 @@ async updateDeliveryStatus(id, status, location = null, notes = '', codData = nu
         amount: codAmount,
         dueAmount,
         discrepancy,
+        discrepancyStatus: order.discrepancyStatus,
         timestamp,
         location: order.gpsVerification,
         digitalReceiptId: order.digitalReceiptId,
-        metadata: codData
+        metadata: codData,
+        customerVerificationSent: discrepancy > 0,
+        agentDeductionProcessed: order.agentDeductionProcessed || false
       });
-
-      // Auto-generate compliance alert if discrepancy
-      if (discrepancy > 0) {
-        await this.generateComplianceAlert({
-          type: 'cod_discrepancy',
-          orderId: id,
-          driverId: order.assignedDriver,
-          discrepancy,
-          collectedAmount: codAmount,
-          dueAmount,
-          timestamp
-        });
-      }
     }
     
     // Add delivery timeline entry
@@ -391,6 +415,7 @@ async updateDeliveryStatus(id, status, location = null, notes = '', codData = nu
       codData: codData ? {
         ...codData,
         discrepancy: order.codDiscrepancy || 0,
+        discrepancyStatus: order.discrepancyStatus,
         digitalReceiptId: order.digitalReceiptId
       } : null
     });
@@ -404,11 +429,15 @@ async updateDeliveryStatus(id, status, location = null, notes = '', codData = nu
       details: { 
         status, 
         location: order.gpsVerification,
-        codData: codData ? { collectedAmount: codData.collectedAmount, discrepancy: order.codDiscrepancy } : null
+        codData: codData ? { 
+          collectedAmount: codData.collectedAmount, 
+          discrepancy: order.codDiscrepancy,
+          discrepancyStatus: order.discrepancyStatus 
+        } : null
       }
     });
 
-    // Trigger webhooks for real-time sync
+    // Enhanced webhook with discrepancy notifications
     this.triggerWebhook('delivery_status_updated', {
       orderId: id,
       status,
@@ -419,11 +448,84 @@ async updateDeliveryStatus(id, status, location = null, notes = '', codData = nu
           message: `✅ ORDER #${id} Delivered (${new Date().toLocaleTimeString()})
 💰 Collected: ₹${codData.collectedAmount} ${order.codDiscrepancy === 0 ? '(No discrepancy)' : `(₹${order.codDiscrepancy} discrepancy)`}
 📍 GPS Verified: ${order.gpsVerification?.latitude}° N, ${order.gpsVerification?.longitude}° E`
-        }
+        },
+        ...(order.codDiscrepancy > 0 && {
+          discrepancyAlert: {
+            severity: order.codDiscrepancy >= 100 ? 'high' : order.codDiscrepancy >= 50 ? 'medium' : 'low',
+            customerVerificationSent: true,
+            agentDeductionProcessed: order.agentDeductionProcessed || false
+          }
+        })
       })
     });
     
     return { ...order };
+  }
+
+  // New method for customer verification SMS
+  async sendCustomerVerificationSMS(order, discrepancy) {
+    const verificationCode = Math.floor(100000 + Math.random() * 900000); // 6-digit code
+    const message = `🚨 PAYMENT VERIFICATION REQUIRED
+Order #${order.Id}: Amount discrepancy of ₹${discrepancy} detected.
+Expected: ₹${order.codDueAmount}
+Collected: ₹${order.codCollectedAmount}
+
+Please verify: Reply with code ${verificationCode} if amount is correct.
+Or call customer service: 1800-XXX-XXXX`;
+
+    // Store verification code
+    order.customerVerificationCode = verificationCode;
+    order.customerVerificationSentAt = new Date().toISOString();
+    order.customerVerificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24h expiry
+
+    // Trigger SMS
+    this.triggerWebhook('customer_verification_sms', {
+      phone: order.shipping?.phone,
+      message,
+      orderId: order.Id,
+      discrepancy,
+      verificationCode
+    });
+
+    console.log('🔔 Customer verification SMS sent:', { orderId: order.Id, discrepancy, phone: order.shipping?.phone });
+  }
+
+  // New method for agent deduction processing
+  async processAgentDeduction(driverId, amount, orderId) {
+    const deduction = {
+      id: Date.now(),
+      driverId,
+      orderId,
+      amount,
+      reason: 'cod_discrepancy',
+      timestamp: new Date().toISOString(),
+      status: 'processed',
+      autoProcessed: true
+    };
+
+    // Store deduction record
+    const deductions = JSON.parse(localStorage.getItem('agentDeductions') || '[]');
+    deductions.push(deduction);
+    localStorage.setItem('agentDeductions', JSON.stringify(deductions));
+
+    // Update agent balance
+    const currentBalance = this.agentWalletLimits.get(driverId) || 0;
+    this.agentWalletLimits.set(driverId, Math.max(0, currentBalance - amount));
+
+    // Notify agent
+    this.triggerWebhook('agent_deduction_processed', {
+      driverId,
+      deduction,
+      newBalance: this.agentWalletLimits.get(driverId),
+      pushNotification: {
+        title: 'Wallet Deduction Processed',
+        message: `₹${amount} deducted due to COD discrepancy in Order #${orderId}`,
+        driverId
+      }
+    });
+
+    console.log('💰 Agent deduction processed:', deduction);
+    return deduction;
   }
 
 async getDeliveryOrders() {
@@ -493,7 +595,7 @@ async getDeliveryOrders() {
     this.webhookEndpoints.add(url);
   }
 
-  triggerWebhook(event, data) {
+triggerWebhook(event, data) {
     // Simulate webhook calls to agent apps
     const webhookData = {
       event,
@@ -510,14 +612,62 @@ async getDeliveryOrders() {
       // In real implementation: fetch(url, { method: 'POST', body: JSON.stringify(webhookData) })
     });
 
-    // Simulate push notification
+    // Enhanced notification handling
     if (data.pushNotification) {
       console.log('📱 Push notification sent:', data.pushNotification);
     }
 
-    // Simulate SMS notification
     if (data.smsNotification) {
       console.log('📱 SMS sent:', data.smsNotification);
+    }
+
+    // Customer verification SMS
+    if (event === 'customer_verification_sms') {
+      console.log('📱 Customer verification SMS sent:', {
+        phone: data.phone,
+        orderId: data.orderId,
+        discrepancy: data.discrepancy,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Agent deduction notifications
+    if (event === 'agent_deduction_processed') {
+      console.log('💰 Agent deduction notification:', {
+        driverId: data.driverId,
+        amount: data.deduction.amount,
+        newBalance: data.newBalance,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Discrepancy alerts
+    if (data.discrepancyAlert) {
+      console.log('🚨 Discrepancy alert triggered:', {
+        severity: data.discrepancyAlert.severity,
+        customerVerificationSent: data.discrepancyAlert.customerVerificationSent,
+        agentDeductionProcessed: data.discrepancyAlert.agentDeductionProcessed
+      });
+    }
+
+    // Alert escalations
+    if (event === 'alert_escalation') {
+      console.log('⚠️ Alert escalation webhook:', data);
+    }
+
+    // Compliance alerts with enhanced routing
+    if (event === 'compliance_alert' && data.discrepancyNotification) {
+      const { adminAlert, managerAlert, immediateAction } = data.discrepancyNotification;
+      
+      if (immediateAction) {
+        console.log('🚨 IMMEDIATE ACTION REQUIRED:', data);
+      }
+      if (adminAlert) {
+        console.log('👨‍💼 Admin notification sent:', data);
+      }
+      if (managerAlert) {
+        console.log('👩‍💼 Manager notification sent:', data);
+      }
     }
   }
 
@@ -564,24 +714,82 @@ async getDeliveryOrders() {
   }
 
   // Automated compliance alerts
-  async generateComplianceAlert(alertData) {
+async generateComplianceAlert(alertData) {
     const alert = {
       id: Date.now(),
       ...alertData,
       timestamp: new Date().toISOString(),
-      status: 'active'
+      status: 'active',
+      escalationLevel: this.determineEscalationLevel(alertData),
+      autoActions: this.getAutoActions(alertData)
     };
 
-    // Store alert
+    // Store alert with enhanced categorization
     const alerts = JSON.parse(localStorage.getItem('complianceAlerts') || '[]');
     alerts.push(alert);
     localStorage.setItem('complianceAlerts', JSON.stringify(alerts));
 
-    // Trigger notification
-    this.triggerWebhook('compliance_alert', alert);
+    // Enhanced notification with escalation
+    this.triggerWebhook('compliance_alert', {
+      ...alert,
+      ...(alert.type === 'cod_discrepancy' && {
+        discrepancyNotification: {
+          adminAlert: alert.severity === 'high',
+          managerAlert: alert.severity === 'medium' || alert.severity === 'high',
+          immediateAction: alert.severity === 'high' && alert.discrepancy >= 200
+        }
+      })
+    });
 
-    console.log('🚨 Compliance Alert Generated:', alert);
+    // Auto-escalate high severity alerts
+    if (alert.severity === 'high') {
+      await this.escalateAlert(alert);
+    }
+
+    console.log('🚨 Enhanced Compliance Alert Generated:', alert);
     return alert;
+  }
+
+  // Helper method to determine escalation level
+  determineEscalationLevel(alertData) {
+    if (alertData.type === 'cod_discrepancy') {
+      if (alertData.discrepancy >= 200) return 'immediate';
+      if (alertData.discrepancy >= 100) return 'high';
+      if (alertData.discrepancy >= 50) return 'medium';
+      return 'low';
+    }
+    return 'standard';
+  }
+
+  // Helper method to get auto actions
+  getAutoActions(alertData) {
+    const actions = [];
+    if (alertData.type === 'cod_discrepancy') {
+      actions.push('customer_sms_sent');
+      if (alertData.discrepancy >= 50) {
+        actions.push('agent_deduction_processed');
+      }
+      if (alertData.discrepancy >= 100) {
+        actions.push('manager_notification');
+      }
+      if (alertData.discrepancy >= 200) {
+        actions.push('admin_escalation');
+      }
+    }
+    return actions;
+  }
+
+  // Helper method to escalate alerts
+  async escalateAlert(alert) {
+    const escalation = {
+      alertId: alert.id,
+      timestamp: new Date().toISOString(),
+      level: alert.escalationLevel,
+      actions: ['admin_notification', 'immediate_review']
+    };
+
+    this.triggerWebhook('alert_escalation', escalation);
+    console.log('⚠️ Alert escalated:', escalation);
   }
 
   // Check for unassigned COD orders > 1 hour
