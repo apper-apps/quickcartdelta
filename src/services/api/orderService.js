@@ -2081,7 +2081,6 @@ async generateSecureComplianceAlert(alertData) {
       }
     }
     return alerts;
-  }
 }
 }
 

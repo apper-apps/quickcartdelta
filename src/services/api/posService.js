@@ -1,7 +1,7 @@
 import { orderService } from './orderService';
 import { productService } from './productService';
 import { notificationService } from './notificationService';
-
+import { encryptionService } from '@/utils/encryption';
 class POSService {
   constructor() {
     this.offlineData = this.loadOfflineData();
@@ -67,23 +67,19 @@ loadOfflineData() {
       localStorage.setItem('posInventoryChanges', JSON.stringify(this.offlineData.inventoryChanges));
     }
   }
-
-  // Encrypt offline data using financial encryption
+// Encrypt offline data using financial encryption
   encryptOfflineData(data) {
-    const { encryptionService } = require('@/utils/encryption');
     return JSON.stringify(encryptionService.encryptFinancialData(data));
   }
 
-  // Decrypt offline data
+// Decrypt offline data
   decryptOfflineData(encryptedData) {
-    const { encryptionService } = require('@/utils/encryption');
     const parsed = JSON.parse(encryptedData);
     return encryptionService.decryptFinancialData(parsed);
   }
 
-  // Create security audit trail
+// Create security audit trail
   createSecurityAudit(action, data) {
-    const { encryptionService } = require('@/utils/encryption');
     const auditEntry = encryptionService.createAuditEntry(action, data, 'pos_system');
     
     // Store encrypted audit trail
@@ -101,10 +97,8 @@ loadOfflineData() {
 async processPayment(orderData) {
     await this.delay();
     
-    try {
+try {
       // Enhanced payment processing with PCI-DSS compliance
-      const { encryptionService } = require('@/utils/encryption');
-      
       // Create payment token for sensitive data
       const paymentData = {
         amount: orderData.total,
@@ -186,9 +180,7 @@ async processPayment(orderData) {
   }
 
   // Generate secure receipt with encryption
-  generateSecureReceipt(order, paymentToken) {
-    const { encryptionService } = require('@/utils/encryption');
-    
+generateSecureReceipt(order, paymentToken) {
     const receipt = {
       number: order.receiptNumber,
       date: new Date().toISOString(),
@@ -286,8 +278,7 @@ async syncOfflineData() {
 
     await this.delay(1000);
     
-    try {
-      const { encryptionService } = require('@/utils/encryption');
+try {
       const syncStartTime = new Date().toISOString();
       const syncId = encryptionService.generateAnonymousId();
       
@@ -442,9 +433,7 @@ async syncOfflineData() {
   }
 
   // Secure cleanup of synced data
-  secureCleanupSyncedData() {
-    const { encryptionService } = require('@/utils/encryption');
-    
+secureCleanupSyncedData() {
     // Secure deletion of temporary encryption keys
     const keysToDelete = [
       'temp_sync_key',
