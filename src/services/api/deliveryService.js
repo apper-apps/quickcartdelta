@@ -457,12 +457,10 @@ return emergencyReport;
   }
 async getDeliveryZones() {
     await this.delay(500);
-    
-    const zones = [
-      {
+const zones = [
       { 
         Id: 1, 
-        name: 'Downtown', 
+        name: 'Downtown',
         performance: 92, 
         activeOrders: 15, 
         avgDeliveryTime: 22, 
@@ -536,8 +534,7 @@ async getHeatmapData() {
 async getBottleneckAlerts() {
     await this.delay(300);
     
-    const alerts = [
-      {
+const alerts = [
       {
         Id: 1,
         title: 'Traffic Congestion Detected',
@@ -576,10 +573,9 @@ async getBottleneckAlerts() {
     return alerts;
   }
 async getTeamMetrics() {
-    await this.delay(350);
+await this.delay(350);
     
     const metrics = {
-      totalDeliveries: 237,
       totalDeliveries: 237,
       onTimeRate: 86,
       avgDeliveryTime: 28,
@@ -598,8 +594,7 @@ async getTeamMetrics() {
 async executeZoneAction(zoneId, action) {
     await this.delay(800);
     
-    const actions = {
-      'prioritize': `Zone ${zoneId} has been prioritized for immediate attention`,
+const actions = {
       'prioritize': `Zone ${zoneId} has been prioritized for immediate attention`,
       'assign_backup': `Backup driver has been assigned to zone ${zoneId}`,
       'reroute': `Traffic rerouting has been activated for zone ${zoneId}`,

@@ -854,99 +854,7 @@ const renderNavigation = () => (
       </div>
     </div>
   );
-
-  if (loading) return <Loading />;
-  if (error) return <Error message={error} onRetry={loadDeliveryOrders} />;
-
-return (
-    <div className="container mx-auto px-4 py-6 max-w-7xl">
-      {/* Header with Status Indicators */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-3">
-          <ApperIcon name="Truck" size={32} className="text-primary" />
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold gradient-text">Delivery Dashboard</h1>
-            <p className="text-sm text-gray-600">Driver Mobile Command Center</p>
-          </div>
-        </div>
-        
-        {/* Status Indicators */}
-        <div className="flex items-center gap-4 text-sm">
-          <div className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-800 rounded-full">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span>Online</span>
-          </div>
-          {fatigueAlert && (
-            <div className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-800 rounded-full">
-              <ApperIcon name="AlertTriangle" size={14} />
-              <span>Fatigue Alert</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {renderNavigation()}
-
-      {loading && <Loading />}
-      {error && <Error message={error} onRetry={loadDeliveryOrders} />}
-{!loading && !error && (
-        <>
-          {currentView === 'queue' && renderOrderQueue()}
-          
-          {currentView === 'map' && (
-            <DeliveryMap 
-              orders={orders}
-              driverLocation={driverLocation}
-              optimizedRoute={optimizedRoute}
-              selectedOrder={selectedOrder}
-              onOrderSelect={setSelectedOrder}
-              teamData={teamData}
-              isTeamView={false}
-            />
-          )}
-          
-          {currentView === 'team' && renderTeamDashboard()}
-          
-          {currentView === 'earnings' && renderEarningsView()}
-          
-          {currentView === 'operational' && renderOperationalView()}
-          
-          {currentView === 'contact' && selectedOrder && (
-            <CustomerContact 
-              order={selectedOrder}
-              onClose={() => {
-                setCurrentView('queue');
-                setSelectedOrder(null);
-              }}
-            />
-          )}
-          
-          {currentView === 'proof' && selectedOrder && (
-            <ProofOfDelivery 
-              order={selectedOrder}
-              onComplete={(proofData) => {
-                updateOrderStatus(selectedOrder.Id, 'delivered', 'Delivery completed with proof');
-                setCurrentView('queue');
-                setSelectedOrder(null);
-              }}
-              onCancel={() => {
-                setCurrentView('queue');
-                setSelectedOrder(null);
-              }}
-            />
-          )}
-          
-          {currentView === 'metrics' && (
-            <DeliveryMetrics />
-          )}
-          
-          {currentView === 'support' && renderSupportSystem()}
-        </>
-      )}
-    </div>
-  );
-
-  // Team Dashboard Functions
+// Team Dashboard Functions
   const loadTeamData = async () => {
     try {
       const [drivers, zones, heatmap, alerts, metrics] = await Promise.all([
@@ -1249,7 +1157,98 @@ return (
     if (currentView === 'team') {
       loadTeamData();
     }
-}, [currentView]);
+  }, [currentView]);
+
+  if (loading) return <Loading />;
+  if (error) return <Error message={error} onRetry={loadDeliveryOrders} />;
+
+  return (
+    <div className="container mx-auto px-4 py-6 max-w-7xl">
+      {/* Header with Status Indicators */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-3">
+          <ApperIcon name="Truck" size={32} className="text-primary" />
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold gradient-text">Delivery Dashboard</h1>
+            <p className="text-sm text-gray-600">Driver Mobile Command Center</p>
+          </div>
+        </div>
+        
+        {/* Status Indicators */}
+        <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-800 rounded-full">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span>Online</span>
+          </div>
+          {fatigueAlert && (
+            <div className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-800 rounded-full">
+              <ApperIcon name="AlertTriangle" size={14} />
+              <span>Fatigue Alert</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {renderNavigation()}
+
+      {loading && <Loading />}
+      {error && <Error message={error} onRetry={loadDeliveryOrders} />}
+      {!loading && !error && (
+        <>
+          {currentView === 'queue' && renderOrderQueue()}
+          
+          {currentView === 'map' && (
+            <DeliveryMap 
+              orders={orders}
+              driverLocation={driverLocation}
+              optimizedRoute={optimizedRoute}
+              selectedOrder={selectedOrder}
+              onOrderSelect={setSelectedOrder}
+              teamData={teamData}
+              isTeamView={false}
+            />
+          )}
+          
+          {currentView === 'team' && renderTeamDashboard()}
+          
+          {currentView === 'earnings' && renderEarningsView()}
+          
+          {currentView === 'operational' && renderOperationalView()}
+          
+          {currentView === 'contact' && selectedOrder && (
+            <CustomerContact 
+              order={selectedOrder}
+              onClose={() => {
+                setCurrentView('queue');
+                setSelectedOrder(null);
+              }}
+            />
+          )}
+          
+          {currentView === 'proof' && selectedOrder && (
+            <ProofOfDelivery 
+              order={selectedOrder}
+              onComplete={(proofData) => {
+                updateOrderStatus(selectedOrder.Id, 'delivered', 'Delivery completed with proof');
+                setCurrentView('queue');
+                setSelectedOrder(null);
+              }}
+              onCancel={() => {
+                setCurrentView('queue');
+                setSelectedOrder(null);
+              }}
+            />
+          )}
+          
+          {currentView === 'metrics' && (
+            <DeliveryMetrics />
+          )}
+          
+          {currentView === 'support' && renderSupportSystem()}
+        </>
+      )}
+    </div>
+  );
 };
 
 export default DeliveryDashboard;
