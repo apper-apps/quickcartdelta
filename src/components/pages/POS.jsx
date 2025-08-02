@@ -1,24 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { motion } from 'framer-motion';
-import { toast } from 'react-toastify';
-import { 
-  togglePOSMode, 
-  setOfflineMode, 
-  addToCart, 
-  clearCart,
-  generateReceipt,
-  syncOfflineData
-} from '@/store/cartSlice';
-import { posService } from '@/services/api/posService';
-import { productService } from '@/services/api/productService';
-import SearchBar from '@/components/molecules/SearchBar';
-import ProductCard from '@/components/molecules/ProductCard';
-import Button from '@/components/atoms/Button';
-import Badge from '@/components/atoms/Badge';
-import ApperIcon from '@/components/ApperIcon';
-import Loading from '@/components/ui/Loading';
-import Error from '@/components/ui/Error';
+import React, { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { motion } from "framer-motion";
+import toast from "react-hot-toast";
+import { posService } from "@/services/api/posService";
+import { productService } from "@/services/api/productService";
+import ApperIcon from "@/components/ApperIcon";
+import ProductCard from "@/components/molecules/ProductCard";
+import SearchBar from "@/components/molecules/SearchBar";
+import Loading from "@/components/ui/Loading";
+import Error from "@/components/ui/Error";
+import Cart from "@/components/pages/Cart";
+import Badge from "@/components/atoms/Badge";
+import Button from "@/components/atoms/Button";
+import { addToCart, clearCart, generateReceipt, setOfflineMode, syncOfflineData, togglePOSMode } from "@/store/cartSlice";
 
 const POS = () => {
   const dispatch = useDispatch();
