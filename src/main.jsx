@@ -8,15 +8,11 @@ import { globalErrorHandler } from "@/utils/errorHandler";
 // Initialize global error handlers
 globalErrorHandler.setupGlobalHandlers();
 
-// Service Worker Registration with Error Handling
-// PWA Service Worker Registration (handled by vite-plugin-pwa)
+// PWA Service Worker Registration
 const registerServiceWorker = async () => {
   if ('serviceWorker' in navigator && import.meta.env.PROD) {
     try {
-      // Import the registerSW function from vite-plugin-pwa
-      // Check if virtual module is available before importing
-      if (typeof __PWA_REGISTER__ !== 'undefined') {
-        const { registerSW } = await import('virtual:pwa-register');
+      const { registerSW } = await import('virtual:pwa-register');
       
       const updateSW = registerSW({
         onNeedRefresh() {
@@ -30,19 +26,14 @@ const registerServiceWorker = async () => {
         onRegisterError(error) {
           console.warn('Service Worker registration error:', error);
         }
-});
-        
-        console.log('PWA Service Worker registered successfully');
-      } else {
-        console.info('PWA virtual module not available - running in standard web mode');
-      }
+      });
+      
+      console.log('PWA Service Worker registered successfully');
     } catch (error) {
-      // Enhanced error handling for different PWA failure scenarios
+      // Graceful fallback for PWA registration failures
       console.info('PWA features not available - running in standard web mode');
       if (error.name === 'SecurityError') {
         console.info('HTTPS required for PWA features');
-      } else if (error.message?.includes('virtual:pwa-register')) {
-        console.info('PWA plugin not properly configured');
       } else {
         console.warn('Service Worker registration error:', error.message);
       }
