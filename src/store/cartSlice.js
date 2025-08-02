@@ -1,6 +1,4 @@
 import { createSlice } from "@reduxjs/toolkit";
-import React from "react";
-
 const cartSlice = createSlice({
   name: "cart",
   initialState: {
@@ -120,11 +118,12 @@ const cartSlice = createSlice({
       state.total = 0;
       state.itemCount = 0;
       // Reset split bill when clearing cart
+// Reset split bill when clearing cart
       state.pos.splitBill = {
         enabled: false,
         customers: [],
-itemAssignments: {}
-    };
+        itemAssignments: {}
+      };
     },
     toggleCart: (state) => {
       state.isOpen = !state.isOpen;
@@ -133,7 +132,6 @@ itemAssignments: {}
       state.isOpen = true;
     },
     closeCart: (state) => {
-closeCart: (state) => {
       state.isOpen = false;
     },
     applyDiscount: (state, action) => {
