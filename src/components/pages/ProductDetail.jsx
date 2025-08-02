@@ -4,7 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { toggleWishlist } from "@/store/wishlistSlice";
 import { addToComparison, removeFromComparison } from "@/store/comparisonSlice";
 import { addToHistory } from "@/store/browsingSlice";
-import { toast } from "react-toastify";
+import toast from 'react-hot-toast'
 import { AnimatePresence, motion } from "framer-motion";
 import { productService } from "@/services/api/productService";
 import ApperIcon from "@/components/ApperIcon";
