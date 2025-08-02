@@ -1,5 +1,295 @@
-import { toast } from "react-toastify";
+import toast from "react-hot-toast";
 import React from "react";
+import Error from "@/components/ui/Error";
+
+/**
+ * Error types for categorization
+ */
+export const ERROR_TYPES = {
+  NETWORK: 'NETWORK',
+  VALIDATION: 'VALIDATION',
+  AUTHENTICATION: 'AUTHENTICATION',
+  AUTHORIZATION: 'AUTHORIZATION',
+  NOT_FOUND: 'NOT_FOUND',
+  SERVER: 'SERVER',
+  CLIENT: 'CLIENT',
+  UNKNOWN: 'UNKNOWN'
+};
+
+/**
+ * Error severity levels
+ */
+export const ERROR_SEVERITY = {
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+  CRITICAL: 'CRITICAL'
+};
+
+/**
+ * Categorize error based on status code or error type
+ */
+const categorizeError = (error) => {
+  if (!error) return ERROR_TYPES.UNKNOWN;
+  
+  const status = error.status || error.response?.status;
+  
+  if (status) {
+    if (status === 401) return ERROR_TYPES.AUTHENTICATION;
+    if (status === 403) return ERROR_TYPES.AUTHORIZATION;
+    if (status === 404) return ERROR_TYPES.NOT_FOUND;
+    if (status >= 400 && status < 500) return ERROR_TYPES.CLIENT;
+    if (status >= 500) return ERROR_TYPES.SERVER;
+  }
+  
+  if (error.name === 'ValidationError') return ERROR_TYPES.VALIDATION;
+  if (error.code === 'NETWORK_ERROR' || error.message?.includes('network')) {
+    return ERROR_TYPES.NETWORK;
+  }
+  
+  return ERROR_TYPES.UNKNOWN;
+};
+
+/**
+ * Get user-friendly error message
+ */
+const getUserFriendlyMessage = (error, type) => {
+  const defaultMessages = {
+    [ERROR_TYPES.NETWORK]: 'Network connection error. Please check your internet connection.',
+    [ERROR_TYPES.VALIDATION]: 'Please check your input and try again.',
+    [ERROR_TYPES.AUTHENTICATION]: 'Please log in to continue.',
+    [ERROR_TYPES.AUTHORIZATION]: 'You don\'t have permission to perform this action.',
+    [ERROR_TYPES.NOT_FOUND]: 'The requested resource was not found.',
+    [ERROR_TYPES.SERVER]: 'Server error. Please try again later.',
+    [ERROR_TYPES.CLIENT]: 'Invalid request. Please check your input.',
+    [ERROR_TYPES.UNKNOWN]: 'An unexpected error occurred. Please try again.'
+  };
+
+  // Use custom message if provided, otherwise use default
+  return error.userMessage || error.message || defaultMessages[type] || defaultMessages[ERROR_TYPES.UNKNOWN];
+};
+
+/**
+ * Get error severity based on type and context
+ */
+const getErrorSeverity = (type, error) => {
+  const severityMap = {
+    [ERROR_TYPES.AUTHENTICATION]: ERROR_SEVERITY.HIGH,
+    [ERROR_TYPES.AUTHORIZATION]: ERROR_SEVERITY.HIGH,
+    [ERROR_TYPES.SERVER]: ERROR_SEVERITY.HIGH,
+    [ERROR_TYPES.NETWORK]: ERROR_SEVERITY.MEDIUM,
+    [ERROR_TYPES.VALIDATION]: ERROR_SEVERITY.LOW,
+    [ERROR_TYPES.CLIENT]: ERROR_SEVERITY.MEDIUM,
+    [ERROR_TYPES.NOT_FOUND]: ERROR_SEVERITY.LOW,
+    [ERROR_TYPES.UNKNOWN]: ERROR_SEVERITY.MEDIUM
+  };
+
+  return error.severity || severityMap[type] || ERROR_SEVERITY.MEDIUM;
+};
+
+/**
+ * Log error to console and external services
+ */
+const logError = (error, context = {}) => {
+  const errorInfo = {
+    message: error.message,
+    stack: error.stack,
+    timestamp: new Date().toISOString(),
+    url: window.location.href,
+    userAgent: navigator.userAgent,
+    context
+  };
+
+  // Console logging
+  if (process.env.NODE_ENV === 'development') {
+    console.error('Error Handler:', errorInfo);
+  }
+
+  // Here you would typically send to an error tracking service
+  // Examples: Sentry, LogRocket, Rollbar, etc.
+  try {
+    // Example: External error service
+    // errorTrackingService.captureException(error, errorInfo);
+  } catch (trackingError) {
+    console.warn('Failed to log error to tracking service:', trackingError);
+  }
+};
+
+/**
+ * Main error handler function
+ */
+export const handleError = (error, options = {}) => {
+  const {
+    showToast = true,
+    logError: shouldLog = true,
+    context = {},
+    fallbackMessage,
+    toastType = 'error'
+  } = options;
+
+  if (!error) {
+    console.warn('handleError called with no error');
+    return;
+  }
+
+  const errorType = categorizeError(error);
+  const severity = getErrorSeverity(errorType, error);
+  const userMessage = fallbackMessage || getUserFriendlyMessage(error, errorType);
+
+  // Log error if enabled
+  if (shouldLog) {
+    logError(error, { ...context, type: errorType, severity });
+  }
+
+  // Show toast notification if enabled
+  if (showToast) {
+    const toastOptions = {
+      duration: severity === ERROR_SEVERITY.CRITICAL ? 6000 : 4000,
+      position: 'top-right',
+    };
+
+    switch (toastType) {
+      case 'error':
+        toast.error(userMessage, toastOptions);
+        break;
+      case 'warning':
+        toast.error(userMessage, toastOptions); // react-hot-toast doesn't have warning, use error
+        break;
+      default:
+        toast.error(userMessage, toastOptions);
+    }
+  }
+
+  return {
+    type: errorType,
+    severity,
+    message: userMessage,
+    originalError: error
+  };
+};
+
+/**
+ * Handle async function errors with automatic error handling
+ */
+export const withErrorHandler = (asyncFn, options = {}) => {
+  return async (...args) => {
+    try {
+      return await asyncFn(...args);
+    } catch (error) {
+      handleError(error, options);
+      throw error; // Re-throw so calling code can handle if needed
+    }
+  };
+};
+
+/**
+ * React Hook for error handling
+ */
+export const useErrorHandler = () => {
+  const handleAsyncError = (error, options = {}) => {
+    handleError(error, options);
+  };
+
+  const handleFormError = (error, fieldErrors = {}) => {
+    const errorType = categorizeError(error);
+    
+    if (errorType === ERROR_TYPES.VALIDATION && error.fieldErrors) {
+      // Handle field-specific errors
+      Object.entries(error.fieldErrors).forEach(([field, message]) => {
+        toast.error(`${field}: ${message}`, { duration: 4000 });
+      });
+    } else {
+      handleError(error, { context: { component: 'form', fieldErrors } });
+    }
+  };
+
+  const handleNetworkError = (error) => {
+    handleError(error, {
+      context: { component: 'network' },
+      fallbackMessage: 'Connection failed. Please check your internet connection and try again.'
+    });
+  };
+
+  return {
+    handleError: handleAsyncError,
+    handleFormError,
+    handleNetworkError
+  };
+};
+
+/**
+ * Global error boundary error handler
+ */
+export const handleGlobalError = (error, errorInfo) => {
+  const context = {
+    component: 'ErrorBoundary',
+    errorInfo,
+    componentStack: errorInfo?.componentStack
+  };
+
+  handleError(error, {
+    context,
+    fallbackMessage: 'Something went wrong. Please refresh the page.',
+    showToast: true,
+    logError: true
+  });
+};
+
+/**
+ * Promise rejection handler
+ */
+export const handleUnhandledRejection = (event) => {
+  const error = event.reason || event.detail?.reason;
+  
+  handleError(error, {
+    context: { type: 'unhandledRejection' },
+    fallbackMessage: 'An unexpected error occurred.',
+    showToast: true,
+    logError: true
+  });
+};
+
+/**
+ * Window error handler
+ */
+export const handleWindowError = (event) => {
+  const error = new Error(event.message);
+  error.filename = event.filename;
+  error.lineno = event.lineno;
+  error.colno = event.colno;
+
+  handleError(error, {
+    context: { 
+      type: 'windowError',
+      filename: event.filename,
+      lineno: event.lineno,
+      colno: event.colno
+    },
+    fallbackMessage: 'A JavaScript error occurred.',
+    showToast: false, // Don't show toast for all JS errors
+    logError: true
+  });
+};
+
+/**
+ * Setup global error handlers
+ */
+export const setupGlobalErrorHandlers = () => {
+  // Handle unhandled promise rejections
+  window.addEventListener('unhandledrejection', handleUnhandledRejection);
+  
+  // Handle JavaScript errors
+  window.addEventListener('error', handleWindowError);
+  
+  // Cleanup function
+  return () => {
+    window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    window.removeEventListener('error', handleWindowError);
+  };
+};
+
+// Export default error handler
+export default handleError;
 
 // Global error handler for the application
 export class ErrorHandler {
@@ -559,4 +849,3 @@ export const errorHandler = new ErrorHandler();
 export const globalErrorHandler = new GlobalErrorHandler();
 
 // Export as default for backwards compatibility
-export default globalErrorHandler;
