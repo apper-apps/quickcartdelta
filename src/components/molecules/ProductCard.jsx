@@ -13,7 +13,71 @@ import { addToHistory } from "@/store/browsingSlice";
 import { toggleWishlist } from "@/store/wishlistSlice";
 import { addToCart, applyDynamicPricing } from "@/store/cartSlice";
 function ProductCard({ product, className = '', listIndex = null }) {
-  // Early return with error boundary if product is invalid
+  // CRITICAL: All hooks must be called at component top level before any conditional logic
+  const navigate = useNavigate()
+  const dispatch = useDispatch()
+  const wishlistItems = useSelector(state => state.wishlist.items)
+  const comparisonItems = useSelector(state => state.comparison.items)
+  const cartItems = useSelector(state => state.cart.items)
+  const browsingHistory = useSelector(state => state.browsing.history)
+  
+  const [arData, setArData] = useState(null)
+  const [imageLoading, setImageLoading] = useState(true)
+  const [imageError, setImageError] = useState(false)
+  const [showARPreview, setShowARPreview] = useState(false);
+  const [arCapability, setArCapability] = useState(null);
+  const [dynamicPrice, setDynamicPrice] = useState(product?.price || 0);
+  const [personalizedDiscount, setPersonalizedDiscount] = useState(0);
+  const loyaltyData = useSelector((state) => state.loyalty);
+
+  // Enhanced product enhancements useEffect - moved to top level
+  useEffect(() => {
+    if (!product?.Id) return; // Guard clause for invalid product
+    
+    const loadEnhancements = async () => {
+      try {
+        // Check AR capability
+        const arData = await productService.getARCapability(product.Id);
+        setArCapability(arData);
+
+        // Apply dynamic pricing based on user context
+        const userContext = {
+          loyaltyTier: loyaltyData.tier,
+          cartValue: cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+          browsingHistory: browsingHistory.length,
+          isReturningCustomer: browsingHistory.length > 5
+        };
+
+        // Dynamic discount calculation
+        let discount = 0;
+        if (userContext.loyaltyTier === 'Platinum') discount = 0.15;
+        else if (userContext.loyaltyTier === 'Gold') discount = 0.10;
+        else if (userContext.loyaltyTier === 'Silver') discount = 0.05;
+        
+        if (userContext.cartValue > 100) discount += 0.05; // Bulk discount
+        if (userContext.isReturningCustomer) discount += 0.03; // Loyalty bonus
+
+        const discountedPrice = product.price * (1 - discount);
+        setDynamicPrice(discountedPrice);
+        setPersonalizedDiscount(Math.round(discount * 100));
+
+        // Apply dynamic pricing to cart
+        if (discount > 0) {
+          dispatch(applyDynamicPricing({
+            personalizedDiscount: Math.round(discount * 100),
+            tierDiscount: userContext.loyaltyTier === 'Platinum' ? 15 : userContext.loyaltyTier === 'Gold' ? 10 : 5,
+            bulkDiscount: userContext.cartValue > 100 ? 5 : 0
+          }));
+        }
+      } catch (error) {
+        console.warn('Failed to load product enhancements:', error);
+      }
+    };
+
+    loadEnhancements();
+  }, [product?.Id, loyaltyData.tier, cartItems.length, browsingHistory.length, dispatch]);
+
+  // Early return AFTER all hooks are initialized
   if (!product) {
     console.warn('⚠️ ProductCard received invalid product data:', product);
     return (
@@ -26,19 +90,8 @@ function ProductCard({ product, className = '', listIndex = null }) {
     );
   }
 
-  // Generate unique identifier for debugging duplicate keys
-  const productKey = product.id || `unknown-${listIndex || Math.random()}`;
-  
-  const navigate = useNavigate()
-  const dispatch = useDispatch()
-  const wishlistItems = useSelector(state => state.wishlist.items)
-  const comparisonItems = useSelector(state => state.comparison.items)
-  const cartItems = useSelector(state => state.cart.items)
-const browsingHistory = useSelector(state => state.browsing.history)
-  
-  const [arData, setArData] = useState(null)
-  const [imageLoading, setImageLoading] = useState(true)
-  const [imageError, setImageError] = useState(false)
+  // Essential product data with defensive programming
+  const productKey = `product-${product.Id}-${listIndex || 'single'}`;
   
   // Computed values for component state
   const isInWishlist = wishlistItems.some(item => item.id === product.id)
@@ -83,56 +136,7 @@ const handleWishlistToggle = (e) => {
     : 0;
 
 // Enhanced state for AR and dynamic features
-  const [showARPreview, setShowARPreview] = useState(false);
-  const [arCapability, setArCapability] = useState(null);
-  const [dynamicPrice, setDynamicPrice] = useState(product.price);
-  const [personalizedDiscount, setPersonalizedDiscount] = useState(0);
-  const loyaltyData = useSelector((state) => state.loyalty);
-
-  // Load AR capability and dynamic pricing on mount
-  useEffect(() => {
-    const loadEnhancements = async () => {
-      try {
-        // Check AR capability
-        const arData = await productService.getARCapability(product.Id);
-        setArCapability(arData);
-
-        // Apply dynamic pricing based on user context
-        const userContext = {
-          loyaltyTier: loyaltyData.tier,
-          cartValue: cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-          browsingHistory: browsingHistory.length,
-          isReturningCustomer: browsingHistory.length > 5
-        };
-
-        // Dynamic discount calculation
-        let discount = 0;
-        if (userContext.loyaltyTier === 'Platinum') discount = 0.15;
-        else if (userContext.loyaltyTier === 'Gold') discount = 0.10;
-        else if (userContext.loyaltyTier === 'Silver') discount = 0.05;
-        
-        if (userContext.cartValue > 100) discount += 0.05; // Bulk discount
-        if (userContext.isReturningCustomer) discount += 0.03; // Loyalty bonus
-
-        const discountedPrice = product.price * (1 - discount);
-        setDynamicPrice(discountedPrice);
-        setPersonalizedDiscount(Math.round(discount * 100));
-
-        // Apply dynamic pricing to cart
-        if (discount > 0) {
-          dispatch(applyDynamicPricing({
-            personalizedDiscount: Math.round(discount * 100),
-            tierDiscount: userContext.loyaltyTier === 'Platinum' ? 15 : userContext.loyaltyTier === 'Gold' ? 10 : 5,
-            bulkDiscount: userContext.cartValue > 100 ? 5 : 0
-          }));
-        }
-      } catch (error) {
-        console.warn('Failed to load product enhancements:', error);
-      }
-    };
-
-    loadEnhancements();
-  }, [product.Id, loyaltyData.tier, cartItems.length, browsingHistory.length]);
+// Removed duplicate hooks and useEffect - moved to top of component
 
   return (
     <>

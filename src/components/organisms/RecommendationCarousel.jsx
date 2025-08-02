@@ -218,8 +218,6 @@ const scrollTo = (direction) => {
             />
           ))}
         </div>
-      </div>
-
 {/* Fade overlays for visual indication */}
         {canScrollLeft && (
           <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-white to-transparent pointer-events-none opacity-50" />
