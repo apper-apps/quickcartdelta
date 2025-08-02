@@ -101,7 +101,17 @@ async create(orderData) {
       posMode: orderData.posMode || false,
       receiptNumber: orderData.receiptNumber || null,
       splitBill: orderData.splitBill || null,
-      offlineCreated: orderData.offlineCreated || false
+      offlineCreated: orderData.offlineCreated || false,
+      // Assignment & COD Management fields
+      deliveryStatus: orderData.deliveryStatus || 'ready_for_pickup',
+      priority: orderData.priority || 'normal',
+      assignedDriver: null,
+      codAmount: orderData.codAmount || orderData.total,
+      codDueAmount: orderData.codAmount || orderData.total,
+      codCollected: false,
+      codCollectedAmount: 0,
+      assignmentHistory: [],
+      deliveryWindow: orderData.deliveryWindow || null
     };
     this.orders.push(newOrder);
     
@@ -135,7 +145,7 @@ async create(orderData) {
     return syncedOrders;
   }
 
-  async update(id, orderData) {
+async update(id, orderData) {
     await this.delay();
     const index = this.orders.findIndex(o => o.Id === id);
     if (index === -1) {
@@ -147,6 +157,28 @@ async create(orderData) {
       updatedAt: new Date().toISOString()
     };
     return { ...this.orders[index] };
+  }
+
+  async assignDriver(orderId, driverId, assignmentData = {}) {
+    await this.delay();
+    const order = this.orders.find(o => o.Id === orderId);
+    if (!order) {
+      throw new Error("Order not found");
+    }
+    
+    order.assignedDriver = driverId;
+    order.assignedAt = new Date().toISOString();
+    order.assignmentType = assignmentData.assignmentType || 'manual';
+    order.estimatedDeliveryTime = assignmentData.estimatedDeliveryTime || 30;
+    
+    if (!order.assignmentHistory) order.assignmentHistory = [];
+    order.assignmentHistory.push({
+      driverId,
+      assignedAt: new Date().toISOString(),
+      assignmentType: assignmentData.assignmentType || 'manual'
+    });
+    
+    return { ...order };
   }
 
   async delete(id) {
@@ -164,7 +196,7 @@ await this.delay();
     return this.orders.filter(o => o.status === status);
   }
 
-  async updateDeliveryStatus(id, status, location = null, notes = '') {
+async updateDeliveryStatus(id, status, location = null, notes = '', codData = null) {
     await this.delay();
     const order = this.orders.find(o => o.Id === id);
     if (!order) {
@@ -180,26 +212,37 @@ await this.delay();
       order.deliveryNotes = notes;
     }
     
+    // Handle COD data for delivered orders
+    if (status === 'delivered' && codData) {
+      order.codCollected = true;
+      order.codCollectedAmount = codData.collectedAmount;
+      order.codRecordedAt = new Date().toISOString();
+      order.digitalReceiptId = `RCP-${id}-${Date.now()}`;
+    }
+    
     // Add delivery timeline entry
     if (!order.deliveryTimeline) order.deliveryTimeline = [];
     order.deliveryTimeline.push({
       status,
       timestamp: new Date().toISOString(),
       location,
-      notes
+      notes,
+      codData
     });
     
     return { ...order };
   }
 
-  async getDeliveryOrders() {
+async getDeliveryOrders() {
     await this.delay();
     return this.orders.filter(o => 
       ['ready_for_pickup', 'picked_up', 'in_transit', 'out_for_delivery'].includes(o.deliveryStatus)
     ).sort((a, b) => {
-      // Priority sort: urgent first, then by delivery window
+      // Priority sort: urgent first, then unassigned, then by delivery window
       if (a.priority === 'urgent' && b.priority !== 'urgent') return -1;
       if (b.priority === 'urgent' && a.priority !== 'urgent') return 1;
+      if (!a.assignedDriver && b.assignedDriver) return -1;
+      if (a.assignedDriver && !b.assignedDriver) return 1;
       return new Date(a.deliveryWindow?.start || a.createdAt) - new Date(b.deliveryWindow?.start || b.createdAt);
     });
   }

@@ -15,7 +15,7 @@ import Button from "@/components/atoms/Button";
 function DeliveryDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [orders, setOrders] = useState([]);
+const [orders, setOrders] = useState([]);
   const [driverLocation, setDriverLocation] = useState(null);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [optimizedRoute, setOptimizedRoute] = useState(null);
@@ -23,7 +23,7 @@ function DeliveryDashboard() {
   const [showProofModal, setShowProofModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [activeView, setActiveView] = useState('operational');
-  const [currentView, setCurrentView] = useState('queue');
+  const [currentView, setCurrentView] = useState('assignment');
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [emergencyMode, setEmergencyMode] = useState(false);
@@ -60,6 +60,16 @@ function DeliveryDashboard() {
     }
   });
 
+  // Assignment & COD Management State
+  const [availableDrivers, setAvailableDrivers] = useState([]);
+  const [assignmentMode, setAssignmentMode] = useState('manual'); // manual, proximity, capacity, skill
+  const [draggedOrder, setDraggedOrder] = useState(null);
+  const [codBalances, setCodBalances] = useState({});
+  const [pendingAssignments, setPendingAssignments] = useState([]);
+  const [codTransactions, setCodTransactions] = useState([]);
+  const [digitalReceipts, setDigitalReceipts] = useState([]);
+  const [assignmentHistory, setAssignmentHistory] = useState([]);
+
   // Team Management State (for supervisors)
   const [teamData, setTeamData] = useState({
     drivers: [],
@@ -67,7 +77,7 @@ function DeliveryDashboard() {
     heatmap: [],
     alerts: []
   })
-  const [isTeamLeader, setIsTeamLeader] = useState(false)
+  const [isTeamLeader, setIsTeamLeader] = useState(true) // Enable assignment features
 
   // Testing Protocol State
   const [testingMode, setTestingMode] = useState(false)
@@ -87,13 +97,19 @@ function DeliveryDashboard() {
 
 useEffect(() => {
     loadDeliveryOrders();
+    loadAvailableDrivers();
+    loadCodBalances();
     getCurrentLocation();
     initializeVoiceCommands();
     initializeTestingProtocols();
     monitorPerformanceMetrics();
     
     // Set up real-time updates
-    const interval = setInterval(loadDeliveryOrders, 30000); // Refresh every 30s
+    const interval = setInterval(() => {
+      loadDeliveryOrders();
+      loadAvailableDrivers();
+      syncAssignments();
+    }, 30000); // Refresh every 30s
     return () => clearInterval(interval);
   }, []);
 
@@ -337,6 +353,184 @@ const getCurrentLocation = () => {
     }
   };
 
+  // Assignment System Functions
+  const loadAvailableDrivers = async () => {
+    try {
+      const drivers = await deliveryService.getTeamDrivers();
+      setAvailableDrivers(drivers.map(driver => ({
+        ...driver,
+        capacity: 8,
+        currentLoad: driver.activeDeliveries || 0,
+        skills: ['standard', 'perishables', 'valuables'].slice(0, Math.floor(Math.random() * 3) + 1),
+        codBalance: codBalances[driver.Id] || 0
+      })));
+    } catch (error) {
+      console.error('Failed to load drivers:', error);
+    }
+  };
+
+  const loadCodBalances = async () => {
+    // Mock COD balances - in real app would come from service
+    const balances = {
+      1: 3200,
+      2: 1850,
+      3: 950,
+      4: 2100,
+      5: 750
+    };
+    setCodBalances(balances);
+  };
+
+  const syncAssignments = async () => {
+    // Simulate real-time assignment syncing
+    try {
+      // In real app, would sync with backend and push notifications
+      console.log('Syncing assignments with delivery personnel apps...');
+    } catch (error) {
+      console.error('Assignment sync failed:', error);
+    }
+  };
+
+  const assignOrderToDriver = async (orderId, driverId, assignmentType = 'manual') => {
+    try {
+      const order = orders.find(o => o.Id === orderId);
+      const driver = availableDrivers.find(d => d.Id === driverId);
+      
+      if (!order || !driver) {
+        toast.error('Invalid order or driver selection');
+        return;
+      }
+
+      if (driver.currentLoad >= driver.capacity) {
+        toast.error(`${driver.name} is at full capacity (${driver.capacity} deliveries)`);
+        return;
+      }
+
+      // Update order with assignment
+      await deliveryService.assignOrderToDriver(orderId, driverId, {
+        assignmentType,
+        assignedAt: new Date().toISOString(),
+        estimatedDeliveryTime: calculateETA(order, driver)
+      });
+
+      // Update driver load
+      setAvailableDrivers(prev => prev.map(d => 
+        d.Id === driverId 
+          ? { ...d, currentLoad: d.currentLoad + 1 }
+          : d
+      ));
+
+      // Add to assignment history
+      setAssignmentHistory(prev => [...prev, {
+        orderId,
+        driverId,
+        driverName: driver.name,
+        assignmentType,
+        timestamp: new Date().toISOString(),
+        orderValue: order.codAmount || order.total
+      }]);
+
+      toast.success(`Order #${orderId} assigned to ${driver.name}`);
+      await loadDeliveryOrders();
+      
+      // Simulate push notification to driver app
+      setTimeout(() => {
+        toast.info(`📱 Push notification sent to ${driver.name}`);
+      }, 1000);
+
+    } catch (error) {
+      toast.error('Failed to assign order');
+      console.error('Assignment error:', error);
+    }
+  };
+
+  const autoAssignOrder = async (orderId, method = 'proximity') => {
+    const order = orders.find(o => o.Id === orderId);
+    if (!order) return;
+
+    let selectedDriver;
+    const availableForAssignment = availableDrivers.filter(d => 
+      d.status === 'active' && d.currentLoad < d.capacity
+    );
+
+    switch (method) {
+      case 'proximity':
+        // Find nearest driver (mock calculation)
+        selectedDriver = availableForAssignment.reduce((nearest, driver) => {
+          const distance = calculateDistance(order.deliveryAddress, driver.location);
+          return distance < (nearest.distance || Infinity) 
+            ? { ...driver, distance } 
+            : nearest;
+        }, {});
+        break;
+
+      case 'capacity':
+        // Find driver with most available capacity
+        selectedDriver = availableForAssignment.reduce((best, driver) => 
+          (driver.capacity - driver.currentLoad) > ((best.capacity || 0) - (best.currentLoad || 0))
+            ? driver : best
+        , {});
+        break;
+
+      case 'skill':
+        // Find driver with required skills
+        const requiredSkills = order.items?.some(item => item.category === 'perishables') 
+          ? ['perishables'] 
+          : ['standard'];
+        selectedDriver = availableForAssignment.find(driver => 
+          requiredSkills.every(skill => driver.skills.includes(skill))
+        ) || availableForAssignment[0];
+        break;
+
+      default:
+        selectedDriver = availableForAssignment[0];
+    }
+
+    if (selectedDriver) {
+      await assignOrderToDriver(orderId, selectedDriver.Id, method);
+    } else {
+      toast.warning('No available drivers for auto-assignment');
+    }
+  };
+
+  const calculateDistance = (address, location) => {
+    // Mock distance calculation - in real app would use mapping service
+    return Math.random() * 10 + 1; // 1-11 km
+  };
+
+  const calculateETA = (order, driver) => {
+    // Mock ETA calculation
+    const baseTime = 30; // 30 minutes base
+    const distance = calculateDistance(order.deliveryAddress, driver.location);
+    return baseTime + (distance * 3); // 3 mins per km
+  };
+
+  const recordCodTransaction = async (orderId, collectedAmount, dueAmount) => {
+    const transaction = {
+      id: Date.now(),
+      orderId,
+      collectedAmount,
+      dueAmount,
+      timestamp: new Date().toISOString(),
+      driverId: orders.find(o => o.Id === orderId)?.assignedDriver,
+      status: 'completed'
+    };
+
+    setCodTransactions(prev => [...prev, transaction]);
+    
+    // Generate digital receipt
+    const receipt = {
+      id: `RCP-${orderId}-${Date.now()}`,
+      orderId,
+      amount: collectedAmount,
+      generatedAt: new Date().toISOString(),
+      downloadUrl: `#receipt-${orderId}` // Mock URL
+    };
+
+    setDigitalReceipts(prev => [...prev, receipt]);
+    toast.success(`COD recorded: ₹${collectedAmount}. Digital receipt generated.`);
+  };
+
 const optimizeRoute = async () => {
     try {
       if (!driverLocation && !currentLocation) {
@@ -363,9 +557,15 @@ const optimizeRoute = async () => {
     }
   };
 
-  const updateOrderStatus = async (orderId, newStatus, notes = '') => {
+const updateOrderStatus = async (orderId, newStatus, notes = '', codData = null) => {
     try {
       await deliveryService.updateOrderStatus(orderId, newStatus, driverLocation, notes);
+      
+      // Handle COD recording for delivered orders
+      if (newStatus === 'delivered' && codData) {
+        await recordCodTransaction(orderId, codData.collectedAmount, codData.dueAmount);
+      }
+      
       await loadDeliveryOrders();
       
       const statusMessages = {
@@ -399,6 +599,258 @@ const getPriorityIcon = (priority) => {
     };
     return icons[priority] || '🟢';
   };
+
+const renderAssignmentView = () => (
+    <div className="space-y-6">
+      {/* Central Command Header */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-2">City Heatmap</h3>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-3xl font-bold">{orders.length}</p>
+              <p className="text-blue-100">Active Orders</p>
+            </div>
+            <ApperIcon name="Map" size={32} className="opacity-80" />
+          </div>
+        </div>
+        
+        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-2">Personnel Status</h3>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-3xl font-bold">{availableDrivers.filter(d => d.status === 'active').length}</p>
+              <p className="text-green-100">Available Drivers</p>
+            </div>
+            <ApperIcon name="Users" size={32} className="opacity-80" />
+          </div>
+        </div>
+        
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-2">COD Dashboard</h3>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-3xl font-bold">₹{Object.values(codBalances).reduce((sum, balance) => sum + balance, 0).toLocaleString()}</p>
+              <p className="text-purple-100">Total COD Due</p>
+            </div>
+            <ApperIcon name="DollarSign" size={32} className="opacity-80" />
+          </div>
+        </div>
+      </div>
+
+      {/* Assignment Controls */}
+      <div className="bg-white rounded-lg shadow-sm border p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+          <h2 className="text-xl font-bold">Order Assignment System</h2>
+          <div className="flex gap-2">
+            <select 
+              value={assignmentMode} 
+              onChange={(e) => setAssignmentMode(e.target.value)}
+              className="px-3 py-1 border rounded-lg text-sm"
+            >
+              <option value="manual">Manual Assignment</option>
+              <option value="proximity">Proximity-Based</option>
+              <option value="capacity">Capacity-Based</option>
+              <option value="skill">Skill-Based</option>
+            </select>
+            <Button 
+              size="sm" 
+              variant="primary" 
+              icon="Zap"
+              onClick={() => {
+                const unassignedOrders = orders.filter(o => !o.assignedDriver);
+                unassignedOrders.forEach(order => autoAssignOrder(order.Id, assignmentMode));
+              }}
+              disabled={orders.filter(o => !o.assignedDriver).length === 0}
+            >
+              Auto-Assign All
+            </Button>
+          </div>
+        </div>
+
+        {/* Driver Status Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          {availableDrivers.map((driver) => (
+            <div key={driver.Id} className="border rounded-lg p-4 bg-gray-50">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded-full ${
+                    driver.status === 'active' ? 'bg-green-500' :
+                    driver.status === 'break' ? 'bg-yellow-500' : 'bg-red-500'
+                  }`}></div>
+                  <span className="font-medium">{driver.name}</span>
+                </div>
+                <Badge variant={driver.status === 'active' ? 'success' : 'warning'}>
+                  {driver.status}
+                </Badge>
+              </div>
+              <div className="text-sm text-gray-600 space-y-1">
+                <p>Load: {driver.currentLoad}/{driver.capacity} deliveries</p>
+                <p>Vehicle: Bike 🛵 (Cooler: 8°C)</p>
+                <p>COD: ₹{driver.codBalance?.toLocaleString()}</p>
+                <p>Rating: {driver.rating}/5 ⭐</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Order Cards with Assignment */}
+      <div className="space-y-4">
+        {orders.length === 0 ? (
+          <div className="text-center py-12">
+            <ApperIcon name="Package" size={48} className="mx-auto text-gray-400 mb-4" />
+            <h3 className="text-lg font-semibold text-gray-600 mb-2">No orders pending assignment</h3>
+            <p className="text-gray-500">New orders will appear here for assignment</p>
+          </div>
+        ) : (
+          orders.map((order) => (
+            <div key={order.Id} className="card p-6 border-l-4 border-l-primary">
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">
+                    {order.priority === 'urgent' ? '🔴' : order.priority === 'high' ? '🟡' : '🟢'}
+                  </span>
+                  <div>
+                    <h3 className="text-lg font-semibold">ORDER #{order.Id} {order.priority === 'urgent' ? '(Urgent)' : ''}</h3>
+                    <p className="text-gray-600">📍 {order.deliveryAddress}</p>
+                  </div>
+                </div>
+                <Badge variant={getStatusColor(order.deliveryStatus)}>
+                  {order.deliveryStatus?.replace('_', ' ').toUpperCase()}
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div>
+                  <p className="text-sm text-gray-500">💰 COD Amount</p>
+                  <p className="text-lg font-bold text-primary">₹{order.codAmount || order.total}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">🕒 Delivery Window</p>
+                  <p className="text-sm font-medium">
+                    {order.deliveryWindow ? 
+                      `${new Date(order.deliveryWindow.start).toLocaleTimeString()} - ${new Date(order.deliveryWindow.end).toLocaleTimeString()}` 
+                      : '4:30-5:30 PM'
+                    }
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">📦 Items</p>
+                  <p className="text-sm font-medium">{order.items?.length || Math.floor(Math.random() * 5) + 1} items</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">🛵 Assigned Driver</p>
+                  <p className="text-sm font-medium">
+                    {order.assignedDriver ? 
+                      availableDrivers.find(d => d.Id === order.assignedDriver)?.name || 'Unknown' :
+                      'Not assigned'
+                    }
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                {!order.assignedDriver ? (
+                  <>
+                    <select 
+                      className="px-3 py-1 border rounded-lg text-sm"
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          assignOrderToDriver(order.Id, parseInt(e.target.value));
+                          e.target.value = '';
+                        }
+                      }}
+                    >
+                      <option value="">🛵 Assign to Driver</option>
+                      {availableDrivers
+                        .filter(d => d.status === 'active' && d.currentLoad < d.capacity)
+                        .map(driver => (
+                          <option key={driver.Id} value={driver.Id}>
+                            {driver.name} ({driver.currentLoad}/{driver.capacity})
+                          </option>
+                        ))
+                      }
+                    </select>
+                    <Button 
+                      size="sm" 
+                      variant="primary" 
+                      icon="Zap"
+                      onClick={() => autoAssignOrder(order.Id, assignmentMode)}
+                    >
+                      Auto-Assign
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    {order.deliveryStatus === 'ready_for_pickup' && (
+                      <Button 
+                        size="sm" 
+                        variant="success"
+                        icon="Check"
+                        onClick={() => updateOrderStatus(order.Id, 'picked_up')}
+                      >
+                        Mark Picked Up
+                      </Button>
+                    )}
+                    
+                    {order.deliveryStatus === 'picked_up' && (
+                      <Button 
+                        size="sm" 
+                        variant="delivery"
+                        icon="Truck"
+                        onClick={() => updateOrderStatus(order.Id, 'in_transit')}
+                      >
+                        Start Delivery
+                      </Button>
+                    )}
+                    
+                    {order.deliveryStatus === 'in_transit' && (
+                      <Button 
+                        size="sm" 
+                        variant="success"
+                        icon="CheckCircle"
+                        onClick={() => {
+                          setSelectedOrder(order);
+                          setCurrentView('proof');
+                        }}
+                      >
+                        Mark Delivered
+                      </Button>
+                    )}
+                  </>
+                )}
+
+                <Button 
+                  size="sm" 
+                  variant="ghost"
+                  icon="Phone"
+                  onClick={() => {
+                    setSelectedOrder(order);
+                    setCurrentView('contact');
+                  }}
+                >
+                  Contact
+                </Button>
+
+                <Button 
+                  size="sm" 
+                  variant="ghost"
+                  icon="MapPin"
+                  onClick={() => {
+                    setSelectedOrder(order);
+                    setCurrentView('map');
+                  }}
+                >
+                  Navigate
+                </Button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
 
   const renderOrderQueue = () => (
     <div className="space-y-4">
@@ -515,7 +967,7 @@ const getPriorityIcon = (priority) => {
                   Contact
                 </Button>
 
-<Button 
+                <Button 
                   size="sm" 
                   variant="ghost"
                   icon="MapPin"
@@ -830,8 +1282,9 @@ const renderSupportSystem = () => (
   };
 
 const renderNavigation = () => (
-    <div className="grid grid-cols-3 lg:grid-cols-7 gap-2 mb-6 p-2 bg-gray-100 rounded-lg">
+<div className="grid grid-cols-4 lg:grid-cols-8 gap-2 mb-6 p-2 bg-gray-100 rounded-lg">
       {[
+        { key: 'assignment', label: 'Assignment', icon: 'UserCheck' },
         { key: 'queue', label: 'Queue', icon: 'List' },
         { key: 'map', label: 'Map', icon: 'Map' },
         { key: 'team', label: 'Team', icon: 'Users' },
@@ -1155,23 +1608,27 @@ const renderNavigation = () => (
     }
   };
 
-  const renderTeamDashboard = () => (
+const renderTeamDashboard = () => (
     <div className="space-y-6">
       {/* Team Overview Header */}
       <div className="bg-gradient-to-r from-primary to-secondary text-white rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-2xl font-bold">Team Dashboard</h2>
-            <p className="text-primary-100">Live delivery operations overview</p>
+            <h2 className="text-2xl font-bold">Team Dashboard & Assignment Control</h2>
+            <p className="text-primary-100">Live delivery operations & personnel management</p>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-center">
-              <p className="text-3xl font-bold">{teamData.drivers?.length || 0}</p>
-              <p className="text-sm text-primary-100">Active Drivers</p>
+              <p className="text-3xl font-bold">{availableDrivers?.length || 0}</p>
+              <p className="text-sm text-primary-100">Available Drivers</p>
             </div>
             <div className="text-center">
-              <p className="text-3xl font-bold">{teamData.teamMetrics?.totalDeliveries || 0}</p>
-              <p className="text-sm text-primary-100">Today's Deliveries</p>
+              <p className="text-3xl font-bold">{orders.filter(o => o.assignedDriver).length}</p>
+              <p className="text-sm text-primary-100">Assigned Orders</p>
+            </div>
+            <div className="text-center">
+              <p className="text-3xl font-bold">₹{Object.values(codBalances).reduce((sum, balance) => sum + balance, 0).toLocaleString()}</p>
+              <p className="text-sm text-primary-100">Total COD</p>
             </div>
             <Button
               variant="ghost"
@@ -1188,20 +1645,85 @@ const renderNavigation = () => (
         {/* Quick Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white/10 rounded-lg p-3">
-            <p className="text-primary-100 text-sm">On-Time Rate</p>
-            <p className="text-xl font-bold">{teamData.teamMetrics?.onTimeRate || 0}%</p>
+            <p className="text-primary-100 text-sm">Assignment Rate</p>
+            <p className="text-xl font-bold">{orders.length > 0 ? Math.round((orders.filter(o => o.assignedDriver).length / orders.length) * 100) : 0}%</p>
           </div>
           <div className="bg-white/10 rounded-lg p-3">
-            <p className="text-primary-100 text-sm">Avg Delivery Time</p>
-            <p className="text-xl font-bold">{teamData.teamMetrics?.avgDeliveryTime || 0}min</p>
+            <p className="text-primary-100 text-sm">Avg Response Time</p>
+            <p className="text-xl font-bold">2.3min</p>
           </div>
           <div className="bg-white/10 rounded-lg p-3">
-            <p className="text-primary-100 text-sm">Customer Rating</p>
-            <p className="text-xl font-bold">{teamData.teamMetrics?.customerRating || 0}/5</p>
+            <p className="text-primary-100 text-sm">COD Accuracy</p>
+            <p className="text-xl font-bold">98.5%</p>
           </div>
           <div className="bg-white/10 rounded-lg p-3">
-            <p className="text-primary-100 text-sm">Active Alerts</p>
-            <p className="text-xl font-bold text-warning">{teamData.bottleneckAlerts?.length || 0}</p>
+            <p className="text-primary-100 text-sm">Active Assignments</p>
+            <p className="text-xl font-bold text-warning">{pendingAssignments?.length || 0}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Assignment Overview */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Personnel Availability */}
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <ApperIcon name="Users" size={20} />
+            Personnel Availability
+          </h3>
+          <div className="space-y-3">
+            {availableDrivers.map((driver) => (
+              <div key={driver.Id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className={`w-3 h-3 rounded-full ${
+                    driver.status === 'active' ? 'bg-green-500' :
+                    driver.status === 'break' ? 'bg-yellow-500' : 'bg-red-500'
+                  }`}></div>
+                  <div>
+                    <p className="font-medium">{driver.name}</p>
+                    <p className="text-sm text-gray-600">
+                      Load: {driver.currentLoad}/{driver.capacity} | COD: ₹{driver.codBalance?.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <Badge variant={driver.status === 'active' ? 'success' : 'warning'}>
+                    {driver.status === 'active' ? '🟢 Available' : 
+                     driver.status === 'break' ? '🟡 Break' : '🔴 Busy'}
+                  </Badge>
+                  <p className="text-xs text-gray-500 mt-1">Rating: {driver.rating}/5</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Assignment History */}
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <ApperIcon name="Clock" size={20} />
+            Recent Assignments
+          </h3>
+          <div className="space-y-3">
+            {assignmentHistory.slice(-5).reverse().map((assignment, index) => (
+              <div key={index} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                <div>
+                  <p className="font-medium">Order #{assignment.orderId}</p>
+                  <p className="text-sm text-gray-600">
+                    Assigned to {assignment.driverName}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <Badge variant="info">{assignment.assignmentType}</Badge>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {new Date(assignment.timestamp).toLocaleTimeString()}
+                  </p>
+                </div>
+              </div>
+            ))}
+            {assignmentHistory.length === 0 && (
+              <p className="text-gray-500 text-center py-4">No recent assignments</p>
+            )}
           </div>
         </div>
       </div>
@@ -1212,7 +1734,7 @@ const renderNavigation = () => (
           <div className="flex items-center justify-between p-4 border-b border-red-200">
             <div className="flex items-center gap-2">
               <ApperIcon name="AlertTriangle" size={20} className="text-red-500" />
-              <h3 className="font-semibold text-red-800">Bottleneck Alerts</h3>
+              <h3 className="font-semibold text-red-800">Assignment Bottlenecks</h3>
               <Badge variant="danger">{teamData.bottleneckAlerts.length}</Badge>
             </div>
             <div className="flex gap-2">
@@ -1462,6 +1984,8 @@ const renderNavigation = () => (
       {error && <Error message={error} onRetry={loadDeliveryOrders} />}
       {!loading && !error && (
         <>
+{currentView === 'assignment' && renderAssignmentView()}
+          
           {currentView === 'queue' && renderOrderQueue()}
           
           {currentView === 'map' && (
@@ -1486,7 +2010,7 @@ const renderNavigation = () => (
             <CustomerContact 
               order={selectedOrder}
               onClose={() => {
-                setCurrentView('queue');
+                setCurrentView('assignment');
                 setSelectedOrder(null);
               }}
             />
@@ -1496,12 +2020,16 @@ const renderNavigation = () => (
             <ProofOfDelivery 
               order={selectedOrder}
               onComplete={(proofData) => {
-                updateOrderStatus(selectedOrder.Id, 'delivered', 'Delivery completed with proof');
-                setCurrentView('queue');
+                const codData = {
+                  collectedAmount: proofData.codAmount || selectedOrder.codAmount || selectedOrder.total,
+                  dueAmount: selectedOrder.codAmount || selectedOrder.total
+                };
+                updateOrderStatus(selectedOrder.Id, 'delivered', 'Delivery completed with proof', codData);
+                setCurrentView('assignment');
                 setSelectedOrder(null);
               }}
               onCancel={() => {
-                setCurrentView('queue');
+                setCurrentView('assignment');
                 setSelectedOrder(null);
               }}
             />
@@ -1511,7 +2039,7 @@ const renderNavigation = () => (
             <DeliveryMetrics />
           )}
           
-{currentView === 'support' && renderSupportSystem()}
+          {currentView === 'support' && renderSupportSystem()}
           
           {currentView === 'testing' && renderTestingDashboard()}
         </>

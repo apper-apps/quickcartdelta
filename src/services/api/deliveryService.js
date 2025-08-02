@@ -50,10 +50,10 @@ class DeliveryService {
     });
   }
 
-  async updateOrderStatus(orderId, status, location = null, notes = '') {
+async updateOrderStatus(orderId, status, location = null, notes = '', codData = null) {
     await this.delay();
     
-    const order = await orderService.updateDeliveryStatus(orderId, status, location, notes);
+    const order = await orderService.updateDeliveryStatus(orderId, status, location, notes, codData);
     
     // Update active deliveries tracking
     if (status === 'picked_up' || status === 'in_transit') {
@@ -68,6 +68,11 @@ class DeliveryService {
     }
 
     return order;
+  }
+
+  async assignOrderToDriver(orderId, driverId, assignmentData = {}) {
+    await this.delay();
+    return await orderService.assignDriver(orderId, driverId, assignmentData);
   }
 
   async updateDriverLocation(location) {
@@ -98,7 +103,6 @@ class DeliveryService {
       order.deliveredAt <= endDate
     );
   }
-
 async getDeliveryMetrics(driverId, period = 'today') {
     await this.delay();
     
@@ -146,6 +150,12 @@ async getDeliveryMetrics(driverId, period = 'today') {
       return deliveredAt <= windowEnd;
     }).length;
 
+    // Calculate COD metrics
+    const codDeliveries = delivered.filter(d => d.codAmount > 0);
+    const codAccuracy = codDeliveries.length > 0 
+      ? (codDeliveries.filter(d => d.codCollected && d.codCollectedAmount === d.codAmount).length / codDeliveries.length) * 100
+      : 100;
+
     // Calculate customer rating based on delivery performance
     const customerRating = this.calculateCustomerRating(delivered, onTimeDeliveries, averageDeliveryTime);
 
@@ -163,6 +173,8 @@ async getDeliveryMetrics(driverId, period = 'today') {
       onTimeRateTrend: 2, // Mock trend data
       customerRating,
       earnings,
+      codAccuracy: Math.round(codAccuracy),
+      totalCodCollected: delivered.reduce((sum, d) => sum + (d.codCollectedAmount || 0), 0),
       incentiveProgress: {
         current: delivered.length,
         target: 10,
@@ -250,14 +262,22 @@ return emergencyReport;
     return order;
   }
 
-  async completeDelivery(orderId, proofData) {
+async completeDelivery(orderId, proofData) {
     await this.delay();
+    
+    const codData = proofData.codAmount ? {
+      collectedAmount: proofData.codAmount,
+      dueAmount: proofData.codAmount
+    } : null;
     
     const order = await orderService.update(orderId, {
       deliveryStatus: 'delivered',
       deliveredAt: new Date().toISOString(),
       proofOfDelivery: proofData,
-      completedBy: 'driver' // In real app, would be driver ID
+      completedBy: 'driver', // In real app, would be driver ID
+      codCollected: !!codData,
+      codCollectedAmount: codData?.collectedAmount || 0,
+      digitalReceiptGenerated: !!codData
     });
 
     // Remove from active deliveries
@@ -442,15 +462,80 @@ return emergencyReport;
   }
 
 // Team Dashboard Methods
-  async getTeamDrivers() {
+async getTeamDrivers() {
     await this.delay(600);
     
     const drivers = [
-      { Id: 1, name: 'Alex Chen', status: 'active', zone: 'Downtown', activeDeliveries: 3, completedToday: 12, rating: 4.8, location: { lat: 40.7128, lng: -74.0060 } },
-      { Id: 2, name: 'Maria Garcia', status: 'active', zone: 'Midtown', activeDeliveries: 2, completedToday: 15, rating: 4.9, location: { lat: 40.7589, lng: -73.9851 } },
-      { Id: 3, name: 'James Wilson', status: 'break', zone: 'Uptown', activeDeliveries: 0, completedToday: 8, rating: 4.6, location: { lat: 40.7831, lng: -73.9712 } },
-      { Id: 4, name: 'Sarah Kim', status: 'active', zone: 'Brooklyn', activeDeliveries: 4, completedToday: 10, rating: 4.7, location: { lat: 40.6782, lng: -73.9442 } },
-      { Id: 5, name: 'David Brown', status: 'delayed', zone: 'Queens', activeDeliveries: 2, completedToday: 6, rating: 4.5, location: { lat: 40.7282, lng: -73.7949 } }
+      { 
+        Id: 1, 
+        name: 'Alex Chen', 
+        status: 'active', 
+        zone: 'Downtown', 
+        activeDeliveries: 3, 
+        completedToday: 12, 
+        rating: 4.8, 
+        location: { lat: 40.7128, lng: -74.0060 },
+        capacity: 8,
+        vehicle: 'Bike 🛵',
+        skills: ['standard', 'perishables'],
+        assignmentPreference: 'proximity'
+      },
+      { 
+        Id: 2, 
+        name: 'Maria Garcia', 
+        status: 'active', 
+        zone: 'Midtown', 
+        activeDeliveries: 2, 
+        completedToday: 15, 
+        rating: 4.9, 
+        location: { lat: 40.7589, lng: -73.9851 },
+        capacity: 6,
+        vehicle: 'Scooter 🛴',
+        skills: ['standard', 'valuables'],
+        assignmentPreference: 'capacity'
+      },
+      { 
+        Id: 3, 
+        name: 'James Wilson', 
+        status: 'break', 
+        zone: 'Uptown', 
+        activeDeliveries: 0, 
+        completedToday: 8, 
+        rating: 4.6, 
+        location: { lat: 40.7831, lng: -73.9712 },
+        capacity: 10,
+        vehicle: 'Van 🚐',
+        skills: ['standard', 'perishables', 'valuables'],
+        assignmentPreference: 'skill'
+      },
+      { 
+        Id: 4, 
+        name: 'Sarah Kim', 
+        status: 'active', 
+        zone: 'Brooklyn', 
+        activeDeliveries: 4, 
+        completedToday: 10, 
+        rating: 4.7, 
+        location: { lat: 40.6782, lng: -73.9442 },
+        capacity: 8,
+        vehicle: 'Bike 🛵',
+        skills: ['standard'],
+        assignmentPreference: 'proximity'
+      },
+      { 
+        Id: 5, 
+        name: 'David Brown', 
+        status: 'delayed', 
+        zone: 'Queens', 
+        activeDeliveries: 2, 
+        completedToday: 6, 
+        rating: 4.5, 
+        location: { lat: 40.7282, lng: -73.7949 },
+        capacity: 8,
+        vehicle: 'Bike 🛵',
+        skills: ['standard', 'perishables'],
+        assignmentPreference: 'capacity'
+      }
     ];
 
     return drivers;

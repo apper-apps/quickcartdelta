@@ -230,21 +230,28 @@ const DeliveryMap = ({
           </div>
 
           {/* Driver Locations */}
-          {teamData?.drivers?.map((driver, index) => (
+{teamData?.drivers?.map((driver, index) => (
             <div
               key={driver.Id}
-              className="absolute w-3 h-3 bg-blue-600 rounded-full border-2 border-white shadow-lg"
+              className="absolute w-4 h-4 bg-blue-600 rounded-full border-2 border-white shadow-lg cursor-pointer hover:scale-110 transition-transform"
               style={{
                 left: `${20 + (index * 15)}%`,
                 top: `${30 + (index * 10)}%`,
               }}
-              title={`${driver.name} - ${driver.status}`}
+              title={`${driver.name} - ${driver.status} - Load: ${driver.activeDeliveries}/${driver.capacity || 8}`}
             >
-              <div className={`absolute -top-1 -left-1 w-5 h-5 rounded-full ${
+              <div className={`absolute -top-1 -left-1 w-6 h-6 rounded-full ${
                 driver.status === 'active' ? 'bg-green-400' :
                 driver.status === 'break' ? 'bg-yellow-400' :
                 driver.status === 'delayed' ? 'bg-red-400' : 'bg-gray-400'
               } opacity-50 animate-ping`}></div>
+              
+              {/* Assignment indicator */}
+              {driver.activeDeliveries > 0 && (
+                <div className="absolute -top-2 -right-2 w-4 h-4 bg-primary text-white text-xs rounded-full flex items-center justify-center font-bold">
+                  {driver.activeDeliveries}
+                </div>
+              )}
             </div>
           ))}
         </div>
