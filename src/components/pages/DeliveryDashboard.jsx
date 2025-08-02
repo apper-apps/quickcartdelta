@@ -16,7 +16,7 @@ const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [currentView, setCurrentView] = useState('queue'); // queue, map, contact, proof, metrics, support, earnings, operational
+  const [currentView, setCurrentView] = useState('queue'); // queue, map, team, contact, proof, metrics, support, earnings, operational
   const [driverLocation, setDriverLocation] = useState(null);
   const [optimizedRoute, setOptimizedRoute] = useState(null);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
@@ -35,6 +35,17 @@ const [orders, setOrders] = useState([]);
   });
   const [workingHours, setWorkingHours] = useState(4.5);
   const [fatigueAlert, setFatigueAlert] = useState(false);
+  
+  // Team Dashboard State
+  const [teamData, setTeamData] = useState({
+    drivers: [],
+    zones: [],
+    heatmapData: [],
+    bottleneckAlerts: [],
+    teamMetrics: {}
+  });
+  const [selectedZone, setSelectedZone] = useState(null);
+  const [alertFilter, setAlertFilter] = useState('all'); // all, urgent, warning, info
 
   useEffect(() => {
     loadDeliveryOrders();
@@ -552,10 +563,11 @@ const getPriorityIcon = (priority) => {
   );
 
 const renderNavigation = () => (
-    <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 mb-6 p-2 bg-gray-100 rounded-lg">
+    <div className="grid grid-cols-3 lg:grid-cols-7 gap-2 mb-6 p-2 bg-gray-100 rounded-lg">
       {[
         { key: 'queue', label: 'Queue', icon: 'List' },
         { key: 'map', label: 'Map', icon: 'Map' },
+        { key: 'team', label: 'Team', icon: 'Users' },
         { key: 'earnings', label: 'Earnings', icon: 'DollarSign' },
         { key: 'operational', label: 'Tools', icon: 'Wrench' },
         { key: 'metrics', label: 'Analytics', icon: 'BarChart3' },
@@ -877,8 +889,7 @@ return (
 
       {loading && <Loading />}
       {error && <Error message={error} onRetry={loadDeliveryOrders} />}
-
-      {!loading && !error && (
+{!loading && !error && (
         <>
           {currentView === 'queue' && renderOrderQueue()}
           
@@ -889,8 +900,12 @@ return (
               optimizedRoute={optimizedRoute}
               selectedOrder={selectedOrder}
               onOrderSelect={setSelectedOrder}
+              teamData={teamData}
+              isTeamView={false}
             />
           )}
+          
+          {currentView === 'team' && renderTeamDashboard()}
           
           {currentView === 'earnings' && renderEarningsView()}
           
@@ -930,5 +945,311 @@ return (
       )}
     </div>
   );
-}
+
+  // Team Dashboard Functions
+  const loadTeamData = async () => {
+    try {
+      const [drivers, zones, heatmap, alerts, metrics] = await Promise.all([
+        deliveryService.getTeamDrivers(),
+        deliveryService.getDeliveryZones(),
+        deliveryService.getHeatmapData(),
+        deliveryService.getBottleneckAlerts(),
+        deliveryService.getTeamMetrics()
+      ]);
+
+      setTeamData({
+        drivers,
+        zones,
+        heatmapData: heatmap,
+        bottleneckAlerts: alerts,
+        teamMetrics: metrics
+      });
+    } catch (error) {
+      console.error('Failed to load team data:', error);
+      setError('Failed to load team dashboard data');
+    }
+  };
+
+  const handleZoneAction = async (zoneId, action) => {
+    try {
+      await deliveryService.executeZoneAction(zoneId, action);
+      toast.success(`Zone action "${action}" executed successfully`);
+      loadTeamData(); // Refresh data
+    } catch (error) {
+      toast.error(`Failed to execute zone action: ${error.message}`);
+    }
+  };
+
+  const renderTeamDashboard = () => (
+    <div className="space-y-6">
+      {/* Team Overview Header */}
+      <div className="bg-gradient-to-r from-primary to-secondary text-white rounded-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-2xl font-bold">Team Dashboard</h2>
+            <p className="text-primary-100">Live delivery operations overview</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-center">
+              <p className="text-3xl font-bold">{teamData.drivers?.length || 0}</p>
+              <p className="text-sm text-primary-100">Active Drivers</p>
+            </div>
+            <div className="text-center">
+              <p className="text-3xl font-bold">{teamData.teamMetrics?.totalDeliveries || 0}</p>
+              <p className="text-sm text-primary-100">Today's Deliveries</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="RefreshCw"
+              onClick={loadTeamData}
+              className="text-white border-white/20 hover:bg-white/10"
+            >
+              Refresh
+            </Button>
+          </div>
+        </div>
+        
+        {/* Quick Stats */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white/10 rounded-lg p-3">
+            <p className="text-primary-100 text-sm">On-Time Rate</p>
+            <p className="text-xl font-bold">{teamData.teamMetrics?.onTimeRate || 0}%</p>
+          </div>
+          <div className="bg-white/10 rounded-lg p-3">
+            <p className="text-primary-100 text-sm">Avg Delivery Time</p>
+            <p className="text-xl font-bold">{teamData.teamMetrics?.avgDeliveryTime || 0}min</p>
+          </div>
+          <div className="bg-white/10 rounded-lg p-3">
+            <p className="text-primary-100 text-sm">Customer Rating</p>
+            <p className="text-xl font-bold">{teamData.teamMetrics?.customerRating || 0}/5</p>
+          </div>
+          <div className="bg-white/10 rounded-lg p-3">
+            <p className="text-primary-100 text-sm">Active Alerts</p>
+            <p className="text-xl font-bold text-warning">{teamData.bottleneckAlerts?.length || 0}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottleneck Alerts */}
+      {teamData.bottleneckAlerts && teamData.bottleneckAlerts.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-red-200">
+          <div className="flex items-center justify-between p-4 border-b border-red-200">
+            <div className="flex items-center gap-2">
+              <ApperIcon name="AlertTriangle" size={20} className="text-red-500" />
+              <h3 className="font-semibold text-red-800">Bottleneck Alerts</h3>
+              <Badge variant="danger">{teamData.bottleneckAlerts.length}</Badge>
+            </div>
+            <div className="flex gap-2">
+              {['all', 'urgent', 'warning', 'info'].map(filter => (
+                <Button
+                  key={filter}
+                  size="sm"
+                  variant={alertFilter === filter ? 'primary' : 'ghost'}
+                  onClick={() => setAlertFilter(filter)}
+                  className="text-xs"
+                >
+                  {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div className="p-4 space-y-3 max-h-64 overflow-y-auto">
+            {teamData.bottleneckAlerts
+              .filter(alert => alertFilter === 'all' || alert.severity === alertFilter)
+              .map(alert => (
+                <div key={alert.Id} className={`border rounded-lg p-3 ${
+                  alert.severity === 'urgent' ? 'border-red-300 bg-red-50' :
+                  alert.severity === 'warning' ? 'border-yellow-300 bg-yellow-50' :
+                  'border-blue-300 bg-blue-50'
+                }`}>
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">
+                        {alert.severity === 'urgent' ? '🔴' : 
+                         alert.severity === 'warning' ? '🟡' : '🔵'}
+                      </span>
+                      <div>
+                        <h4 className="font-medium">{alert.title}</h4>
+                        <p className="text-sm text-gray-600">{alert.zone}</p>
+                      </div>
+                    </div>
+                    <Badge variant={alert.severity === 'urgent' ? 'danger' : 
+                                   alert.severity === 'warning' ? 'warning' : 'info'}>
+                      {alert.severity.toUpperCase()}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-gray-700 mb-3">{alert.description}</p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      icon="Zap"
+                      onClick={() => handleZoneAction(alert.zoneId, 'prioritize')}
+                    >
+                      Prioritize Zone
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon="Users"
+                      onClick={() => handleZoneAction(alert.zoneId, 'assign_backup')}
+                    >
+                      Assign Backup
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon="Route"
+                      onClick={() => handleZoneAction(alert.zoneId, 'reroute')}
+                    >
+                      Reroute
+                    </Button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      <div className="grid lg:grid-cols-2 gap-6">
+        {/* Team Members */}
+        <div className="bg-white rounded-lg shadow-sm border">
+          <div className="p-4 border-b">
+            <h3 className="font-semibold flex items-center gap-2">
+              <ApperIcon name="Users" size={20} />
+              Team Overview
+            </h3>
+          </div>
+          <div className="p-4 space-y-3 max-h-96 overflow-y-auto">
+            {teamData.drivers?.length === 0 ? (
+              <p className="text-gray-500 text-center py-4">No active drivers</p>
+            ) : (
+              teamData.drivers?.map(driver => (
+                <div key={driver.Id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-3 h-3 rounded-full ${
+                      driver.status === 'active' ? 'bg-green-500' :
+                      driver.status === 'break' ? 'bg-yellow-500' :
+                      driver.status === 'offline' ? 'bg-gray-400' : 'bg-red-500'
+                    }`} />
+                    <div>
+                      <p className="font-medium">{driver.name}</p>
+                      <p className="text-sm text-gray-600">{driver.zone}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium">{driver.activeDeliveries || 0} active</p>
+                    <p className="text-xs text-gray-500">{driver.completedToday || 0} completed</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Delivery Heatmap */}
+        <div className="bg-white rounded-lg shadow-sm border">
+          <div className="p-4 border-b">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold flex items-center gap-2">
+                <ApperIcon name="Map" size={20} />
+                Delivery Heatmap
+              </h3>
+              <Button
+                size="sm"
+                variant="primary"
+                icon="Maximize"
+                onClick={() => {
+                  setCurrentView('map');
+                  setTimeout(() => {
+                    // This would trigger team view in the map component
+                    toast.info('Switched to full map view');
+                  }, 100);
+                }}
+              >
+                Full View
+              </Button>
+            </div>
+          </div>
+          <div className="p-4">
+            <DeliveryMap 
+              orders={orders}
+              driverLocation={driverLocation}
+              optimizedRoute={optimizedRoute}
+              selectedOrder={selectedOrder}
+              onOrderSelect={setSelectedOrder}
+              teamData={teamData}
+              isTeamView={true}
+              selectedZone={selectedZone}
+              onZoneSelect={setSelectedZone}
+              compact={true}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Zone Performance */}
+      {teamData.zones && teamData.zones.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border">
+          <div className="p-4 border-b">
+            <h3 className="font-semibold flex items-center gap-2">
+              <ApperIcon name="BarChart3" size={20} />
+              Zone Performance
+            </h3>
+          </div>
+          <div className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {teamData.zones.map(zone => (
+                <div 
+                  key={zone.Id} 
+                  className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 ${
+                    selectedZone?.Id === zone.Id ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  onClick={() => setSelectedZone(zone)}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-medium">{zone.name}</h4>
+                    <div className={`w-3 h-3 rounded-full ${
+                      zone.performance >= 90 ? 'bg-green-500' :
+                      zone.performance >= 70 ? 'bg-yellow-500' : 'bg-red-500'
+                    }`} />
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Performance</span>
+                      <span className="font-medium">{zone.performance}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Active Orders</span>
+                      <span className="font-medium">{zone.activeOrders}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Avg Delivery</span>
+                      <span className="font-medium">{zone.avgDeliveryTime}min</span>
+                    </div>
+                    {zone.bottlenecks > 0 && (
+                      <div className="flex justify-between text-red-600">
+                        <span>Bottlenecks</span>
+                        <span className="font-medium">{zone.bottlenecks}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // Load team data when team view is selected
+  useEffect(() => {
+    if (currentView === 'team') {
+      loadTeamData();
+    }
+}, [currentView]);
+};
+
 export default DeliveryDashboard;

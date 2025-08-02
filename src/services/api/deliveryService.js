@@ -430,7 +430,7 @@ return emergencyReport;
     return emergency;
   }
 
-  // Data privacy - blur sensitive addresses
+// Data privacy - blur sensitive addresses
   blurAddress(address) {
     if (!address) return '';
     
@@ -439,6 +439,187 @@ return emergencyReport;
     
     // Keep first and last part, blur middle
     return `${parts[0]} ${'*'.repeat(parts.slice(1, -1).join(' ').length)} ${parts[parts.length - 1]}`;
+  }
+
+// Team Dashboard Methods
+  async getTeamDrivers() {
+    await this.delay(600);
+    
+    const drivers = [
+      { Id: 1, name: 'Alex Chen', status: 'active', zone: 'Downtown', activeDeliveries: 3, completedToday: 12, rating: 4.8, location: { lat: 40.7128, lng: -74.0060 } },
+      { Id: 2, name: 'Maria Garcia', status: 'active', zone: 'Midtown', activeDeliveries: 2, completedToday: 15, rating: 4.9, location: { lat: 40.7589, lng: -73.9851 } },
+      { Id: 3, name: 'James Wilson', status: 'break', zone: 'Uptown', activeDeliveries: 0, completedToday: 8, rating: 4.6, location: { lat: 40.7831, lng: -73.9712 } },
+      { Id: 4, name: 'Sarah Kim', status: 'active', zone: 'Brooklyn', activeDeliveries: 4, completedToday: 10, rating: 4.7, location: { lat: 40.6782, lng: -73.9442 } },
+      { Id: 5, name: 'David Brown', status: 'delayed', zone: 'Queens', activeDeliveries: 2, completedToday: 6, rating: 4.5, location: { lat: 40.7282, lng: -73.7949 } }
+    ];
+
+    return drivers;
+  }
+async getDeliveryZones() {
+    await this.delay(500);
+    
+    const zones = [
+      {
+      { 
+        Id: 1, 
+        name: 'Downtown', 
+        performance: 92, 
+        activeOrders: 15, 
+        avgDeliveryTime: 22, 
+        bottlenecks: 0,
+        coordinates: { lat: 40.7128, lng: -74.0060 },
+        deliveryDensity: 'high',
+        onTimeRate: 94
+      },
+      { 
+        Id: 2, 
+        name: 'Midtown', 
+        performance: 88, 
+        activeOrders: 12, 
+        avgDeliveryTime: 28, 
+        bottlenecks: 1,
+        coordinates: { lat: 40.7589, lng: -73.9851 },
+        deliveryDensity: 'very-high',
+        onTimeRate: 89
+      },
+      { 
+        Id: 3, 
+        name: 'Uptown', 
+        performance: 75, 
+        activeOrders: 8, 
+        avgDeliveryTime: 35, 
+        bottlenecks: 2,
+        coordinates: { lat: 40.7831, lng: -73.9712 },
+        deliveryDensity: 'medium',
+        onTimeRate: 76
+      },
+      { 
+        Id: 4, 
+        name: 'Brooklyn', 
+        performance: 85, 
+        activeOrders: 18, 
+        avgDeliveryTime: 30, 
+        bottlenecks: 1,
+        coordinates: { lat: 40.6782, lng: -73.9442 },
+        deliveryDensity: 'high',
+        onTimeRate: 87
+      },
+      { 
+        Id: 5, 
+        name: 'Queens', 
+        performance: 68, 
+        activeOrders: 6, 
+        avgDeliveryTime: 42, 
+        bottlenecks: 3,
+        coordinates: { lat: 40.7282, lng: -73.7949 },
+        deliveryDensity: 'low',
+        onTimeRate: 72
+      }
+    ];
+
+    return zones;
+  }
+async getHeatmapData() {
+    await this.delay(400);
+    
+    const heatmapData = [
+      { zone: 'Downtown', intensity: 0.9, deliveries: 85, delays: 2, performance: 92 },
+      { zone: 'Downtown', intensity: 0.9, deliveries: 85, delays: 2, performance: 92 },
+      { zone: 'Midtown', intensity: 1.0, deliveries: 95, delays: 8, performance: 88 },
+      { zone: 'Uptown', intensity: 0.6, deliveries: 42, delays: 12, performance: 75 },
+      { zone: 'Brooklyn', intensity: 0.8, deliveries: 67, delays: 5, performance: 85 },
+      { zone: 'Queens', intensity: 0.4, deliveries: 28, delays: 15, performance: 68 }
+    ];
+
+    return heatmapData;
+  }
+async getBottleneckAlerts() {
+    await this.delay(300);
+    
+    const alerts = [
+      {
+      {
+        Id: 1,
+        title: 'Traffic Congestion Detected',
+        zone: 'Queens',
+        zoneId: 5,
+        severity: 'urgent',
+        description: 'Major traffic jam causing 40+ minute delays. 3 drivers affected.',
+        timestamp: new Date(Date.now() - 300000),
+        affectedDrivers: 3,
+        estimatedDelay: 45
+      },
+      {
+        Id: 2,
+        title: 'High Order Volume',
+        zone: 'Midtown',
+        zoneId: 2,
+        severity: 'warning',
+        description: 'Order volume 150% above normal. Consider backup driver assignment.',
+        timestamp: new Date(Date.now() - 600000),
+        affectedDrivers: 2,
+        estimatedDelay: 15
+      },
+      {
+        Id: 3,
+        title: 'Weather Impact',
+        zone: 'Uptown',
+        zoneId: 3,
+        severity: 'warning',
+        description: 'Light rain causing slower delivery times. Monitor conditions.',
+        timestamp: new Date(Date.now() - 900000),
+        affectedDrivers: 1,
+        estimatedDelay: 10
+      }
+    ];
+
+    return alerts;
+  }
+async getTeamMetrics() {
+    await this.delay(350);
+    
+    const metrics = {
+      totalDeliveries: 237,
+      totalDeliveries: 237,
+      onTimeRate: 86,
+      avgDeliveryTime: 28,
+      customerRating: 4.7,
+      activeDrivers: 5,
+      completedOrders: 189,
+      pendingOrders: 48,
+      issuesReported: 3,
+      totalDistance: 1247,
+      fuelEfficiency: 14.2,
+      customerSatisfaction: 94
+    };
+
+    return metrics;
+  }
+async executeZoneAction(zoneId, action) {
+    await this.delay(800);
+    
+    const actions = {
+      'prioritize': `Zone ${zoneId} has been prioritized for immediate attention`,
+      'prioritize': `Zone ${zoneId} has been prioritized for immediate attention`,
+      'assign_backup': `Backup driver has been assigned to zone ${zoneId}`,
+      'reroute': `Traffic rerouting has been activated for zone ${zoneId}`,
+      'emergency_support': `Emergency support dispatched to zone ${zoneId}`
+    };
+
+    if (!actions[action]) {
+      throw new Error('Invalid zone action');
+    }
+
+    // Simulate action execution
+    console.log(`Executing ${action} for zone ${zoneId}`);
+    
+    return {
+      success: true,
+      message: actions[action],
+      timestamp: new Date(),
+      zoneId,
+      action
+    };
   }
 }
 
