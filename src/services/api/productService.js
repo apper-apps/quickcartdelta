@@ -346,9 +346,34 @@ return [];
   }
 
   // Get placeholder image for failed image loads
-  getPlaceholderImage(productTitle = "Product", width = 400, height = 400) {
-    const encodedTitle = encodeURIComponent(productTitle.slice(0, 20));
-    return `https://via.placeholder.com/${width}x${height}/e5e7eb/6b7280?text=${encodedTitle}`;
+getPlaceholderImage(productTitle = "Product", width = 400, height = 400) {
+    try {
+      // Ensure we have a valid title
+      const title = productTitle?.trim() || "Product";
+      
+      // Smart truncation that preserves word boundaries
+      let truncatedTitle = title.length <= 25 ? title : title.slice(0, 25);
+      
+      // If we truncated mid-word, find the last complete word
+      if (title.length > 25) {
+        const lastSpaceIndex = truncatedTitle.lastIndexOf(' ');
+        if (lastSpaceIndex > 10) { // Ensure we have at least 10 chars
+          truncatedTitle = truncatedTitle.slice(0, lastSpaceIndex);
+        }
+      }
+      
+      // Clean and encode the title properly
+      const cleanTitle = truncatedTitle
+        .replace(/[^\w\s-]/g, '') // Remove special chars except hyphens and spaces
+        .replace(/\s+/g, ' ') // Normalize spaces
+        .trim();
+      
+      const encodedTitle = encodeURIComponent(cleanTitle || 'Product');
+      return `https://via.placeholder.com/${width}x${height}/e5e7eb/6b7280?text=${encodedTitle}`;
+    } catch (error) {
+      console.warn('Error generating placeholder image:', error);
+      return `https://via.placeholder.com/${width}x${height}/e5e7eb/6b7280?text=Product`;
+    }
   }
 
   // Validate image URL and provide fallback

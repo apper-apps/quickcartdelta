@@ -102,8 +102,29 @@ className="p-2 bg-white/80 backdrop-blur-sm rounded-full hover:bg-white hover:sc
             <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
           </div>
         )}
-        <img
-          src={imageError ? `https://via.placeholder.com/400x400/e5e7eb/6b7280?text=${encodeURIComponent(product.title.slice(0, 20))}` : product.images[0]}
+<img
+          src={imageError ? (() => {
+            try {
+              const title = product?.title?.trim() || "Product";
+              let truncatedTitle = title.length <= 25 ? title : title.slice(0, 25);
+              
+              if (title.length > 25) {
+                const lastSpaceIndex = truncatedTitle.lastIndexOf(' ');
+                if (lastSpaceIndex > 10) {
+                  truncatedTitle = truncatedTitle.slice(0, lastSpaceIndex);
+                }
+              }
+              
+              const cleanTitle = truncatedTitle
+                .replace(/[^\w\s-]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+              
+              return `https://via.placeholder.com/400x400/e5e7eb/6b7280?text=${encodeURIComponent(cleanTitle || 'Product')}`;
+            } catch (error) {
+              return 'https://via.placeholder.com/400x400/e5e7eb/6b7280?text=Product';
+            }
+          })() : product.images[0]}
           alt={product.title}
           className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
           onLoad={() => setImageLoading(false)}

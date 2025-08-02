@@ -165,9 +165,30 @@ const loadProduct = async () => {
                 <div className="animate-spin rounded-full h-12 w-12 border-3 border-primary border-t-transparent"></div>
               </div>
             )}
-            <img
+<img
               src={imageErrors[selectedImage] ? 
-                `https://via.placeholder.com/600x600/e5e7eb/6b7280?text=${encodeURIComponent(product.title.slice(0, 30))}` : 
+                (() => {
+                  try {
+                    const title = product?.title?.trim() || "Product";
+                    let truncatedTitle = title.length <= 25 ? title : title.slice(0, 25);
+                    
+                    if (title.length > 25) {
+                      const lastSpaceIndex = truncatedTitle.lastIndexOf(' ');
+                      if (lastSpaceIndex > 10) {
+                        truncatedTitle = truncatedTitle.slice(0, lastSpaceIndex);
+                      }
+                    }
+                    
+                    const cleanTitle = truncatedTitle
+                      .replace(/[^\w\s-]/g, '')
+                      .replace(/\s+/g, ' ')
+                      .trim();
+                    
+                    return `https://via.placeholder.com/600x600/e5e7eb/6b7280?text=${encodeURIComponent(cleanTitle || 'Product')}`;
+                  } catch (error) {
+                    return 'https://via.placeholder.com/600x600/e5e7eb/6b7280?text=Product';
+                  }
+                })() : 
                 product.images[selectedImage]
               }
               alt={product.title}
