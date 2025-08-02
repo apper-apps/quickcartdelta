@@ -314,7 +314,6 @@ calculateDistanceWithTraffic(point1, point2, trafficIncidents = []) {
         { instruction: "Continue straight for 2 blocks", distance: 0.4, duration: 1 },
         { instruction: "Arrive at destination on the right", distance: 0, duration: 0 }
       ]
-    };
 };
   }
 
