@@ -21,7 +21,12 @@
     },
     "inStock": true,
     "featured": true,
-    "createdAt": "2024-01-15T08:00:00Z"
+    "createdAt": "2024-01-15T08:00:00Z",
+    "securityMetadata": {
+      "priceEncrypted": false,
+      "dataClassification": "PUBLIC",
+      "complianceLevel": "STANDARD"
+    }
   },
   {
     "Id": 2,
@@ -45,7 +50,12 @@
     },
     "inStock": true,
     "featured": true,
-    "createdAt": "2024-01-20T10:30:00Z"
+    "createdAt": "2024-01-20T10:30:00Z",
+    "securityMetadata": {
+      "priceEncrypted": false,
+      "dataClassification": "PUBLIC",
+      "complianceLevel": "STANDARD"
+    }
   },
   {
     "Id": 3,
@@ -68,7 +78,12 @@
     },
     "inStock": true,
     "featured": false,
-    "createdAt": "2024-01-25T14:15:00Z"
+    "createdAt": "2024-01-25T14:15:00Z",
+    "securityMetadata": {
+      "priceEncrypted": false,
+      "dataClassification": "PUBLIC",
+      "complianceLevel": "STANDARD"
+    }
   },
   {
     "Id": 4,
@@ -91,7 +106,12 @@
     },
     "inStock": true,
     "featured": true,
-    "createdAt": "2024-02-01T09:45:00Z"
+    "createdAt": "2024-02-01T09:45:00Z",
+    "securityMetadata": {
+      "priceEncrypted": false,
+      "dataClassification": "PUBLIC",
+      "complianceLevel": "STANDARD"
+    }
   },
   {
     "Id": 5,
@@ -114,7 +134,12 @@
     },
     "inStock": true,
     "featured": true,
-    "createdAt": "2024-02-05T11:20:00Z"
+    "createdAt": "2024-02-05T11:20:00Z",
+    "securityMetadata": {
+      "priceEncrypted": false,
+      "dataClassification": "PUBLIC",
+      "complianceLevel": "STANDARD"
+    }
   },
   {
     "Id": 6,
@@ -137,7 +162,12 @@
     },
     "inStock": true,
     "featured": false,
-    "createdAt": "2024-02-10T16:30:00Z"
+    "createdAt": "2024-02-10T16:30:00Z",
+    "securityMetadata": {
+      "priceEncrypted": false,
+      "dataClassification": "PUBLIC",
+      "complianceLevel": "STANDARD"
+    }
   },
   {
     "Id": 7,
@@ -159,7 +189,12 @@
     },
     "inStock": true,
     "featured": true,
-    "createdAt": "2024-02-15T13:10:00Z"
+    "createdAt": "2024-02-15T13:10:00Z",
+    "securityMetadata": {
+      "priceEncrypted": false,
+      "dataClassification": "PUBLIC",
+      "complianceLevel": "STANDARD"
+    }
   },
   {
     "Id": 8,
@@ -182,7 +217,12 @@
     },
     "inStock": true,
     "featured": true,
-    "createdAt": "2024-02-20T12:45:00Z"
+    "createdAt": "2024-02-20T12:45:00Z",
+    "securityMetadata": {
+      "priceEncrypted": false,
+      "dataClassification": "PUBLIC",
+      "complianceLevel": "STANDARD"
+    }
   },
   {
     "Id": 9,
@@ -204,7 +244,12 @@
     },
     "inStock": true,
     "featured": false,
-    "createdAt": "2024-02-25T15:20:00Z"
+    "createdAt": "2024-02-25T15:20:00Z",
+    "securityMetadata": {
+      "priceEncrypted": false,
+      "dataClassification": "PUBLIC",
+      "complianceLevel": "STANDARD"
+    }
   },
   {
     "Id": 10,
@@ -227,7 +272,12 @@
     },
     "inStock": true,
     "featured": false,
-    "createdAt": "2024-03-01T10:15:00Z"
+    "createdAt": "2024-03-01T10:15:00Z",
+    "securityMetadata": {
+      "priceEncrypted": false,
+      "dataClassification": "PUBLIC",
+      "complianceLevel": "STANDARD"
+    }
   },
   {
     "Id": 11,
@@ -249,7 +299,12 @@
     },
     "inStock": true,
     "featured": false,
-    "createdAt": "2024-03-05T14:30:00Z"
+    "createdAt": "2024-03-05T14:30:00Z",
+    "securityMetadata": {
+      "priceEncrypted": false,
+      "dataClassification": "PUBLIC",
+      "complianceLevel": "STANDARD"
+    }
   },
   {
     "Id": 12,
@@ -271,6 +326,11 @@
     },
     "inStock": true,
     "featured": false,
-    "createdAt": "2024-03-10T11:45:00Z"
+    "createdAt": "2024-03-10T11:45:00Z",
+    "securityMetadata": {
+      "priceEncrypted": false,
+      "dataClassification": "PUBLIC",
+      "complianceLevel": "STANDARD"
+    }
   }
 ]
