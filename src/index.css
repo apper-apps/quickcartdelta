@@ -98,3 +98,147 @@
 ::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(to bottom, #357abd, #6a5acd);
 }
+
+/* Testing Dashboard Styles */
+.testing-header {
+  @apply bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200;
+}
+
+.testing-section {
+  @apply bg-white p-6 rounded-lg shadow-sm border border-gray-200;
+}
+
+.device-test-card {
+  @apply bg-gray-50 p-4 rounded-lg border border-gray-200 hover:shadow-md transition-all duration-200;
+}
+
+.weather-test-card {
+  @apply bg-gradient-to-br from-blue-50 to-sky-50 p-4 rounded-lg border border-blue-200 hover:shadow-md transition-all duration-200;
+}
+
+.network-test-card {
+  @apply bg-white p-4 rounded-lg border border-gray-200 text-center hover:shadow-md transition-all duration-200;
+}
+
+.test-status {
+  @apply flex items-center justify-center w-8 h-8 rounded-full;
+}
+
+.test-status.passed {
+  @apply bg-green-100 text-green-600;
+}
+
+.test-status.failed {
+  @apply bg-red-100 text-red-600;
+}
+
+.test-status.warning {
+  @apply bg-yellow-100 text-yellow-600;
+}
+
+.test-status.pending {
+  @apply bg-gray-100 text-gray-600;
+}
+
+.network-strength {
+  @apply flex justify-center my-3;
+}
+
+.signal-bars {
+  @apply flex items-end space-x-1;
+}
+
+.signal-bars .bar {
+  @apply w-2 bg-gray-300 rounded-sm transition-all duration-200;
+}
+
+.signal-bars .bar:nth-child(1) { @apply h-2; }
+.signal-bars .bar:nth-child(2) { @apply h-3; }
+.signal-bars .bar:nth-child(3) { @apply h-4; }
+.signal-bars .bar:nth-child(4) { @apply h-5; }
+
+.network-strength.strong .bar.active {
+  @apply bg-green-500;
+}
+
+.network-strength.weak .bar.active {
+  @apply bg-yellow-500;
+}
+
+.network-strength.dead .bar.active {
+  @apply bg-red-500;
+}
+
+.current-test-scenario {
+  @apply bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-lg border border-purple-200;
+}
+
+.scenario-details {
+  @apply mt-4;
+}
+
+.scenario-item {
+  @apply flex items-center space-x-2;
+}
+
+.scenario-item .label {
+  @apply text-sm font-medium text-gray-600;
+}
+
+.success-metric-card {
+  @apply bg-gradient-to-br from-white to-gray-50 p-4 rounded-lg border border-gray-200 hover:shadow-md transition-all duration-200;
+}
+
+.metric-status {
+  @apply flex items-center justify-center w-10 h-10 rounded-full;
+}
+
+.metric-status.success {
+  @apply bg-green-100 text-green-600;
+}
+
+.metric-status.warning {
+  @apply bg-yellow-100 text-yellow-600;
+}
+
+.metric-status.error {
+  @apply bg-red-100 text-red-600;
+}
+
+.success-rate {
+  @apply flex items-center space-x-1;
+}
+
+/* Weather Alert Styles */
+.weather-alert {
+  @apply border-l-4 border-yellow-400 bg-yellow-50 p-4 rounded-r-lg;
+}
+
+.weather-alert.severe {
+  @apply border-red-400 bg-red-50;
+}
+
+.weather-alert.clear {
+  @apply border-green-400 bg-green-50;
+}
+
+/* Performance Indicators */
+.performance-indicator {
+  @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium;
+}
+
+.performance-indicator.excellent {
+  @apply bg-green-100 text-green-800;
+}
+
+.performance-indicator.good {
+  @apply bg-blue-100 text-blue-800;
+}
+
+.performance-indicator.needs-improvement {
+  @apply bg-yellow-100 text-yellow-800;
+}
+
+.performance-indicator.poor {
+  @apply bg-red-100 text-red-800;
+}

@@ -11,115 +11,234 @@ import Loading from "@/components/ui/Loading";
 import Error from "@/components/ui/Error";
 import Badge from "@/components/atoms/Badge";
 import Button from "@/components/atoms/Button";
-const DeliveryDashboard = () => {
-const [orders, setOrders] = useState([]);
+
+function DeliveryDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [currentView, setCurrentView] = useState('queue'); // queue, map, team, contact, proof, metrics, support, earnings, operational
+  const [orders, setOrders] = useState([]);
   const [driverLocation, setDriverLocation] = useState(null);
+  const [currentLocation, setCurrentLocation] = useState(null);
   const [optimizedRoute, setOptimizedRoute] = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [showProofModal, setShowProofModal] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [activeView, setActiveView] = useState('operational');
+  const [currentView, setCurrentView] = useState('queue');
   const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
+  const [emergencyMode, setEmergencyMode] = useState(false);
+  const [fatigueLevel, setFatigueLevel] = useState(0);
+  const [fatigueAlert, setFatigueAlert] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [earningsData, setEarningsData] = useState({
-    basePay: 1200,
-    bonuses: 350,
-    deductions: 0,
-    incentiveProgress: { current: 7, target: 10, reward: 200 }
+  const [networkStatus, setNetworkStatus] = useState('online');
+  const [workingHours, setWorkingHours] = useState(5.5);
+  const [selectedZone, setSelectedZone] = useState(null);
+  const [alertFilter, setAlertFilter] = useState('all');
+  const [vehicleMetrics, setVehicleMetrics] = useState({
+    speed: 0,
+    fuel: 85,
+    temperature: 72,
+    mileage: 245.8
   });
   const [vehicleData, setVehicleData] = useState({
-    fuelEfficiency: 15.2,
-    maintenanceAlerts: ['Oil change due in 500km', 'Tire rotation needed'],
-    temperatureLog: 4.2,
-    coolerCapacity: 85
+    fuelEfficiency: 18.5,
+    temperatureLog: 4,
+    coolerCapacity: 75,
+    maintenanceAlerts: [
+      'Oil change due in 500km',
+      'Tire pressure check needed'
+    ]
   });
-  const [workingHours, setWorkingHours] = useState(4.5);
-  const [fatigueAlert, setFatigueAlert] = useState(false);
-  
-  // Team Dashboard State
+  const [earningsData, setEarningsData] = useState({
+    basePay: 1850,
+    bonuses: 420,
+    deductions: 125,
+    incentiveProgress: {
+      current: 18,
+      target: 25,
+      reward: 500
+    }
+  });
+
+  // Team Management State (for supervisors)
   const [teamData, setTeamData] = useState({
     drivers: [],
     zones: [],
-    heatmapData: [],
-    bottleneckAlerts: [],
-    teamMetrics: {}
-  });
-  const [selectedZone, setSelectedZone] = useState(null);
-  const [alertFilter, setAlertFilter] = useState('all'); // all, urgent, warning, info
+    heatmap: [],
+    alerts: []
+  })
+  const [isTeamLeader, setIsTeamLeader] = useState(false)
 
-  useEffect(() => {
+  // Testing Protocol State
+  const [testingMode, setTestingMode] = useState(false)
+  const [testScenarios, setTestScenarios] = useState({
+    weatherConditions: 'clear',
+    networkCondition: 'strong',
+    deviceCompatibility: true,
+    consecutiveFailures: 0
+  })
+  const [performanceMetrics, setPerformanceMetrics] = useState({
+    deliveryTimeReduction: 0,
+    firstAttemptSuccess: 0,
+    customerSatisfaction: 0,
+    totalDeliveries: 0,
+    onTimeDeliveries: 0
+  })
+
+useEffect(() => {
     loadDeliveryOrders();
     getCurrentLocation();
     initializeVoiceCommands();
+    initializeTestingProtocols();
+    monitorPerformanceMetrics();
+    
     // Set up real-time updates
     const interval = setInterval(loadDeliveryOrders, 30000); // Refresh every 30s
     return () => clearInterval(interval);
   }, []);
 
-  // Voice Commands Setup
-  const initializeVoiceCommands = () => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      setVoiceEnabled(true);
+  useEffect(() => {
+    if (orders.length > 0 && currentLocation) {
+      optimizeRoute()
     }
-  };
+  }, [orders, currentLocation])
 
-  const startVoiceCommand = () => {
-    if (!voiceEnabled) return;
+  // Testing Protocols Initialization
+  function initializeTestingProtocols() {
+    // Device compatibility testing
+    const deviceInfo = {
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      language: navigator.language,
+      onLine: navigator.onLine,
+      connection: navigator.connection?.effectiveType || 'unknown'
+    }
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = 'en-US';
+    // Simulate different testing scenarios
+    if (testingMode) {
+      simulateTestingScenarios()
+    }
 
-    setIsListening(true);
-    
+    // Monitor network connectivity
+    window.addEventListener('online', () => setNetworkStatus('online'))
+    window.addEventListener('offline', () => setNetworkStatus('offline'))
+  }
+
+  function simulateTestingScenarios() {
+    const scenarios = [
+      { weather: 'heavy_rain', network: 'weak', description: 'Heavy rain with poor network' },
+      { weather: 'clear', network: 'dead_zone', description: 'Dead zone network coverage' },
+      { weather: 'snow', network: 'strong', description: 'Snow conditions with good network' }
+    ]
+
+    const randomScenario = scenarios[Math.floor(Math.random() * scenarios.length)]
+    setTestScenarios(prev => ({
+      ...prev,
+      weatherConditions: randomScenario.weather,
+      networkCondition: randomScenario.network
+    }))
+
+    toast.info(`Testing Scenario: ${randomScenario.description}`)
+  }
+
+  function monitorPerformanceMetrics() {
+    const interval = setInterval(() => {
+      if (orders.length > 0) {
+        calculateSuccessMetrics()
+      }
+    }, 5000)
+
+    return () => clearInterval(interval)
+  }
+
+  function calculateSuccessMetrics() {
+    const deliveredOrders = orders.filter(order => order.status === 'delivered')
+    const totalOrders = orders.length
+    const firstAttemptSuccesses = deliveredOrders.filter(order => 
+      order.delivery?.firstAttemptSuccess === true
+    ).length
+
+    const avgSatisfaction = deliveredOrders.reduce((sum, order) => 
+      sum + (order.delivery?.satisfaction?.rating || 0), 0
+    ) / (deliveredOrders.length || 1)
+
+    const avgDeliveryTime = deliveredOrders.reduce((sum, order) => 
+      sum + (order.delivery?.actualTime || 0), 0
+    ) / (deliveredOrders.length || 1)
+
+    const estimatedTime = deliveredOrders.reduce((sum, order) => 
+      sum + (order.delivery?.estimatedTime || 0), 0
+    ) / (deliveredOrders.length || 1)
+
+    const timeReduction = estimatedTime > 0 ? 
+      ((estimatedTime - avgDeliveryTime) / estimatedTime) * 100 : 0
+
+    setPerformanceMetrics({
+      deliveryTimeReduction: Math.max(0, timeReduction),
+      firstAttemptSuccess: totalOrders > 0 ? (firstAttemptSuccesses / totalOrders) * 100 : 0,
+      customerSatisfaction: avgSatisfaction,
+      totalDeliveries: deliveredOrders.length,
+      onTimeDeliveries: deliveredOrders.filter(order => 
+        (order.delivery?.actualTime || 0) <= (order.delivery?.estimatedTime || 0)
+      ).length
+    })
+  }
+
+  // Voice Commands Setup
+  function initializeVoiceCommands() {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      return
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    const recognition = new SpeechRecognition()
+
+    recognition.continuous = false
+    recognition.interimResults = false
+    recognition.lang = 'en-US'
+
     recognition.onresult = (event) => {
-      const command = event.results[0][0].transcript.toLowerCase();
-      processVoiceCommand(command);
-    };
+      const command = event.results[0][0].transcript.toLowerCase()
+      processVoiceCommand(command)
+    }
 
     recognition.onerror = (event) => {
-      console.error('Voice recognition error:', event.error);
-      toast.error('Voice command failed. Please try again.');
-      setIsListening(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognition.start();
-  };
-
-  const processVoiceCommand = (command) => {
-    if (command.includes('navigate to next delivery')) {
-      const nextOrder = orders.find(o => o.deliveryStatus === 'picked_up' || o.deliveryStatus === 'ready_for_pickup');
-      if (nextOrder) {
-        setSelectedOrder(nextOrder);
-        setCurrentView('map');
-        toast.success('Navigating to next delivery');
-      } else {
-        toast.info('No pending deliveries found');
-      }
-    } else if (command.includes('call customer')) {
-      const customerName = command.replace('call customer', '').trim();
-      const order = orders.find(o => o.customer?.name.toLowerCase().includes(customerName.toLowerCase()));
-      if (order) {
-        setSelectedOrder(order);
-        setCurrentView('contact');
-        toast.success(`Calling customer ${order.customer.name}`);
-      } else {
-        toast.error('Customer not found');
-      }
-    } else {
-      toast.info('Command not recognized. Try "Navigate to next delivery" or "Call customer [name]"');
+      console.log('Voice recognition error:', event.error)
+      setVoiceEnabled(false)
     }
-  };
 
-// Emergency Support & Safety
-  const requestEmergencyHelp = async () => {
+    setVoiceEnabled(true)
+  }
+
+  function startVoiceCommand() {
+    if (!voiceEnabled) return
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    const recognition = new SpeechRecognition()
+    recognition.start()
+  }
+
+  function processVoiceCommand(command) {
+    if (command.includes('next delivery')) {
+      const nextOrder = orders.find(order => order.status === 'ready_for_pickup' || order.status === 'picked_up')
+      if (nextOrder) {
+        setSelectedOrder(nextOrder)
+        toast.success(`Selected delivery for ${nextOrder.shipping.firstName}`)
+      }
+    } else if (command.includes('emergency')) {
+      requestEmergencyHelp()
+    } else if (command.includes('contact customer')) {
+      if (selectedOrder) {
+        setShowContactModal(true)
+      }
+    } else if (command.includes('testing mode')) {
+      setTestingMode(!testingMode)
+      toast.info(`Testing mode ${!testingMode ? 'enabled' : 'disabled'}`)
+    }
+  }
+
+async function requestEmergencyHelp() {
+    setEmergencyMode(true);
     try {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(async (position) => {
@@ -138,8 +257,10 @@ const [orders, setOrders] = useState([]);
       }
     } catch (error) {
       toast.error('Failed to request help. Please call dispatch directly.');
+    } finally {
+      setEmergencyMode(false);
     }
-  };
+  }
 
   // Fatigue monitoring
   useEffect(() => {
@@ -197,14 +318,17 @@ const [orders, setOrders] = useState([]);
     }
   };
 
-  const getCurrentLocation = () => {
+const getCurrentLocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setDriverLocation({
+          const location = {
             lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
+            lng: position.coords.longitude,
+            timestamp: new Date().toISOString()
+          };
+          setDriverLocation(location);
+          setCurrentLocation(location);
         },
         (error) => {
           console.warn('Location access denied:', error);
@@ -213,13 +337,14 @@ const [orders, setOrders] = useState([]);
     }
   };
 
-  const optimizeRoute = async () => {
+const optimizeRoute = async () => {
     try {
-      if (!driverLocation) {
+      if (!driverLocation && !currentLocation) {
         toast.error('Location required for route optimization');
         return;
       }
       
+      const location = driverLocation || currentLocation;
       const pendingOrders = orders.filter(o => 
         ['ready_for_pickup', 'picked_up'].includes(o.deliveryStatus)
       );
@@ -229,10 +354,11 @@ const [orders, setOrders] = useState([]);
         return;
       }
 
-      const route = await routeOptimizer.optimizeRoute(driverLocation, pendingOrders);
+      const route = await routeOptimizer.optimizeRoute(location, pendingOrders);
       setOptimizedRoute(route);
-      toast.success(`Route optimized for ${route.stops.length} deliveries`);
+      toast.success(`Route optimized for ${route?.stops?.length || pendingOrders.length} deliveries`);
     } catch (err) {
+      console.error('Route optimization error:', err);
       toast.error('Failed to optimize route');
     }
   };
@@ -395,70 +521,149 @@ const getPriorityIcon = (priority) => {
                   icon="MapPin"
                   onClick={() => {
                     setSelectedOrder(order);
+onClick={() => {
+                    setSelectedOrder(order);
                     setCurrentView('map');
                   }}
                 >
                   Navigate
                 </Button>
-
-                <div className="relative">
-                  <Button 
-                    size="sm" 
-                    variant="danger"
-                    icon="AlertTriangle"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      const rect = e.target.getBoundingClientRect();
-                      const dropdown = document.getElementById(`issue-dropdown-${order.Id}`);
-                      if (dropdown) {
-                        dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
-                        dropdown.style.top = `${rect.bottom + 5}px`;
-                        dropdown.style.left = `${rect.left}px`;
-                      }
-                    }}
-                  >
-                    Report Issue
-                  </Button>
-                  
-                  <div 
-                    id={`issue-dropdown-${order.Id}`}
-                    className="absolute z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-2 min-w-48"
-                    style={{ display: 'none' }}
-                  >
-                    <div className="space-y-1">
-                      <button
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded"
-                        onClick={() => {
-                          reportIssue(order.Id, 'address_incorrect', 'Address information is incorrect or incomplete');
-                          document.getElementById(`issue-dropdown-${order.Id}`).style.display = 'none';
-                        }}
-                      >
-                        📍 Address Incorrect
-                      </button>
-                      <button
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded"
-                        onClick={() => {
-                          reportIssue(order.Id, 'customer_unavailable', 'Customer is not available at delivery location');
-                          document.getElementById(`issue-dropdown-${order.Id}`).style.display = 'none';
-                        }}
-                      >
-                        👤 Customer Unavailable
-                      </button>
-                      <button
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded"
-                        onClick={() => {
-                          reportIssue(order.Id, 'package_damaged', 'Package appears to be damaged during transport');
-                          document.getElementById(`issue-dropdown-${order.Id}`).style.display = 'none';
-                        }}
-                      >
-                        📦 Package Damaged
-                      </button>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderOrderQueue = () => (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold">Delivery Queue</h2>
+        <div className="flex gap-2">
+          <Button 
+            onClick={optimizeRoute}
+            icon="Route"
+            variant="delivery"
+            disabled={orders.length === 0}
+          >
+            Optimize Route
+          </Button>
+          <Button 
+            onClick={loadDeliveryOrders}
+            icon="RotateCcw"
+            variant="ghost"
+          >
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {orders.length === 0 ? (
+        <div className="text-center py-12">
+          <ApperIcon name="Package" size={48} className="mx-auto text-gray-400 mb-4" />
+          <h3 className="text-lg font-semibold text-gray-600 mb-2">No deliveries pending</h3>
+          <p className="text-gray-500">Check back later for new orders</p>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {orders.map((order) => (
+            <div key={order.Id} className="card p-4 border-l-4 border-l-primary">
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">{getPriorityIcon(order.priority)}</span>
+                  <div>
+                    <h3 className="font-semibold">Order #{order.Id}</h3>
+                    <p className="text-sm text-gray-600">{order.customer?.name}</p>
+
+        {/* Performance Metrics Banner */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="success-metric-card">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Delivery Time Reduction</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {performanceMetrics.deliveryTimeReduction.toFixed(1)}%
+                </p>
+              </div>
+              <div className={`metric-status ${performanceMetrics.deliveryTimeReduction >= 30 ? 'success' : 'warning'}`}>
+                <ApperIcon name={performanceMetrics.deliveryTimeReduction >= 30 ? "CheckCircle" : "Clock"} size={20} />
+              </div>
+            </div>
+            <div className="mt-2">
+              <Badge variant={performanceMetrics.deliveryTimeReduction >= 30 ? 'success' : 'warning'}>
+                Target: 30%
+              </Badge>
+            </div>
+          </div>
+
+          <div className="success-metric-card">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">First Attempt Success</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {performanceMetrics.firstAttemptSuccess.toFixed(1)}%
+                </p>
+              </div>
+              <div className={`metric-status ${performanceMetrics.firstAttemptSuccess >= 95 ? 'success' : 'warning'}`}>
+                <ApperIcon name={performanceMetrics.firstAttemptSuccess >= 95 ? "Target" : "AlertTriangle"} size={20} />
+              </div>
+            </div>
+            <div className="mt-2">
+              <Badge variant={performanceMetrics.firstAttemptSuccess >= 95 ? 'success' : 'warning'}>
+                Target: 95%+
+              </Badge>
+            </div>
+          </div>
+
+          <div className="success-metric-card">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Customer Satisfaction</p>
+                <p className="text-2xl font-bold text-purple-600">
+                  {performanceMetrics.customerSatisfaction.toFixed(1)}/5
+                </p>
+              </div>
+              <div className={`metric-status ${performanceMetrics.customerSatisfaction >= 4.8 ? 'success' : 'warning'}`}>
+                <ApperIcon name={performanceMetrics.customerSatisfaction >= 4.8 ? "Star" : "Frown"} size={20} />
+              </div>
+            </div>
+            <div className="mt-2">
+              <Badge variant={performanceMetrics.customerSatisfaction >= 4.8 ? 'success' : 'warning'}>
+                Target: 4.8/5
+              </Badge>
+            </div>
+          </div>
+
+          <div className="success-metric-card">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Network Status</p>
+                <p className="text-lg font-semibold capitalize">{networkStatus}</p>
+              </div>
+              <div className={`metric-status ${networkStatus === 'online' ? 'success' : 'error'}`}>
+                <ApperIcon name={networkStatus === 'online' ? "Wifi" : "WifiOff"} size={20} />
+              </div>
+            </div>
+            <div className="mt-2">
+              <Badge variant={networkStatus === 'online' ? 'success' : 'error'}>
+                {testScenarios.networkCondition}
+              </Badge>
+            </div>
+          </div>
+        </div>
+
+{/* Voice Control */}
+      {voiceEnabled && (
+        <div className="mb-4">
+          <Button
+            variant="secondary"
+            onClick={startVoiceCommand}
+            icon="Mic"
+            disabled={!voiceEnabled}
+          >
+            {isListening ? 'Stop Listening' : 'Voice Command'}
+          </Button>
         </div>
       )}
     </div>
@@ -468,28 +673,31 @@ const getPriorityIcon = (priority) => {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Support System</h2>
       
-      {/* Emergency Protocols */}
+      {/* Emergency Support */}
       <div className="card p-6">
         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <ApperIcon name="AlertTriangle" size={20} className="text-red-600" />
-          Emergency Protocols
+          Emergency Support
         </h3>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-4">
           <Button
             variant="error"
-            icon="HelpCircle"
+            size="lg"
+            icon="Phone"
             onClick={requestEmergencyHelp}
-            className="h-16 text-lg"
+            className="w-full"
+            disabled={emergencyMode}
           >
-            🚨 Help Needed
+            {emergencyMode ? 'Help Requested...' : '🚨 Request Emergency Help'}
           </Button>
           
           <Button
-            variant="warning"
+            variant="secondary"
+            size="lg"
             icon="Phone"
             onClick={callDispatchHotline}
-            className="h-16 text-lg"
+            className="w-full"
           >
             📞 Call Dispatch
           </Button>
@@ -518,23 +726,16 @@ const getPriorityIcon = (priority) => {
           >
             {isListening ? 'Stop Listening' : 'Start Voice Command'}
           </Button>
-          
-          {!voiceEnabled && (
-            <p className="text-sm text-gray-500">Voice commands not available in this browser</p>
-          )}
         </div>
-
-        <div className="space-y-2">
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm font-medium text-blue-800">Available Commands:</p>
-            <ul className="text-sm text-blue-700 mt-1 space-y-1">
-              <li>• "Navigate to next delivery" - Opens map for next pending order</li>
-              <li>• "Call customer [name]" - Opens contact screen for specific customer</li>
-            </ul>
-          </div>
+        
+        <div className="text-sm text-gray-600 space-y-1">
+          <p>• "Next delivery" - Select next order</p>
+          <p>• "Emergency" - Request help</p>
+          <p>• "Contact customer" - Open contact modal</p>
+          <p>• "Testing mode" - Toggle testing</p>
         </div>
       </div>
-
+      
       {/* Current Location */}
       {driverLocation && (
         <div className="card p-6">
@@ -543,11 +744,245 @@ const getPriorityIcon = (priority) => {
             Current Location
           </h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-<div>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
               <p className="text-sm text-gray-500">Latitude</p>
               <p className="font-mono text-sm">{driverLocation.lat?.toFixed(6)}</p>
             </div>
+            <div>
+              <p className="text-sm text-gray-500">Longitude</p>
+              <p className="font-mono text-sm">{driverLocation.lng?.toFixed(6)}</p>
+            </div>
+          </div>
+          
+          <p className="text-xs text-gray-500 mt-2">
+            Last updated: {driverLocation.timestamp ? new Date(driverLocation.timestamp).toLocaleTimeString() : 'Unknown'}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+  function renderTestingDashboard() {
+    const deviceTests = [
+      { device: 'Samsung Galaxy S21', os: 'Android 13', status: 'passed', issues: 0 },
+      { device: 'iPhone 14 Pro', os: 'iOS 17.1', status: 'passed', issues: 0 },
+      { device: 'Google Pixel 7', os: 'Android 14', status: 'failed', issues: 2 },
+      { device: 'iPhone 13 Mini', os: 'iOS 16.5', status: 'passed', issues: 0 },
+      { device: 'Samsung Note 20', os: 'Android 12', status: 'warning', issues: 1 }
+    ]
+
+    const weatherScenarios = [
+      { condition: 'Heavy Rain', tested: true, success: 85, issues: ['GPS accuracy reduced', 'Longer delivery times'] },
+      { condition: 'Snow Conditions', tested: true, success: 78, issues: ['Route optimization needed', 'Safety concerns'] },
+      { condition: 'Extreme Heat', tested: false, success: 0, issues: [] },
+      { condition: 'Clear Weather', tested: true, success: 96, issues: [] }
+    ]
+
+    return (
+      <div className="space-y-6">
+        <div className="testing-header">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-gray-800">Testing Protocol Dashboard</h2>
+            <div className="flex space-x-2">
+              <Button
+                variant={testingMode ? 'primary' : 'secondary'}
+                onClick={() => {
+                  setTestingMode(!testingMode)
+                  if (!testingMode) simulateTestingScenarios()
+                }}
+              >
+                <ApperIcon name="Play" size={16} />
+                {testingMode ? 'Stop Testing' : 'Start Testing'}
+              </Button>
+              <Button variant="secondary" onClick={() => toast.info('Test report generated')}>
+                <ApperIcon name="Download" size={16} />
+                Export Report
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Device Compatibility Testing */}
+        <div className="testing-section">
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
+            <ApperIcon name="Smartphone" size={20} className="mr-2" />
+            Device Compatibility Testing
+          </h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {deviceTests.map((test, index) => (
+              <div key={index} className="device-test-card">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium">{test.device}</h4>
+                    <p className="text-sm text-gray-600">{test.os}</p>
+                  </div>
+                  <div className={`test-status ${test.status}`}>
+                    <ApperIcon 
+                      name={test.status === 'passed' ? 'CheckCircle' : test.status === 'failed' ? 'XCircle' : 'AlertTriangle'} 
+                      size={20} 
+                    />
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <Badge variant={test.status === 'passed' ? 'success' : test.status === 'failed' ? 'error' : 'warning'}>
+                    {test.issues} issues found
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Weather Scenario Testing */}
+        <div className="testing-section">
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
+            <ApperIcon name="Cloud" size={20} className="mr-2" />
+            Weather Scenario Testing
+          </h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {weatherScenarios.map((scenario, index) => (
+              <div key={index} className="weather-test-card">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium">{scenario.condition}</h4>
+                  <div className={`test-status ${scenario.tested ? 'passed' : 'pending'}`}>
+                    <ApperIcon name={scenario.tested ? 'CheckCircle' : 'Clock'} size={20} />
+                  </div>
+                </div>
+                {scenario.tested && (
+                  <div className="mt-2">
+                    <div className="success-rate">
+                      <span className="text-sm">Success Rate: </span>
+                      <span className={`font-bold ${scenario.success >= 90 ? 'text-green-600' : scenario.success >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
+                        {scenario.success}%
+                      </span>
+                    </div>
+                    {scenario.issues.length > 0 && (
+                      <div className="mt-1">
+                        <p className="text-xs text-gray-600">Issues:</p>
+                        <ul className="text-xs text-red-600">
+                          {scenario.issues.map((issue, i) => (
+                            <li key={i}>• {issue}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Network Coverage Testing */}
+        <div className="testing-section">
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
+            <ApperIcon name="Wifi" size={20} className="mr-2" />
+            Network Coverage Testing
+          </h3>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="network-test-card">
+              <h4 className="font-medium">Strong Signal</h4>
+              <div className="network-strength strong">
+                <div className="signal-bars">
+                  <div className="bar active"></div>
+                  <div className="bar active"></div>
+                  <div className="bar active"></div>
+                  <div className="bar active"></div>
+                </div>
+              </div>
+              <p className="text-sm text-green-600">98% Success Rate</p>
+            </div>
+            <div className="network-test-card">
+              <h4 className="font-medium">Weak Signal</h4>
+              <div className="network-strength weak">
+                <div className="signal-bars">
+                  <div className="bar active"></div>
+                  <div className="bar active"></div>
+                  <div className="bar"></div>
+                  <div className="bar"></div>
+                </div>
+              </div>
+              <p className="text-sm text-yellow-600">76% Success Rate</p>
+            </div>
+            <div className="network-test-card">
+              <h4 className="font-medium">Dead Zone</h4>
+              <div className="network-strength dead">
+                <div className="signal-bars">
+                  <div className="bar"></div>
+                  <div className="bar"></div>
+                  <div className="bar"></div>
+                  <div className="bar"></div>
+                </div>
+              </div>
+              <p className="text-sm text-red-600">12% Success Rate</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Current Test Scenario */}
+        {testingMode && (
+          <div className="current-test-scenario">
+            <h3 className="text-lg font-semibold mb-4 flex items-center">
+              <ApperIcon name="Activity" size={20} className="mr-2" />
+              Current Test Scenario
+            </h3>
+            <div className="scenario-details">
+              <div className="flex flex-wrap gap-4">
+                <div className="scenario-item">
+                  <span className="label">Weather:</span>
+                  <Badge variant={testScenarios.weatherConditions === 'clear' ? 'success' : 'warning'}>
+                    {testScenarios.weatherConditions.replace('_', ' ')}
+                  </Badge>
+                </div>
+                <div className="scenario-item">
+                  <span className="label">Network:</span>
+                  <Badge variant={testScenarios.networkCondition === 'strong' ? 'success' : testScenarios.networkCondition === 'weak' ? 'warning' : 'error'}>
+                    {testScenarios.networkCondition}
+                  </Badge>
+                </div>
+                <div className="scenario-item">
+                  <span className="label">Device Compatible:</span>
+                  <Badge variant={testScenarios.deviceCompatibility ? 'success' : 'error'}>
+                    {testScenarios.deviceCompatibility ? 'Yes' : 'No'}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  async function loadTeamData() {
+    try {
+      const [drivers, zones, heatmap, alerts] = await Promise.all([
+        deliveryService.getTeamDrivers(),
+        deliveryService.getDeliveryZones(),
+        deliveryService.getHeatmapData(),
+        deliveryService.getBottleneckAlerts()
+      ])
+
+      setTeamData({ drivers, zones, heatmap, alerts })
+    } catch (error) {
+      toast.error('Failed to load team data')
+    }
+  }
+
+  async function handleZoneAction(zoneId, action) {
+    try {
+      await deliveryService.executeZoneAction(zoneId, action)
+      toast.success(`Zone action "${action}" executed successfully`)
+      loadTeamData() // Reload data
+    } catch (error) {
+      toast.error(`Failed to execute zone action: ${error.message}`)
+    }
+  }
+
+  function renderTeamDashboard() {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div>
               <p className="text-sm text-gray-500">Longitude</p>
               <p className="font-mono text-sm">{driverLocation.lng?.toFixed(6)}</p>
@@ -1244,11 +1679,13 @@ const renderNavigation = () => (
             <DeliveryMetrics />
           )}
           
-          {currentView === 'support' && renderSupportSystem()}
+{currentView === 'support' && renderSupportSystem()}
+          
+          {currentView === 'testing' && renderTestingDashboard()}
         </>
       )}
     </div>
   );
-};
+}
 
 export default DeliveryDashboard;
