@@ -20,6 +20,9 @@ import Category from "@/components/pages/Category";
 import Compare from "@/components/pages/Compare";
 import Cart from "@/components/pages/Cart";
 import DeliveryDashboard from "@/components/pages/DeliveryDashboard";
+import AdminDashboard from "@/components/pages/admin/AdminDashboard";
+import AdminOrders from "@/components/pages/admin/AdminOrders";
+import AdminLayout from "@/components/organisms/AdminLayout";
 import { store } from "@/store/store";
 
 function App() {
@@ -46,21 +49,32 @@ return (
                 </div>
               )}>
 <Routes>
+                  {/* Customer Routes */}
                   <Route path="/" element={<Home />} />
                   <Route path="/category/:id" element={<Category />} />
                   <Route path="/product/:id" element={<ProductDetail />} />
                   <Route path="/search" element={<Search />} />
                   <Route path="/cart" element={<Cart />} />
                   <Route path="/checkout" element={<Checkout />} />
-<Route path="/order-confirmation" element={<OrderConfirmation />} />
+                  <Route path="/order-confirmation" element={<OrderConfirmation />} />
                   <Route path="/order/:id" element={<OrderConfirmation />} />
                   <Route path="/wishlist" element={<Wishlist />} />
                   <Route path="/compare" element={<Compare />} />
                   <Route path="/loyalty" element={<Loyalty />} />
                   <Route path="/pos" element={<POS />} />
                   <Route path="/marketplace" element={<MarketplaceIntegration />} />
-<Route path="/account" element={<Account />} />
+                  <Route path="/account" element={<Account />} />
                   <Route path="/delivery" element={<DeliveryDashboard />} />
+                  
+                  {/* Admin Routes */}
+                  <Route path="/admin/*" element={
+                    <AdminLayout>
+                      <Routes>
+                        <Route path="/" element={<AdminDashboard />} />
+                        <Route path="/orders" element={<AdminOrders />} />
+                      </Routes>
+                    </AdminLayout>
+                  } />
                 </Routes>
               </ErrorBoundary>
             </Layout>
