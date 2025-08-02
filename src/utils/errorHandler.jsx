@@ -99,9 +99,8 @@ const logError = (error, context = {}) => {
     userAgent: navigator.userAgent,
     context
   };
-
-  // Console logging
-  if (process.env.NODE_ENV === 'development') {
+// Console logging
+  if (import.meta.env.MODE === 'development') {
     console.error('Error Handler:', errorInfo);
   }
 
