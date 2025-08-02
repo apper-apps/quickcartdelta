@@ -26,7 +26,9 @@ const [orders, setOrders] = useState([]);
   const [currentView, setCurrentView] = useState('assignment');
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
-  const [emergencyMode, setEmergencyMode] = useState(false);
+const [emergencyMode, setEmergencyMode] = useState(false);
+  const [sosActive, setSosActive] = useState(false);
+  const [locationWatchId, setLocationWatchId] = useState(null);
   const [fatigueLevel, setFatigueLevel] = useState(0);
   const [fatigueAlert, setFatigueAlert] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -256,8 +258,11 @@ loadCodBalances();
 
 async function requestEmergencyHelp() {
     setEmergencyMode(true);
+    setSosActive(true);
+    
     try {
       if (navigator.geolocation) {
+        // Get initial location
         navigator.geolocation.getCurrentPosition(async (position) => {
           const location = {
             latitude: position.coords.latitude,
@@ -265,18 +270,61 @@ async function requestEmergencyHelp() {
             timestamp: new Date().toISOString()
           };
           
-          await deliveryService.reportEmergency('current-driver', 'help_needed', location);
-          toast.success('🚨 Emergency help requested. Dispatch has been notified with your location.');
+          await deliveryService.reportEmergency('current-driver', 'sos_activated', location);
+          toast.success('🚨 SOS ACTIVATED - Live location sharing enabled. Dispatch notified.');
+          
+          // Start continuous location sharing
+          const watchId = navigator.geolocation.watchPosition(
+            async (position) => {
+              const updatedLocation = {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                timestamp: new Date().toISOString(),
+                accuracy: position.coords.accuracy
+              };
+              
+              // Update location every 10 seconds during SOS
+              await deliveryService.reportEmergency('current-driver', 'location_update', updatedLocation);
+            },
+            (error) => {
+              console.warn('Location tracking error:', error);
+            },
+            {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 0
+            }
+          );
+          
+          setLocationWatchId(watchId);
+          
+          // Auto-deactivate SOS after 30 minutes for safety
+          setTimeout(() => {
+            deactivateSOS();
+          }, 30 * 60 * 1000);
+          
+        }, (error) => {
+          throw new Error('Location access denied');
         });
       } else {
-        await deliveryService.reportEmergency('current-driver', 'help_needed');
-        toast.success('🚨 Emergency help requested. Dispatch has been notified.');
+        await deliveryService.reportEmergency('current-driver', 'sos_no_location');
+        toast.success('🚨 SOS ACTIVATED - Dispatch has been notified (location unavailable).');
       }
     } catch (error) {
-      toast.error('Failed to request help. Please call dispatch directly.');
+      toast.error('Failed to activate SOS. Please call dispatch directly.');
+      setSosActive(false);
     } finally {
       setEmergencyMode(false);
     }
+  }
+
+  function deactivateSOS() {
+    if (locationWatchId) {
+      navigator.geolocation.clearWatch(locationWatchId);
+      setLocationWatchId(null);
+    }
+    setSosActive(false);
+    toast.info('SOS deactivated - Location sharing stopped.');
   }
 
   // Fatigue monitoring
@@ -1012,15 +1060,15 @@ const renderSupportSystem = () => (
         </h3>
         
         <div className="space-y-4">
-          <Button
+<Button
             variant="error"
             size="lg"
-            icon="Phone"
-            onClick={requestEmergencyHelp}
-            className="w-full"
+            icon={sosActive ? "AlertTriangle" : "Phone"}
+            onClick={sosActive ? deactivateSOS : requestEmergencyHelp}
+            className={`w-full ${sosActive ? 'animate-pulse bg-red-600 hover:bg-red-700' : ''}`}
             disabled={emergencyMode}
           >
-            {emergencyMode ? 'Help Requested...' : '🚨 Request Emergency Help'}
+            {emergencyMode ? 'Activating SOS...' : sosActive ? '🚨 SOS ACTIVE - Tap to Deactivate' : '🚨 Activate SOS Emergency'}
           </Button>
           
           <Button
@@ -1034,10 +1082,16 @@ const renderSupportSystem = () => (
           </Button>
         </div>
         
-        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+<div className={`mt-4 p-3 rounded-lg border ${sosActive ? 'bg-red-100 border-red-300 animate-pulse' : 'bg-red-50 border-red-200'}`}>
           <p className="text-sm text-red-800">
-            <strong>Emergency Help:</strong> Shares your live location with dispatch center and triggers immediate response protocol.
+            <strong>{sosActive ? 'SOS ACTIVE:' : 'SOS Emergency:'}</strong> {sosActive ? 'Live location is being shared with dispatch. Help is on the way.' : 'Activates live location sharing with dispatch center and triggers immediate response protocol.'}
           </p>
+          {sosActive && (
+            <div className="mt-2 flex items-center space-x-2 text-xs text-red-700">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+              <span>Location sharing active</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1712,16 +1766,35 @@ const renderNavigation = () => (
             </div>
           </div>
           
-          <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+<div className={`p-4 rounded-lg border ${sosActive ? 'bg-red-100 border-red-300 animate-pulse' : 'bg-purple-50 border-purple-200'}`}>
             <Button 
               variant="ghost" 
-              className="w-full h-full bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700"
-              onClick={requestEmergencyHelp}
+              className={`w-full h-full text-white transition-all duration-200 ${
+                sosActive 
+                  ? 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 animate-pulse' 
+                  : 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700'
+              }`}
+              onClick={sosActive ? deactivateSOS : requestEmergencyHelp}
             >
               <div className="text-center">
-                <ApperIcon name="AlertTriangle" size={24} className="mx-auto mb-2" />
-                <p className="font-bold">SOS</p>
-                <p className="text-xs">Emergency Help</p>
+                <ApperIcon 
+                  name={sosActive ? "AlertTriangle" : "AlertTriangle"} 
+                  size={24} 
+                  className={`mx-auto mb-2 ${sosActive ? 'animate-bounce' : ''}`} 
+                />
+                <p className="font-bold">{sosActive ? 'SOS ACTIVE' : 'SOS'}</p>
+                <p className="text-xs">
+                  {sosActive ? 'Tap to Stop' : 'Emergency Help'}
+                </p>
+                {sosActive && (
+                  <div className="flex justify-center mt-1">
+                    <div className="flex space-x-1">
+                      <div className="w-1 h-1 bg-white rounded-full animate-pulse"></div>
+                      <div className="w-1 h-1 bg-white rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                      <div className="w-1 h-1 bg-white rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+                    </div>
+                  </div>
+                )}
               </div>
             </Button>
           </div>

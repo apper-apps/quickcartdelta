@@ -981,7 +981,7 @@ async getCodSettlement() {
   }
 
   // Emergency & Security
-  async reportEmergency(driverId, emergencyType, location = null) {
+async reportEmergency(driverId, emergencyType, location = null) {
     await this.delay();
     
     const emergency = {
@@ -990,16 +990,39 @@ async getCodSettlement() {
       type: emergencyType,
       location,
       timestamp: new Date().toISOString(),
-      status: 'active'
+      status: emergencyType === 'sos_activated' ? 'sos_active' : 'active',
+      accuracy: location?.accuracy || null
     };
     
     // Store emergency data
     const emergencies = JSON.parse(localStorage.getItem('emergencies') || '[]');
-    emergencies.push(emergency);
+    
+    // For location updates, update existing SOS record instead of creating new one
+    if (emergencyType === 'location_update') {
+      const activeSOSIndex = emergencies.findIndex(e => 
+        e.driverId === driverId && e.status === 'sos_active'
+      );
+      
+      if (activeSOSIndex !== -1) {
+        emergencies[activeSOSIndex].location = location;
+        emergencies[activeSOSIndex].timestamp = emergency.timestamp;
+        emergencies[activeSOSIndex].accuracy = emergency.accuracy;
+      }
+    } else {
+      emergencies.push(emergency);
+    }
+    
     localStorage.setItem('emergencies', JSON.stringify(emergencies));
     
-    // In real app, would send to dispatch immediately
-    console.log('🚨 EMERGENCY REPORTED:', emergency);
+    // Enhanced logging for different emergency types
+    const logMessages = {
+      'sos_activated': '🚨 SOS ACTIVATED - Live location sharing enabled',
+      'location_update': `📍 Location updated - Lat: ${location?.latitude}, Lng: ${location?.longitude}`,
+      'sos_no_location': '🚨 SOS ACTIVATED - Location unavailable',
+      'help_needed': '🚨 Emergency help requested'
+    };
+    
+    console.log(logMessages[emergencyType] || '🚨 EMERGENCY REPORTED:', emergency);
     
     return emergency;
   }
