@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "react-toastify";
-import { format } from "date-fns";
+import { format, addDays, isAfter, isBefore, startOfDay } from "date-fns";
 import { orderService } from "@/services/api/orderService";
 import ApperIcon from "@/components/ApperIcon";
 import Loading from "@/components/ui/Loading";
@@ -14,9 +14,15 @@ const OrderConfirmation = () => {
   const { orderId } = useParams();
   const navigate = useNavigate();
   
-  const [order, setOrder] = useState(null);
+const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduling, setRescheduling] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
   useEffect(() => {
     loadOrder();
@@ -39,12 +45,80 @@ const handleContinueShopping = () => {
     navigate('/');
     toast.success('Continue browsing our amazing products!');
   };
-
-  const handleViewAllOrders = () => {
+const handleViewAllOrders = () => {
     navigate('/orders');
     toast.info('View all your orders');
   };
 
+  const handleRescheduleDelivery = () => {
+    if (!order || !['confirmed', 'processing'].includes(order.status)) {
+      toast.error('This order cannot be rescheduled at this time');
+      return;
+    }
+    setShowRescheduleModal(true);
+    setSelectedDate(null);
+    setSelectedTimeSlot(null);
+    setAvailableSlots([]);
+  };
+
+  const handleDateChange = async (date) => {
+    setSelectedDate(date);
+    setSelectedTimeSlot(null);
+    setLoadingSlots(true);
+    
+    try {
+      const slots = await orderService.getAvailableTimeSlots(date, order.shippingAddress?.area);
+      setAvailableSlots(slots);
+    } catch (error) {
+      console.error('Failed to load time slots:', error);
+      toast.error('Failed to load available time slots');
+      setAvailableSlots([]);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  const handleTimeSlotSelect = (slot) => {
+    setSelectedTimeSlot(slot);
+  };
+
+  const handleConfirmReschedule = async () => {
+    if (!selectedDate || !selectedTimeSlot) {
+      toast.warning('Please select both date and time slot');
+      return;
+    }
+
+    setRescheduling(true);
+    try {
+      const updatedOrder = await orderService.rescheduleDelivery(order.Id, {
+        newDate: selectedDate,
+        newTimeSlot: selectedTimeSlot,
+        reason: 'Customer requested reschedule'
+      });
+      
+      setOrder(updatedOrder);
+      setShowRescheduleModal(false);
+      toast.success('Delivery rescheduled successfully!');
+    } catch (error) {
+      console.error('Failed to reschedule delivery:', error);
+      toast.error(error.message || 'Failed to reschedule delivery');
+    } finally {
+      setRescheduling(false);
+    }
+  };
+
+  const getNextAvailableDates = () => {
+    const dates = [];
+    const today = new Date();
+    for (let i = 1; i <= 14; i++) {
+      const date = addDays(today, i);
+      // Skip Sundays for delivery
+      if (date.getDay() !== 0) {
+        dates.push(date);
+      }
+    }
+    return dates;
+  };
   const handleShareOrder = () => {
     if (navigator.share) {
       navigator.share({
@@ -467,7 +541,7 @@ const tax = subtotal * 0.08;
         </motion.div>
 
         {/* Action Buttons */}
-        <motion.div
+<motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
@@ -482,6 +556,13 @@ const tax = subtotal * 0.08;
             <ApperIcon name="Package" className="w-4 h-4 mr-2" />
             View All Orders
           </Button>
+
+          {order && ['confirmed', 'processing'].includes(order.status) && (
+            <Button variant="outline" onClick={handleRescheduleDelivery} className="flex-1 sm:flex-none">
+              <ApperIcon name="Calendar" className="w-4 h-4 mr-2" />
+              Reschedule Delivery
+            </Button>
+          )}
           
           <Button variant="outline" onClick={() => window.print()} className="flex-1 sm:flex-none">
             <ApperIcon name="Printer" className="w-4 h-4 mr-2" />
@@ -513,7 +594,138 @@ const tax = subtotal * 0.08;
           >
             Print Receipt
           </Button>
-        </motion.div>
+</motion.div>
+
+        {/* Reschedule Modal */}
+        <AnimatePresence>
+          {showRescheduleModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+              onClick={() => setShowRescheduleModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">Reschedule Delivery</h3>
+                  <button
+                    onClick={() => setShowRescheduleModal(false)}
+                    className="p-1 hover:bg-gray-100 rounded-full"
+                  >
+                    <ApperIcon name="X" size={20} />
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Current Delivery Info */}
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Current delivery scheduled for:</p>
+                    <p className="font-medium">
+                      {order?.deliveryDate ? format(new Date(order.deliveryDate), 'EEEE, MMMM d, yyyy') : 'TBD'}
+                    </p>
+                    {order?.deliveryTimeSlot && (
+                      <p className="text-sm text-gray-600">{order.deliveryTimeSlot}</p>
+                    )}
+                  </div>
+
+                  {/* Date Selection */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Select New Date:</label>
+                    <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                      {getNextAvailableDates().map((date) => (
+                        <button
+                          key={date.toISOString()}
+                          onClick={() => handleDateChange(date)}
+                          className={`p-2 text-sm rounded-lg border transition-colors ${
+                            selectedDate && selectedDate.toDateString() === date.toDateString()
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-white hover:bg-gray-50 border-gray-300'
+                          }`}
+                        >
+                          <div className="font-medium">{format(date, 'MMM d')}</div>
+                          <div className="text-xs opacity-75">{format(date, 'EEEE')}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Time Slot Selection */}
+                  {selectedDate && (
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Select Time Slot:</label>
+                      {loadingSlots ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                          <span className="ml-2 text-sm text-gray-600">Loading available slots...</span>
+                        </div>
+                      ) : availableSlots.length > 0 ? (
+                        <div className="grid grid-cols-1 gap-2">
+                          {availableSlots.map((slot) => (
+                            <button
+                              key={slot.id}
+                              onClick={() => handleTimeSlotSelect(slot)}
+                              disabled={!slot.available}
+                              className={`p-3 text-sm rounded-lg border transition-colors text-left ${
+                                selectedTimeSlot?.id === slot.id
+                                  ? 'bg-primary text-white border-primary'
+                                  : slot.available
+                                  ? 'bg-white hover:bg-gray-50 border-gray-300'
+                                  : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                              }`}
+                            >
+                              <div className="font-medium">{slot.timeRange}</div>
+                              <div className="text-xs opacity-75">
+                                {slot.available ? `${slot.slotsLeft} slots available` : 'Fully booked'}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          <ApperIcon name="CalendarX" size={24} className="mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">No available slots for this date</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowRescheduleModal(false)}
+                      className="flex-1"
+                      disabled={rescheduling}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleConfirmReschedule}
+                      disabled={!selectedDate || !selectedTimeSlot || rescheduling}
+                      className="flex-1"
+                    >
+                      {rescheduling ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Rescheduling...
+                        </>
+                      ) : (
+                        'Confirm Reschedule'
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Contact Support */}
         <div className="text-center mt-8 p-4 bg-gray-50 rounded-lg">

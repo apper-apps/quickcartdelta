@@ -327,7 +327,7 @@ async create(orderData) {
         paymentMethod: orderData.paymentMethod,
         encrypted: !!encryptedFinancialData,
         compliance: 'PCI-DSS'
-      });
+});
       
       return { ...newOrder };
       
@@ -342,6 +342,166 @@ async create(orderData) {
             this.encryptionService.maskSensitiveData(orderData.total, 'amount') : orderData.total,
           itemCount: orderData.items?.length || 0
         } : null
+      });
+      
+      throw error;
+    }
+  }
+
+  // Order Rescheduling Methods
+  async getAvailableTimeSlots(date, area = 'default') {
+    await this.delay(600);
+    
+    try {
+      const dateStr = date.toISOString().split('T')[0];
+      
+      // Simulate area-based slot availability
+      const baseSlots = [
+        { id: 'morning-1', timeRange: '9:00 AM - 11:00 AM', capacity: 10 },
+        { id: 'morning-2', timeRange: '11:00 AM - 1:00 PM', capacity: 12 },
+        { id: 'afternoon-1', timeRange: '2:00 PM - 4:00 PM', capacity: 15 },
+        { id: 'afternoon-2', timeRange: '4:00 PM - 6:00 PM', capacity: 12 },
+        { id: 'evening-1', timeRange: '6:00 PM - 8:00 PM', capacity: 8 }
+      ];
+
+      // Simulate existing bookings based on date
+      const dayOfWeek = date.getDay();
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      
+      return baseSlots.map(slot => {
+        // Simulate realistic booking patterns
+        let bookedSlots = Math.floor(Math.random() * slot.capacity);
+        
+        // Weekend and evening slots tend to be busier
+        if (isWeekend || slot.id.includes('evening')) {
+          bookedSlots = Math.floor(slot.capacity * 0.6 + Math.random() * slot.capacity * 0.4);
+        }
+        
+        // Morning slots on weekdays are less busy
+        if (!isWeekend && slot.id.includes('morning')) {
+          bookedSlots = Math.floor(Math.random() * slot.capacity * 0.4);
+        }
+        
+        const slotsLeft = Math.max(0, slot.capacity - bookedSlots);
+        
+        return {
+          ...slot,
+          date: dateStr,
+          area,
+          slotsLeft,
+          available: slotsLeft > 0,
+          bookedSlots
+        };
+      });
+      
+    } catch (error) {
+      console.error('Failed to get available time slots:', error);
+      throw new Error('Unable to load available time slots');
+    }
+  }
+
+  async rescheduleDelivery(orderId, rescheduleData) {
+    await this.delay(800);
+    
+    try {
+      const orderIndex = this.orders.findIndex(order => order.Id === parseInt(orderId));
+      
+      if (orderIndex === -1) {
+        throw new Error('Order not found');
+      }
+      
+      const order = this.orders[orderIndex];
+      
+      // Validate rescheduling eligibility
+      if (!['confirmed', 'processing'].includes(order.status)) {
+        throw new Error('This order cannot be rescheduled at this time');
+      }
+      
+      // Validate new date is in the future
+      const newDate = new Date(rescheduleData.newDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (newDate <= today) {
+        throw new Error('Please select a future date for delivery');
+      }
+      
+      // Validate time slot availability
+      const availableSlots = await this.getAvailableTimeSlots(newDate, order.shippingAddress?.area);
+      const selectedSlot = availableSlots.find(slot => slot.id === rescheduleData.newTimeSlot.id);
+      
+      if (!selectedSlot || !selectedSlot.available) {
+        throw new Error('Selected time slot is no longer available');
+      }
+      
+      // Store original delivery info for audit
+      const originalDeliveryInfo = {
+        date: order.deliveryDate,
+        timeSlot: order.deliveryTimeSlot,
+        estimatedTime: order.estimatedDeliveryTime
+      };
+      
+      // Update order with new delivery information
+      const updatedOrder = {
+        ...order,
+        deliveryDate: newDate.toISOString(),
+        deliveryTimeSlot: rescheduleData.newTimeSlot.timeRange,
+        estimatedDeliveryTime: rescheduleData.newTimeSlot.timeRange,
+        rescheduledAt: new Date().toISOString(),
+        rescheduledBy: 'customer',
+        rescheduledReason: rescheduleData.reason || 'Customer requested reschedule',
+        originalDeliveryInfo,
+        // Add rescheduling history
+        reschedulingHistory: [
+          ...(order.reschedulingHistory || []),
+          {
+            timestamp: new Date().toISOString(),
+            from: originalDeliveryInfo,
+            to: {
+              date: newDate.toISOString(),
+              timeSlot: rescheduleData.newTimeSlot.timeRange
+            },
+            reason: rescheduleData.reason || 'Customer requested reschedule',
+            initiatedBy: 'customer'
+          }
+        ]
+      };
+      
+      // Update in memory store
+      this.orders[orderIndex] = updatedOrder;
+      
+      // Create audit log
+      this.createFinancialAudit('delivery_rescheduled', {
+        orderId: orderId,
+        originalDate: originalDeliveryInfo.date,
+        newDate: newDate.toISOString(),
+        originalTimeSlot: originalDeliveryInfo.timeSlot,
+        newTimeSlot: rescheduleData.newTimeSlot.timeRange,
+        reason: rescheduleData.reason,
+        initiatedBy: 'customer',
+        timestamp: new Date().toISOString()
+      });
+      
+      // Simulate sending notifications
+      setTimeout(() => {
+        console.log('📧 Rescheduling confirmation sent to customer');
+        console.log('📱 Delivery team notified of schedule change');
+      }, 100);
+      
+      return { ...updatedOrder };
+      
+    } catch (error) {
+      console.error('Failed to reschedule delivery:', error);
+      
+      // Create error audit
+      this.createFinancialAudit('delivery_reschedule_failed', {
+        orderId,
+        error: error.message,
+        rescheduleData: {
+          newDate: rescheduleData.newDate,
+          timeSlot: rescheduleData.newTimeSlot?.id,
+          reason: rescheduleData.reason
+        }
       });
       
       throw error;
