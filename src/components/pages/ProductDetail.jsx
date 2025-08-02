@@ -148,7 +148,7 @@ const loadProduct = async () => {
         </div>
       </nav>
 
-      <div className="grid lg:grid-cols-2 gap-12">
+<div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 lg:gap-12">
         {/* Product Images */}
         <div className="space-y-4">
 <motion.div 
@@ -334,7 +334,7 @@ const loadProduct = async () => {
               Buy Now
             </Button>
             
-<div className="flex gap-3">
+<div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
               <Button 
                 variant={isInComparison ? "primary" : "outline"} 
                 size="md" 
@@ -360,7 +360,7 @@ const loadProduct = async () => {
           </div>
 
           {/* Product Features */}
-          <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+<div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 p-4 bg-gray-50 rounded-lg">
             <div className="flex items-center gap-2">
               <ApperIcon name="Truck" className="w-5 h-5 text-primary" />
               <span className="text-sm">Free Shipping</span>
@@ -384,7 +384,7 @@ const loadProduct = async () => {
       {/* Product Details Tabs */}
       <div className="mt-16">
         <div className="border-b border-gray-200">
-          <nav className="flex space-x-8">
+<nav className="flex overflow-x-auto space-x-4 sm:space-x-6 md:space-x-8 pb-2 scrollbar-hide">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
@@ -420,7 +420,7 @@ const loadProduct = async () => {
               )}
 
               {activeTab === "specifications" && (
-                <div className="grid md:grid-cols-2 gap-6">
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4 sm:gap-6">
                   {Object.entries(product.specifications || {}).map(([key, value]) => (
                     <div key={key} className="flex justify-between py-2 border-b border-gray-100">
                       <span className="font-medium text-gray-700 capitalize">{key}:</span>
