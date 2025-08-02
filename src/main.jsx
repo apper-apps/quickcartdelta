@@ -8,52 +8,53 @@ import { globalErrorHandler } from "@/utils/errorHandler";
 // Global error handling
 window.addEventListener('error', globalErrorHandler)
 window.addEventListener('unhandledrejection', globalErrorHandler)
-// Service Worker registration with error handling
-// Service Worker Registration with proper error handling
+// PWA Service Worker Registration using vite-plugin-pwa
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', async () => {
     try {
-      // Use the generated service worker from vite-plugin-pwa
-      const registration = await navigator.serviceWorker.register('/sw.js', {
-        scope: '/',
-        updateViaCache: 'none'
-      });
+      // Import the registerSW function from virtual:pwa-register
+      const { registerSW } = await import('virtual:pwa-register');
       
-      console.log('Service Worker registered successfully:', registration);
-      
-      // Handle service worker updates
-      registration.addEventListener('updatefound', () => {
-        const newWorker = registration.installing;
-        if (newWorker) {
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // New content is available, prompt user to refresh
-              if (confirm('New version available! Refresh to update?')) {
-                window.location.reload();
-              }
-            }
-          });
+      const updateSW = registerSW({
+        onNeedRefresh() {
+          // Show a prompt to user for updating the app
+          if (confirm('New version available! Refresh to update?')) {
+            updateSW(true);
+          }
+        },
+        onOfflineReady() {
+          console.log('App ready to work offline');
+          // Optional: Show toast notification
+          // toast.success('App is ready to work offline!');
+        },
+        onRegistered(registration) {
+          console.log('Service Worker registered successfully:', registration);
+        },
+        onRegisterError(error) {
+          console.warn('Service Worker registration failed:', error);
+          globalErrorHandler(error);
         }
       });
       
     } catch (error) {
-      console.warn('Service Worker registration failed:', error);
+      // Fallback for when PWA features are not available
+      console.warn('PWA features not available:', error);
       
-      // Provide user feedback for PWA installation issues
-      if (error.name === 'SecurityError') {
-        console.error('Service Worker blocked by security policy. Ensure HTTPS is enabled.');
-      } else if (error.message.includes('MIME type')) {
-        console.error('Service Worker file not found or has incorrect MIME type.');
-      } else {
-        console.error('Service Worker registration error:', error.message);
+      // Only attempt manual registration if virtual:pwa-register fails
+      try {
+        const registration = await navigator.serviceWorker.register('/sw.js', {
+          scope: '/',
+          updateViaCache: 'none'
+        });
+        console.log('Fallback Service Worker registered:', registration);
+      } catch (fallbackError) {
+        console.warn('Fallback Service Worker registration also failed:', fallbackError);
+        // Don't throw error - app should work without PWA features
       }
-      
-      // Don't block app functionality if SW fails
-      globalErrorHandler.handleError(error, 'Service Worker Registration');
     }
   });
   
-  // Handle service worker messages
+  // Handle service worker messages for manual refresh
   navigator.serviceWorker.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'SKIP_WAITING') {
       window.location.reload();
