@@ -1,16 +1,17 @@
-import React, { useState, useEffect } from "react";
-import { useSelector, useDispatch } from "react-redux";
+import React, { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { removeFromComparison, clearComparison } from "@/store/comparisonSlice";
-import { addToCart } from "@/store/cartSlice";
-import { toast } from "react-toastify";
+import { toast } from "react-hot-toast";
 import { motion } from "framer-motion";
 import { productService } from "@/services/api/productService";
-import Button from "@/components/atoms/Button";
-import Badge from "@/components/atoms/Badge";
+import ApperIcon from "@/components/ApperIcon";
 import Loading from "@/components/ui/Loading";
 import Empty from "@/components/ui/Empty";
-import ApperIcon from "@/components/ApperIcon";
+import Cart from "@/components/pages/Cart";
+import Badge from "@/components/atoms/Badge";
+import Button from "@/components/atoms/Button";
+import { clearComparison, removeFromComparison } from "@/store/comparisonSlice";
+import { addToCart } from "@/store/cartSlice";
 
 const Compare = () => {
   const navigate = useNavigate();
