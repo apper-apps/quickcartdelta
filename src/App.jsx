@@ -1,16 +1,17 @@
+import '@/index.css'
 import React from "react";
-import { Route, BrowserRouter, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Provider } from "react-redux";
-import { ToastContainer } from "react-toastify";
-import ErrorBoundary from "@/components/ui/ErrorBoundary";
-import "@/index.css";
+import { Toaster } from "react-hot-toast";
+import AdminLayout from "@/components/organisms/AdminLayout";
 import Layout from "@/components/organisms/Layout";
 import Error from "@/components/ui/Error";
+import ErrorBoundary from "@/components/ui/ErrorBoundary";
 import Search from "@/components/pages/Search";
 import Loyalty from "@/components/pages/Loyalty";
 import MarketplaceIntegration from "@/components/pages/MarketplaceIntegration";
-import Wishlist from "@/components/pages/Wishlist";
 import Account from "@/components/pages/Account";
+import Wishlist from "@/components/pages/Wishlist";
 import Checkout from "@/components/pages/Checkout";
 import OrderConfirmation from "@/components/pages/OrderConfirmation";
 import Home from "@/components/pages/Home";
@@ -20,13 +21,12 @@ import Category from "@/components/pages/Category";
 import Compare from "@/components/pages/Compare";
 import Cart from "@/components/pages/Cart";
 import DeliveryDashboard from "@/components/pages/DeliveryDashboard";
-import AdminDashboard from "@/components/pages/admin/AdminDashboard";
 import AdminOrders from "@/components/pages/admin/AdminOrders";
-import AdminLayout from "@/components/organisms/AdminLayout";
+import AdminDashboard from "@/components/pages/admin/AdminDashboard";
 import { store } from "@/store/store";
 
 function App() {
-return (
+  return (
     <Provider store={store}>
       <BrowserRouter>
         <div className="min-h-screen bg-background">
@@ -48,7 +48,7 @@ return (
                   </button>
                 </div>
               )}>
-<Routes>
+                <Routes>
                   {/* Customer Routes */}
                   <Route path="/" element={<Home />} />
                   <Route path="/category/:id" element={<Category />} />
@@ -80,15 +80,16 @@ return (
             </Layout>
           </ErrorBoundary>
         </div>
-<ToastContainer
+        <Toaster 
           position="top-right"
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop={false}
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
+          toastOptions={{
+            duration: 3000,
+            style: {
+              borderRadius: '12px',
+              fontFamily: 'Inter, sans-serif',
+              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+            },
+          }}
         />
       </BrowserRouter>
     </Provider>
