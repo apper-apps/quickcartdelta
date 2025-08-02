@@ -515,13 +515,11 @@ const getPriorityIcon = (priority) => {
                   Contact
                 </Button>
 
-                <Button 
+<Button 
                   size="sm" 
                   variant="ghost"
                   icon="MapPin"
                   onClick={() => {
-                    setSelectedOrder(order);
-onClick={() => {
                     setSelectedOrder(order);
                     setCurrentView('map');
                   }}
@@ -536,140 +534,7 @@ onClick={() => {
     </div>
   );
 
-  const renderOrderQueue = () => (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Delivery Queue</h2>
-        <div className="flex gap-2">
-          <Button 
-            onClick={optimizeRoute}
-            icon="Route"
-            variant="delivery"
-            disabled={orders.length === 0}
-          >
-            Optimize Route
-          </Button>
-          <Button 
-            onClick={loadDeliveryOrders}
-            icon="RotateCcw"
-            variant="ghost"
-          >
-            Refresh
-          </Button>
-        </div>
-      </div>
-
-      {orders.length === 0 ? (
-        <div className="text-center py-12">
-          <ApperIcon name="Package" size={48} className="mx-auto text-gray-400 mb-4" />
-          <h3 className="text-lg font-semibold text-gray-600 mb-2">No deliveries pending</h3>
-          <p className="text-gray-500">Check back later for new orders</p>
-        </div>
-      ) : (
-        <div className="grid gap-4">
-          {orders.map((order) => (
-            <div key={order.Id} className="card p-4 border-l-4 border-l-primary">
-              <div className="flex justify-between items-start mb-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">{getPriorityIcon(order.priority)}</span>
-                  <div>
-                    <h3 className="font-semibold">Order #{order.Id}</h3>
-                    <p className="text-sm text-gray-600">{order.customer?.name}</p>
-
-        {/* Performance Metrics Banner */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="success-metric-card">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Delivery Time Reduction</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {performanceMetrics.deliveryTimeReduction.toFixed(1)}%
-                </p>
-              </div>
-              <div className={`metric-status ${performanceMetrics.deliveryTimeReduction >= 30 ? 'success' : 'warning'}`}>
-                <ApperIcon name={performanceMetrics.deliveryTimeReduction >= 30 ? "CheckCircle" : "Clock"} size={20} />
-              </div>
-            </div>
-            <div className="mt-2">
-              <Badge variant={performanceMetrics.deliveryTimeReduction >= 30 ? 'success' : 'warning'}>
-                Target: 30%
-              </Badge>
-            </div>
-          </div>
-
-          <div className="success-metric-card">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">First Attempt Success</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  {performanceMetrics.firstAttemptSuccess.toFixed(1)}%
-                </p>
-              </div>
-              <div className={`metric-status ${performanceMetrics.firstAttemptSuccess >= 95 ? 'success' : 'warning'}`}>
-                <ApperIcon name={performanceMetrics.firstAttemptSuccess >= 95 ? "Target" : "AlertTriangle"} size={20} />
-              </div>
-            </div>
-            <div className="mt-2">
-              <Badge variant={performanceMetrics.firstAttemptSuccess >= 95 ? 'success' : 'warning'}>
-                Target: 95%+
-              </Badge>
-            </div>
-          </div>
-
-          <div className="success-metric-card">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Customer Satisfaction</p>
-                <p className="text-2xl font-bold text-purple-600">
-                  {performanceMetrics.customerSatisfaction.toFixed(1)}/5
-                </p>
-              </div>
-              <div className={`metric-status ${performanceMetrics.customerSatisfaction >= 4.8 ? 'success' : 'warning'}`}>
-                <ApperIcon name={performanceMetrics.customerSatisfaction >= 4.8 ? "Star" : "Frown"} size={20} />
-              </div>
-            </div>
-            <div className="mt-2">
-              <Badge variant={performanceMetrics.customerSatisfaction >= 4.8 ? 'success' : 'warning'}>
-                Target: 4.8/5
-              </Badge>
-            </div>
-          </div>
-
-          <div className="success-metric-card">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Network Status</p>
-                <p className="text-lg font-semibold capitalize">{networkStatus}</p>
-              </div>
-              <div className={`metric-status ${networkStatus === 'online' ? 'success' : 'error'}`}>
-                <ApperIcon name={networkStatus === 'online' ? "Wifi" : "WifiOff"} size={20} />
-              </div>
-            </div>
-            <div className="mt-2">
-              <Badge variant={networkStatus === 'online' ? 'success' : 'error'}>
-                {testScenarios.networkCondition}
-              </Badge>
-            </div>
-          </div>
-        </div>
-
-{/* Voice Control */}
-      {voiceEnabled && (
-        <div className="mb-4">
-          <Button
-            variant="secondary"
-            onClick={startVoiceCommand}
-            icon="Mic"
-            disabled={!voiceEnabled}
-          >
-            {isListening ? 'Stop Listening' : 'Voice Command'}
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-
-  const renderSupportSystem = () => (
+const renderSupportSystem = () => (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Support System</h2>
       
@@ -954,48 +819,15 @@ onClick={() => {
     )
   }
 
-  async function loadTeamData() {
-    try {
-      const [drivers, zones, heatmap, alerts] = await Promise.all([
-        deliveryService.getTeamDrivers(),
-        deliveryService.getDeliveryZones(),
-        deliveryService.getHeatmapData(),
-        deliveryService.getBottleneckAlerts()
-      ])
+// Note: This function is duplicated and will be replaced by the complete version below
+  // Keeping this stub to prevent reference errors during compilation
+  const loadTeamDataStub = async () => {
+    console.warn('Using stub loadTeamData - will be replaced by complete implementation');
+  };
 
-      setTeamData({ drivers, zones, heatmap, alerts })
-    } catch (error) {
-      toast.error('Failed to load team data')
-    }
-  }
-
-  async function handleZoneAction(zoneId, action) {
-    try {
-      await deliveryService.executeZoneAction(zoneId, action)
-      toast.success(`Zone action "${action}" executed successfully`)
-      loadTeamData() // Reload data
-    } catch (error) {
-      toast.error(`Failed to execute zone action: ${error.message}`)
-    }
-  }
-
-  function renderTeamDashboard() {
-    return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div>
-              <p className="text-sm text-gray-500">Longitude</p>
-              <p className="font-mono text-sm">{driverLocation.lng?.toFixed(6)}</p>
-            </div>
-          </div>
-          
-          <p className="text-xs text-gray-500 mt-2">
-            Last updated: {driverLocation.timestamp ? new Date(driverLocation.timestamp).toLocaleTimeString() : 'Unknown'}
-          </p>
-        </div>
-      )}
-    </div>
-  );
+  const handleZoneActionStub = async (zoneId, action) => {
+    console.warn('Using stub handleZoneAction - will be replaced by complete implementation');
+  };
 
 const renderNavigation = () => (
     <div className="grid grid-cols-3 lg:grid-cols-7 gap-2 mb-6 p-2 bg-gray-100 rounded-lg">
