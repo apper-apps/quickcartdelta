@@ -12,10 +12,12 @@ import Empty from "@/components/ui/Empty";
 import { setQuery, setResults } from "@/store/searchSlice";
 
 export default function Search() {
-  const [searchParams] = useSearchParams();
+const [searchParams] = useSearchParams();
   const dispatch = useDispatch();
   const { query, results } = useSelector((state) => state.search);
-  
+  const { items: cartItems = [] } = useSelector((state) => state.cart || {});
+  const { items: wishlistItems = [] } = useSelector((state) => state.wishlist || {});
+  const { browsingHistory = [] } = useSelector((state) => state.user || {});
 const [filteredResults, setFilteredResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -58,7 +60,7 @@ loadCategories();
     }
   };
 
-  const performSearch = async (searchQuery) => {
+const performSearch = async (searchQuery) => {
     if (!searchQuery.trim()) {
       dispatch(setResults([]));
       return;
@@ -68,7 +70,16 @@ loadCategories();
       setLoading(true);
       setError(null);
       
-      const searchResults = await productService.search(searchQuery);
+      // Enhanced search with NLP-like intent analysis
+      const searchResults = await productService.search(searchQuery, {
+        includeRecommendations: true,
+        userContext: {
+          browsing: browsingHistory,
+          cart: cartItems,
+          wishlist: wishlistItems
+        }
+      });
+      
       dispatch(setResults(searchResults));
       
     } catch (err) {

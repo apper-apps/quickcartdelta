@@ -1,8 +1,9 @@
 import { createSlice } from "@reduxjs/toolkit";
+import React from "react";
 
 const cartSlice = createSlice({
   name: "cart",
-initialState: {
+  initialState: {
     items: [],
     total: 0,
     itemCount: 0,
@@ -11,22 +12,46 @@ initialState: {
       code: "",
       percentage: 0,
       isValid: false,
-      type: "manual" // manual, dynamic, loyalty, referral
+      type: "manual", // manual, dynamic, loyalty, referral, abandonment
+      appliedAt: null,
+      expiresAt: null
     },
     abandonment: {
       tracked: false,
       timestamp: null,
-      reminderSent: false
+      reminderSent: false,
+      reminderCount: 0,
+      lastActivity: Date.now(),
+      recoveryOffers: []
     },
     checkout: {
       biometricEnabled: false,
       savedPayments: [],
-      oneClickEnabled: false
+      oneClickEnabled: false,
+      preferredPaymentMethod: null,
+      autoApplyLoyaltyPoints: true,
+      expressCheckout: false
     },
     dynamicPricing: {
       personalizedDiscount: 0,
       tierDiscount: 0,
-      bulkDiscount: 0
+      bulkDiscount: 0,
+      seasonalDiscount: 0,
+      firstTimeDiscount: 0,
+      appliedAt: null
+    },
+    bnpl: {
+      available: true,
+      providers: ['afterpay', 'klarna', 'tabby'],
+      selectedProvider: null,
+      installmentPlan: null
+    },
+    crypto: {
+      enabled: true,
+      supportedCoins: ['BTC', 'ETH', 'USDC', 'USDT'],
+      selectedCoin: null,
+      exchangeRate: null,
+      walletConnected: false
     },
     pos: {
       mode: false,
@@ -45,7 +70,7 @@ initialState: {
       }
     }
   },
-reducers: {
+  reducers: {
     addToCart: (state, action) => {
       const { product, quantity = 1, customerId = null } = action.payload;
       const existingItem = state.items.find(item => item.Id === product.Id);
@@ -98,9 +123,9 @@ reducers: {
       state.pos.splitBill = {
         enabled: false,
         customers: [],
-        itemAssignments: {}
-      };
-},
+itemAssignments: {}
+    };
+    },
     toggleCart: (state) => {
       state.isOpen = !state.isOpen;
     },
@@ -108,82 +133,285 @@ reducers: {
       state.isOpen = true;
     },
     closeCart: (state) => {
+closeCart: (state) => {
       state.isOpen = false;
     },
-applyDiscount: (state, action) => {
-      const { code, type = "manual" } = action.payload;
-      // Mock discount validation - in real app, this would call a service
+    applyDiscount: (state, action) => {
+      const { code, type = "manual", expiresIn = null } = action.payload;
+      // Enhanced discount validation with dynamic codes
       const validCodes = {
-        'WELCOME25': 25,
-        'FREESHIP': 0, // Special case for free shipping
-        'FLASH50': 50,
-        'WEEKEND30': 30,
-        'SAVE20': 20,
-        'VIP15': 15,
-        'ABANDONER10': 10,
-        'REFERRAL20': 20
+        // Standard codes
+        'WELCOME25': { percentage: 25, description: 'New customer welcome' },
+        'FREESHIP': { percentage: 0, freeShipping: true, description: 'Free shipping' },
+        'FLASH50': { percentage: 50, description: 'Flash sale special' },
+        'WEEKEND30': { percentage: 30, description: 'Weekend promotion' },
+        'SAVE20': { percentage: 20, description: 'General discount' },
+        'VIP15': { percentage: 15, description: 'VIP member exclusive' },
+        
+        // Abandonment recovery codes
+        'COMEBACK10': { percentage: 10, description: 'Cart recovery offer' },
+        'COMEBACK15': { percentage: 15, description: 'Extended recovery offer' },
+        'COMEBACK20': { percentage: 20, description: 'Final recovery offer' },
+        
+        // Referral codes
+        'REFERRAL20': { percentage: 20, description: 'Referral bonus' },
+        'FRIEND15': { percentage: 15, description: 'Friend referral' },
+        
+        // Loyalty codes
+        'LOYAL10': { percentage: 10, description: 'Loyalty reward' },
+        'PLATINUM25': { percentage: 25, description: 'Platinum tier exclusive' },
+        
+        // Seasonal codes
+        'HOLIDAY30': { percentage: 30, description: 'Holiday special' },
+        'SUMMER25': { percentage: 25, description: 'Summer sale' },
+        'BLACKFRIDAY50': { percentage: 50, description: 'Black Friday deal' },
+        
+        // Crypto payment incentives
+        'CRYPTO5': { percentage: 5, description: 'Crypto payment bonus' },
+        'BTC10': { percentage: 10, description: 'Bitcoin payment special' }
       };
       
-      if (validCodes.hasOwnProperty(code)) {
+      // Check for dynamic spin wheel codes (pattern: SPIN + random)
+      const spinWheelPattern = /^SPIN[A-Z0-9]{6}$/;
+      const luckyPattern = /^LUCKY[A-Z0-9]{6}$/;
+      
+      let discountData = validCodes[code];
+      
+      // Handle dynamic codes
+      if (!discountData && spinWheelPattern.test(code)) {
+        discountData = { percentage: 15, description: 'Spin wheel prize' };
+      } else if (!discountData && luckyPattern.test(code)) {
+        discountData = { percentage: 10, description: 'Lucky draw prize' };
+      }
+      
+      if (discountData) {
+        const expiresAt = expiresIn ? new Date(Date.now() + expiresIn).toISOString() : null;
+        
         state.discount = {
           code: code,
-          percentage: validCodes[code],
+          percentage: discountData.percentage,
           isValid: true,
-          type
+          type,
+          description: discountData.description,
+          freeShipping: discountData.freeShipping || false,
+          appliedAt: new Date().toISOString(),
+          expiresAt
         };
+        
+        // Track discount usage
+        console.log(`💰 Discount applied: ${code} (${discountData.percentage}%) - ${discountData.description}`);
       } else {
         state.discount = {
           code: "",
           percentage: 0,
           isValid: false,
-          type: "manual"
+          type: "manual",
+          appliedAt: null,
+          expiresAt: null
         };
+        console.warn(`❌ Invalid discount code: ${code}`);
       }
     },
 
-    trackAbandonment: (state) => {
-      if (state.items.length > 0 && !state.abandonment.tracked) {
+trackAbandonment: (state, action) => {
+      const { activity = 'cart_update' } = action.payload || {};
+      
+      if (state.items.length > 0) {
+        const now = Date.now();
+        const lastActivity = state.abandonment.lastActivity;
+        const timeSinceLastActivity = now - lastActivity;
+        
+        // Start tracking abandonment after 5 minutes of inactivity
+        if (!state.abandonment.tracked && timeSinceLastActivity > 5 * 60 * 1000) {
+          state.abandonment.tracked = true;
+          state.abandonment.timestamp = now;
+          console.log('🕒 Cart abandonment tracking started');
+        }
+        
+        // Update last activity
+        state.abandonment.lastActivity = now;
+        
+        // Generate progressive recovery offers
+        const hoursAbandoned = Math.floor(timeSinceLastActivity / (1000 * 60 * 60));
+        const newOffers = [];
+        
+        if (hoursAbandoned >= 1 && !state.abandonment.recoveryOffers.find(o => o.trigger === '1_hour')) {
+          newOffers.push({
+            id: `recovery_${now}`,
+            trigger: '1_hour',
+            discountCode: 'COMEBACK10',
+            discountPercent: 10,
+            message: 'Complete your purchase in the next hour and save 10%!',
+            expiresIn: 60 * 60 * 1000, // 1 hour
+            createdAt: new Date().toISOString()
+          });
+        }
+        
+        if (hoursAbandoned >= 24 && !state.abandonment.recoveryOffers.find(o => o.trigger === '24_hours')) {
+          newOffers.push({
+            id: `recovery_${now}_24h`,
+            trigger: '24_hours',
+            discountCode: 'COMEBACK15',
+            discountPercent: 15,
+            message: 'Your items are still waiting! Save 15% if you complete your order today.',
+            expiresIn: 24 * 60 * 60 * 1000, // 24 hours
+            createdAt: new Date().toISOString()
+          });
+        }
+        
+        if (hoursAbandoned >= 72 && !state.abandonment.recoveryOffers.find(o => o.trigger === '72_hours')) {
+          newOffers.push({
+            id: `recovery_${now}_72h`,
+            trigger: '72_hours',
+            discountCode: 'COMEBACK20',
+            discountPercent: 20,
+            message: 'Final offer! Complete your purchase and save 20% - expires soon!',
+            expiresIn: 48 * 60 * 60 * 1000, // 48 hours
+            createdAt: new Date().toISOString()
+          });
+        }
+        
+        state.abandonment.recoveryOffers.push(...newOffers);
+      } else if (state.abandonment.tracked) {
+        // Reset abandonment tracking when cart is emptied
         state.abandonment = {
-          tracked: true,
-          timestamp: Date.now(),
-          reminderSent: false
+          tracked: false,
+          timestamp: null,
+          reminderSent: false,
+          reminderCount: 0,
+          lastActivity: Date.now(),
+          recoveryOffers: []
         };
       }
     },
 
-    enableBiometric: (state, action) => {
-      state.checkout.biometricEnabled = action.payload;
+enableBiometric: (state, action) => {
+      const { enabled, deviceType = 'fingerprint' } = action.payload;
+      state.checkout.biometricEnabled = enabled;
+      state.checkout.biometricType = deviceType; // fingerprint, face, voice
+      
+      if (enabled) {
+        state.checkout.expressCheckout = true;
+        console.log(`🔐 Biometric authentication enabled: ${deviceType}`);
+      }
     },
 
     savePaymentMethod: (state, action) => {
       const payment = action.payload;
       const exists = state.checkout.savedPayments.find(p => p.id === payment.id);
+      
       if (!exists) {
-        state.checkout.savedPayments.push(payment);
+        const enhancedPayment = {
+          ...payment,
+          addedAt: new Date().toISOString(),
+          lastUsed: null,
+          isDefault: state.checkout.savedPayments.length === 0,
+          securityLevel: payment.type === 'crypto' ? 'high' : 'standard'
+        };
+        
+        state.checkout.savedPayments.push(enhancedPayment);
+        
+        // Set as preferred if it's the first one
+        if (!state.checkout.preferredPaymentMethod) {
+          state.checkout.preferredPaymentMethod = payment.id;
+        }
+        
+        console.log(`💳 Payment method saved: ${payment.type} ending in ${payment.last4 || payment.address?.slice(-4)}`);
       }
     },
 
     enableOneClick: (state, action) => {
       state.checkout.oneClickEnabled = action.payload;
+      
+      if (action.payload && state.checkout.biometricEnabled && state.checkout.savedPayments.length > 0) {
+        state.checkout.expressCheckout = true;
+        console.log('⚡ Express one-click checkout enabled');
+      }
     },
-
+    
+    setBNPLProvider: (state, action) => {
+      const { provider, installmentPlan } = action.payload;
+      
+      state.bnpl.selectedProvider = provider;
+      state.bnpl.installmentPlan = installmentPlan;
+      
+      console.log(`💳 BNPL provider selected: ${provider} with ${installmentPlan?.installments || 4} installments`);
+    },
+    
+    setCryptoPayment: (state, action) => {
+      const { coin, exchangeRate, walletAddress } = action.payload;
+      
+      state.crypto.selectedCoin = coin;
+      state.crypto.exchangeRate = exchangeRate;
+      state.crypto.walletConnected = !!walletAddress;
+      
+      if (walletAddress) {
+        // Apply crypto payment bonus
+        if (!state.discount.isValid || state.discount.percentage < 5) {
+          state.discount = {
+            code: 'CRYPTO5',
+            percentage: 5,
+            isValid: true,
+            type: 'crypto_bonus',
+            description: 'Cryptocurrency payment bonus',
+            appliedAt: new Date().toISOString()
+          };
+        }
+      }
+      
+console.log(`₿ Crypto payment setup: ${coin} at rate ${exchangeRate}`);
+    },
+    
     applyDynamicPricing: (state, action) => {
-      const { personalizedDiscount, tierDiscount, bulkDiscount } = action.payload;
+      const {
+        personalizedDiscount, 
+        tierDiscount, 
+        bulkDiscount, 
+        seasonalDiscount,
+        firstTimeDiscount,
+        userContext 
+      } = action.payload;
+      
+      // Enhanced dynamic pricing with multiple factors
       state.dynamicPricing = {
         personalizedDiscount: personalizedDiscount || 0,
         tierDiscount: tierDiscount || 0,
-        bulkDiscount: bulkDiscount || 0
+        bulkDiscount: bulkDiscount || 0,
+        seasonalDiscount: seasonalDiscount || 0,
+        firstTimeDiscount: firstTimeDiscount || 0,
+        appliedAt: new Date().toISOString()
       };
       
-      // Auto-apply best dynamic discount
-      const totalDynamicDiscount = Math.max(personalizedDiscount, tierDiscount, bulkDiscount);
-      if (totalDynamicDiscount > state.discount.percentage) {
+      // Calculate best dynamic discount with stacking rules
+      let bestDiscount = Math.max(personalizedDiscount || 0, tierDiscount || 0);
+      
+      // Add stackable discounts
+      if (bulkDiscount) bestDiscount += Math.min(bulkDiscount, 10); // Cap bulk bonus at 10%
+      if (seasonalDiscount) bestDiscount += Math.min(seasonalDiscount, 5); // Cap seasonal at 5%
+      if (firstTimeDiscount && userContext?.isFirstTime) bestDiscount += firstTimeDiscount;
+      
+      // Cap total dynamic discount at 50%
+      bestDiscount = Math.min(bestDiscount, 50);
+      
+      // Auto-apply if better than current discount
+      if (bestDiscount > state.discount.percentage) {
+        const discountComponents = [];
+        if (personalizedDiscount) discountComponents.push(`Personal: ${personalizedDiscount}%`);
+        if (tierDiscount) discountComponents.push(`Tier: ${tierDiscount}%`);
+        if (bulkDiscount) discountComponents.push(`Bulk: ${bulkDiscount}%`);
+        if (seasonalDiscount) discountComponents.push(`Seasonal: ${seasonalDiscount}%`);
+        if (firstTimeDiscount && userContext?.isFirstTime) discountComponents.push(`First-time: ${firstTimeDiscount}%`);
+        
         state.discount = {
           code: "DYNAMIC",
-          percentage: totalDynamicDiscount,
+          percentage: Math.round(bestDiscount),
           isValid: true,
-          type: "dynamic"
+          type: "dynamic",
+          description: `Smart pricing: ${discountComponents.join(', ')}`,
+          appliedAt: new Date().toISOString()
         };
+        
+        console.log(`🎯 Dynamic pricing applied: ${Math.round(bestDiscount)}% (${discountComponents.join(', ')})`);
       }
     },
     removeDiscount: (state) => {
@@ -303,9 +531,10 @@ export const {
   deleteCustomerTab,
   enableSplitBill,
   assignItemToCustomer,
-  disableSplitBill,
+disableSplitBill,
   syncOfflineData,
   generateReceipt,
+  setBNPLProvider,
+  setCryptoPayment
 } = cartSlice.actions;
-
 export default cartSlice.reducer;

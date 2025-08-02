@@ -36,18 +36,31 @@ const RecommendationCarousel = ({
   }, [currentIndex, recommendations]);
 
   const loadRecommendations = async () => {
-    try {
+try {
       setLoading(true);
       setError(null);
       
+      // Enhanced collaborative filtering recommendations
       const recs = await productService.getBrowsingRecommendations(
         currentProductId,
         browsingHistory,
-        cartItems
+        cartItems,
+        {
+          includeCollaborativeFiltering: true,
+          includeTrendingProducts: true,
+          includeSeasonalRecommendations: true,
+          maxRecommendations: 12
+        }
       );
       
       setRecommendations(recs);
       setCurrentIndex(0);
+      
+      // Track recommendation views for ML improvement
+      if (recs.length > 0) {
+        console.log(`🎯 Loaded ${recs.length} personalized recommendations`);
+      }
+      
     } catch (err) {
       setError("Failed to load recommendations");
       console.error("Recommendations error:", err);

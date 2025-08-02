@@ -61,14 +61,107 @@ async getById(id) {
     return this.products.filter(p => p.featured).slice(0, 8);
   }
 
-  async search(query) {
+async search(query, options = {}) {
     await this.delay();
     const searchTerm = query.toLowerCase();
-    return this.products.filter(product =>
+    
+    // Enhanced search with NLP-like intent analysis
+    const searchResults = this.products.filter(product =>
       product.title.toLowerCase().includes(searchTerm) ||
       product.description.toLowerCase().includes(searchTerm) ||
-      product.category.toLowerCase().includes(searchTerm)
+      product.category.toLowerCase().includes(searchTerm) ||
+      product.tags?.some(tag => tag.toLowerCase().includes(searchTerm)) ||
+      product.brand?.toLowerCase().includes(searchTerm)
     );
+    
+    // Add search intent analysis
+    const intent = this.analyzeSearchIntent(query);
+    
+    // Sort by relevance with intent weighting
+    const sortedResults = searchResults.sort((a, b) => {
+      let scoreA = this.calculateRelevanceScore(a, searchTerm, intent);
+      let scoreB = this.calculateRelevanceScore(b, searchTerm, intent);
+      
+      // Apply user context if provided
+      if (options.userContext) {
+        scoreA += this.applyUserContextBoost(a, options.userContext);
+        scoreB += this.applyUserContextBoost(b, options.userContext);
+      }
+      
+      return scoreB - scoreA;
+    });
+    
+    return sortedResults;
+  }
+  
+  analyzeSearchIntent(query) {
+    const intent = { type: 'general', confidence: 0.5 };
+    const lowerQuery = query.toLowerCase();
+    
+    // Price intent
+    if (lowerQuery.includes('cheap') || lowerQuery.includes('affordable') || lowerQuery.includes('budget')) {
+      intent.type = 'price_conscious';
+      intent.confidence = 0.8;
+    }
+    // Quality intent
+    else if (lowerQuery.includes('best') || lowerQuery.includes('premium') || lowerQuery.includes('high quality')) {
+      intent.type = 'quality_focused';
+      intent.confidence = 0.8;
+    }
+    // Brand intent
+    else if (lowerQuery.includes('apple') || lowerQuery.includes('samsung') || lowerQuery.includes('nike')) {
+      intent.type = 'brand_specific';
+      intent.confidence = 0.9;
+    }
+    
+    return intent;
+  }
+  
+  calculateRelevanceScore(product, searchTerm, intent) {
+    let score = 0;
+    
+    // Title match (highest weight)
+    if (product.title.toLowerCase().includes(searchTerm)) score += 10;
+    
+    // Category match
+    if (product.category.toLowerCase().includes(searchTerm)) score += 5;
+    
+    // Description match
+    if (product.description.toLowerCase().includes(searchTerm)) score += 3;
+    
+    // Brand match
+    if (product.brand?.toLowerCase().includes(searchTerm)) score += 7;
+    
+    // Intent-based scoring
+    if (intent.type === 'price_conscious') {
+      score += product.price < 50 ? 5 : product.price < 100 ? 3 : 0;
+    } else if (intent.type === 'quality_focused') {
+      score += product.rating > 4.0 ? 5 : 0;
+    }
+    
+    // Popularity boost
+    score += Math.log(product.reviews + 1) * 0.5;
+    
+    return score * intent.confidence;
+  }
+  
+  applyUserContextBoost(product, userContext) {
+    let boost = 0;
+    
+    // Browsing history boost
+    if (userContext.browsing?.includes(product.Id)) boost += 2;
+    
+    // Category preference
+    const viewedCategories = userContext.browsing?.map(id => 
+      this.products.find(p => p.Id === id)?.category
+    ).filter(Boolean);
+    
+    if (viewedCategories?.includes(product.category)) boost += 3;
+    
+    // Cart context
+    if (userContext.cart?.some(item => item.category === product.category)) boost += 4;
+    
+    return boost;
   }
 
   async getCategories() {
@@ -107,155 +200,395 @@ async delete(id) {
     return true;
   }
 
-async getBrowsingRecommendations(currentProductId = null, browsingHistory = [], cartItems = []) {
+async getBrowsingRecommendations(currentProductId = null, browsingHistory = [], cartItems = [], options = {}) {
     await this.delay();
-    const maxRecommendations = 8;
+    const maxRecommendations = options.maxRecommendations || 12;
     const recommendations = new Set();
     const viewedCategories = new Set();
     const cartCategories = new Set();
+    const viewedBrands = new Set();
     
-    // Analyze browsing history
+    // Advanced user behavior analysis
+    const userProfile = this.buildUserProfile(browsingHistory, cartItems);
+    
+    // Analyze browsing history with frequency weighting
+    const categoryFrequency = {};
+    const brandFrequency = {};
+    
     browsingHistory.forEach(productId => {
       const product = this.products.find(p => p.Id === productId);
       if (product) {
         viewedCategories.add(product.category);
+        viewedBrands.add(product.brand);
+        
+        categoryFrequency[product.category] = (categoryFrequency[product.category] || 0) + 1;
+        brandFrequency[product.brand] = (brandFrequency[product.brand] || 0) + 1;
       }
     });
     
-    // Analyze cart contents
+    // Analyze cart contents with value weighting
     cartItems.forEach(item => {
       cartCategories.add(item.category);
     });
     
-    // Get current product category if provided
-    let currentCategory = null;
+    // Get current product details
+    let currentProduct = null;
     if (currentProductId) {
-      const currentProduct = this.products.find(p => p.Id === currentProductId);
-      if (currentProduct) {
-        currentCategory = currentProduct.category;
-      }
+      currentProduct = this.products.find(p => p.Id === currentProductId);
     }
     
-    // Priority 1: Same category as current product (if on product detail page)
-    if (currentCategory) {
+    // Advanced collaborative filtering
+    if (options.includeCollaborativeFiltering) {
+      const collaborativeRecs = this.getCollaborativeRecommendations(
+        browsingHistory,
+        cartItems,
+        currentProductId
+      );
+      collaborativeRecs.forEach(product => {
+        if (recommendations.size < maxRecommendations) {
+          recommendations.add({ ...product, source: 'collaborative' });
+        }
+      });
+    }
+    
+    // Priority 1: Frequently bought together with current product
+    if (currentProduct?.frequentlyBoughtWith) {
+      const bundleProducts = this.products
+        .filter(p => currentProduct.frequentlyBoughtWith.includes(p.title))
+        .slice(0, 3);
+      
+      bundleProducts.forEach(product => recommendations.add({ ...product, source: 'bundle' }));
+    }
+    
+    // Priority 2: Same category as current product with enhanced scoring
+    if (currentProduct) {
       const sameCategory = this.products
-        .filter(p => p.category === currentCategory && p.Id !== currentProductId)
-        .sort((a, b) => b.rating - a.rating)
+        .filter(p => 
+          p.category === currentProduct.category && 
+          p.Id !== currentProductId &&
+          !Array.from(recommendations).some(r => r.Id === p.Id)
+        )
+        .map(product => ({
+          ...product,
+          score: this.calculateRecommendationScore(product, userProfile, 'category_match')
+        }))
+        .sort((a, b) => b.score - a.score)
         .slice(0, 4);
       
-      sameCategory.forEach(product => recommendations.add(product));
+      sameCategory.forEach(product => recommendations.add({ ...product, source: 'category' }));
     }
     
-    // Priority 2: Products from categories in cart
+    // Priority 3: Brand affinity recommendations
+    const topBrands = Object.entries(brandFrequency)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 3)
+      .map(([brand]) => brand);
+    
+    topBrands.forEach(brand => {
+      if (recommendations.size >= maxRecommendations) return;
+      
+      const brandProducts = this.products
+        .filter(p => 
+          p.brand === brand &&
+          p.Id !== currentProductId &&
+          !Array.from(recommendations).some(r => r.Id === p.Id)
+        )
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, 2);
+      
+      brandProducts.forEach(product => {
+        if (recommendations.size < maxRecommendations) {
+          recommendations.add({ ...product, source: 'brand_affinity' });
+        }
+      });
+    });
+    
+    // Priority 4: Cart complementary products
     cartCategories.forEach(category => {
       if (recommendations.size >= maxRecommendations) return;
       
-      const categoryProducts = this.products
-        .filter(p => p.category === category && 
-                    !Array.from(recommendations).some(r => r.Id === p.Id) &&
-                    p.Id !== currentProductId)
+      const complementaryProducts = this.products
+        .filter(p => 
+          this.areComplementaryCategories(p.category, category) &&
+          !Array.from(recommendations).some(r => r.Id === p.Id) &&
+          p.Id !== currentProductId
+        )
         .sort((a, b) => b.rating - a.rating)
         .slice(0, 2);
       
-      categoryProducts.forEach(product => {
+      complementaryProducts.forEach(product => {
         if (recommendations.size < maxRecommendations) {
-          recommendations.add(product);
+          recommendations.add({ ...product, source: 'complementary' });
         }
       });
     });
     
-    // Priority 3: Products from browsed categories
-    viewedCategories.forEach(category => {
-      if (recommendations.size >= maxRecommendations) return;
-      
-      const categoryProducts = this.products
-        .filter(p => p.category === category && 
-                    !Array.from(recommendations).some(r => r.Id === p.Id) &&
-                    p.Id !== currentProductId)
-        .sort((a, b) => b.rating - a.rating)
-        .slice(0, 2);
-      
-categoryProducts.forEach(product => {
+    // Priority 5: Trending products in user's categories
+    if (options.includeTrendingProducts) {
+      const trendingProducts = this.getTrendingProducts(viewedCategories, currentProductId);
+      trendingProducts.forEach(product => {
         if (recommendations.size < maxRecommendations) {
-          recommendations.add(product);
+          recommendations.add({ ...product, source: 'trending' });
+        }
+      });
+    }
+    
+    // Priority 6: Seasonal recommendations
+    if (options.includeSeasonalRecommendations) {
+      const seasonalProducts = this.getSeasonalRecommendations(currentProductId);
+      seasonalProducts.forEach(product => {
+        if (recommendations.size < maxRecommendations) {
+          recommendations.add({ ...product, source: 'seasonal' });
+        }
+      });
+    }
+    
+    // Fill remaining slots with high-rated products
+    if (recommendations.size < maxRecommendations) {
+      const fillProducts = this.products
+        .filter(p => 
+          p.rating >= 4.2 && 
+          !Array.from(recommendations).some(r => r.Id === p.Id) &&
+          p.Id !== currentProductId
+        )
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, maxRecommendations - recommendations.size);
+      
+      fillProducts.forEach(product => recommendations.add({ ...product, source: 'high_rated' }));
+    }
+    
+    const finalRecommendations = Array.from(recommendations)
+      .map(product => ({ ...product }))
+      .slice(0, maxRecommendations);
+    
+    console.log(`🎯 Generated ${finalRecommendations.length} personalized recommendations`);
+    return finalRecommendations;
+  }
+  
+  buildUserProfile(browsingHistory, cartItems) {
+    const profile = {
+      categories: {},
+      brands: {},
+      priceRange: { min: 0, max: 1000 },
+      avgRating: 0,
+      totalItems: browsingHistory.length + cartItems.length
+    };
+    
+    // Analyze browsing patterns
+    browsingHistory.forEach(productId => {
+      const product = this.products.find(p => p.Id === productId);
+      if (product) {
+        profile.categories[product.category] = (profile.categories[product.category] || 0) + 1;
+        profile.brands[product.brand] = (profile.brands[product.brand] || 0) + 1;
+      }
+    });
+    
+    // Analyze cart patterns
+    cartItems.forEach(item => {
+      profile.categories[item.category] = (profile.categories[item.category] || 0) + 2; // Higher weight
+      profile.priceRange.min = Math.min(profile.priceRange.min, item.price);
+      profile.priceRange.max = Math.max(profile.priceRange.max, item.price);
+    });
+    
+    return profile;
+  }
+  
+  getCollaborativeRecommendations(browsingHistory, cartItems, currentProductId) {
+    // Simplified collaborative filtering - in production, use more sophisticated algorithms
+    const userBehavior = [...browsingHistory, ...cartItems.map(item => item.Id)];
+    const similarUsers = this.findSimilarUsers(userBehavior);
+    
+    const collaborativeProducts = [];
+    similarUsers.forEach(similarUser => {
+      similarUser.products.forEach(productId => {
+        if (!userBehavior.includes(productId) && productId !== currentProductId) {
+          const product = this.products.find(p => p.Id === productId);
+          if (product && !collaborativeProducts.find(p => p.Id === productId)) {
+            collaborativeProducts.push(product);
+          }
         }
       });
     });
     
-    // Priority 4: Featured products to fill remaining slots
-    if (recommendations.size < maxRecommendations) {
-      const featuredProducts = this.products
-        .filter(p => p.featured && 
-                    !Array.from(recommendations).some(r => r.Id === p.Id) &&
-                    p.Id !== currentProductId)
-        .sort((a, b) => b.rating - a.rating);
-      
-      featuredProducts.forEach(product => {
-        if (recommendations.size < maxRecommendations) {
-          recommendations.add(product);
-        }
-      });
+    return collaborativeProducts.slice(0, 4);
+  }
+  
+  findSimilarUsers(userBehavior) {
+    // Mock similar users data - in production, use real user behavior analytics
+    const mockSimilarUsers = [
+      { products: [1, 3, 5, 7, 9], similarity: 0.8 },
+      { products: [2, 4, 6, 8, 10], similarity: 0.7 },
+      { products: [11, 13, 15, 17, 19], similarity: 0.6 }
+    ];
+    
+    return mockSimilarUsers.filter(user => user.similarity > 0.5);
+  }
+  
+  areComplementaryCategories(cat1, cat2) {
+    const complementaryMap = {
+      'electronics': ['accessories', 'cables'],
+      'clothing': ['shoes', 'accessories'],
+      'home-garden': ['furniture', 'decor'],
+      'sports': ['fitness', 'outdoor']
+    };
+    
+    return complementaryMap[cat1]?.includes(cat2) || complementaryMap[cat2]?.includes(cat1);
+  }
+  
+  getTrendingProducts(viewedCategories, currentProductId) {
+    // Mock trending algorithm - in production, use real analytics
+    return this.products
+      .filter(p => 
+        Array.from(viewedCategories).includes(p.category) &&
+        p.Id !== currentProductId &&
+        p.reviews > 50 // Popular products
+      )
+      .sort((a, b) => (b.reviews * b.rating) - (a.reviews * a.rating))
+      .slice(0, 3);
+  }
+  
+  getSeasonalRecommendations(currentProductId) {
+    const currentMonth = new Date().getMonth();
+    const seasonalCategories = {
+      'winter': ['clothing', 'electronics'], // Dec, Jan, Feb
+      'spring': ['home-garden', 'sports'], // Mar, Apr, May
+      'summer': ['sports', 'outdoor'], // Jun, Jul, Aug
+      'fall': ['clothing', 'electronics'] // Sep, Oct, Nov
+    };
+    
+    let season = 'spring';
+    if (currentMonth >= 11 || currentMonth <= 1) season = 'winter';
+    else if (currentMonth >= 5 && currentMonth <= 7) season = 'summer';
+    else if (currentMonth >= 8 && currentMonth <= 10) season = 'fall';
+    
+    const relevantCategories = seasonalCategories[season];
+    
+    return this.products
+      .filter(p => 
+        relevantCategories.includes(p.category) &&
+        p.Id !== currentProductId
+      )
+      .sort((a, b) => b.rating - a.rating)
+      .slice(0, 2);
+  }
+  
+  calculateRecommendationScore(product, userProfile, source) {
+    let score = product.rating * 2; // Base score
+    
+    // Category affinity
+    const categoryCount = userProfile.categories[product.category] || 0;
+    score += categoryCount * 1.5;
+    
+    // Brand affinity
+    const brandCount = userProfile.brands[product.brand] || 0;
+    score += brandCount * 1.2;
+    
+    // Price fit
+    if (product.price >= userProfile.priceRange.min && product.price <= userProfile.priceRange.max) {
+      score += 2;
     }
     
-    // Priority 5: High-rated products to fill any remaining slots
-    if (recommendations.size < maxRecommendations) {
-      const highRatedProducts = this.products
-        .filter(p => p.rating >= 4.3 && 
-                    !Array.from(recommendations).some(r => r.Id === p.Id) &&
-                    p.Id !== currentProductId)
-        .sort((a, b) => b.rating - a.rating);
-      
-      highRatedProducts.forEach(product => {
-        if (recommendations.size < maxRecommendations) {
-          recommendations.add(product);
-        }
-      });
-    }
+    // Source weighting
+    const sourceWeights = {
+      'category_match': 1.5,
+      'brand_affinity': 1.3,
+      'collaborative': 1.8,
+      'trending': 1.1,
+      'seasonal': 1.0
+    };
     
-    return Array.from(recommendations).map(product => ({ ...product }));
+    score *= sourceWeights[source] || 1.0;
+    
+    return score;
   }
 
-  async checkCameraAvailability() {
+async checkCameraAvailability() {
     try {
-      // Enhanced MediaDevices API availability check
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        return { available: false, reason: 'not_supported' };
+      // Enhanced MediaDevices API availability check with better error handling
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        return { 
+          available: false, 
+          reason: 'not_supported',
+          message: 'Camera API not supported in this browser'
+        };
       }
       
       // Check for secure context (HTTPS required for camera access)
       if (!window.isSecureContext) {
-        return { available: false, reason: 'insecure_context' };
+        return { 
+          available: false, 
+          reason: 'insecure_context',
+          message: 'HTTPS required for camera access'
+        };
       }
       
-      // Use direct method call to prevent context binding issues
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: 'environment',
-          width: { ideal: 640 },
-          height: { ideal: 480 }
-        } 
-      });
+      // Check for actual camera devices
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const hasCamera = devices.some(device => device.kind === 'videoinput');
+        
+        if (!hasCamera) {
+          return {
+            available: false,
+            reason: 'no_camera',
+            message: 'No camera device found'
+          };
+        }
+      } catch (enumError) {
+        console.warn('Could not enumerate devices:', enumError);
+      }
       
-      // Immediately stop the stream after checking availability
-      stream.getTracks().forEach(track => track.stop());
+      // Test actual camera access
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode: 'environment',
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          } 
+        });
+        
+        // Immediately stop the stream after checking availability
+        stream.getTracks().forEach(track => track.stop());
+        
+        return { available: true, message: 'Camera available' };
+      } catch (accessError) {
+        // Handle permission-related errors without failing completely
+        if (accessError.name === 'NotAllowedError') {
+          return {
+            available: true, // Camera exists but needs permission
+            reason: 'permission_required',
+            message: 'Camera permission required'
+          };
+        }
+        throw accessError; // Re-throw other errors
+      }
       
-      return { available: true };
     } catch (error) {
       console.warn('Camera availability check failed:', error);
       
       // Enhanced error categorization
       let reason = 'unknown';
+      let message = 'Camera availability check failed';
+      
       if (error.name === 'NotAllowedError') {
         reason = 'permission_denied';
+        message = 'Camera permission denied';
       } else if (error.name === 'NotFoundError') {
         reason = 'no_camera';
+        message = 'No camera device found';
       } else if (error.name === 'NotReadableError') {
         reason = 'camera_in_use';
+        message = 'Camera is being used by another application';
       } else if (error.name === 'TypeError' && error.message.includes('Illegal invocation')) {
         reason = 'api_error';
+        message = 'Camera API context error';
+      } else if (error.name === 'NotSupportedError') {
+        reason = 'not_supported';
+        message = 'Camera not supported in this browser';
       }
       
-return { available: false, reason };
+      return { available: false, reason, message };
     }
   }
 
@@ -264,33 +597,78 @@ return { available: false, reason };
     try {
       const product = await this.getById(productId);
       
-      if (!product) return null;
+      if (!product) {
+        return {
+          hasAR: false,
+          has3D: false,
+          cameraRequired: false,
+          cameraAvailable: false,
+          message: 'Product not found'
+        };
+      }
       
       // Check camera availability
-      const cameraAvailable = await this.checkCameraAvailability();
+      const cameraCheck = await this.checkCameraAvailability();
       
-      // Mock AR capability based on category
-      const arCapableCategories = ['electronics', 'furniture', 'clothing', 'home-garden'];
-      const hasAR = arCapableCategories.some(cat => 
-        product.category.toLowerCase().includes(cat.replace('-', '')) ||
-        product.tags?.some(tag => tag.toLowerCase().includes(cat.replace('-', '')))
-      );
+      // Enhanced AR capability detection based on multiple factors
+      const arCapableCategories = {
+        'electronics': ['phone', 'tablet', 'laptop', 'headphones', 'speaker'],
+        'furniture': ['chair', 'table', 'sofa', 'bed', 'desk'],
+        'clothing': ['shoes', 'jacket', 'dress', 'shirt', 'hat'],
+        'home-garden': ['plant', 'decoration', 'lamp', 'mirror'],
+        'sports': ['equipment', 'gear', 'bike', 'fitness']
+      };
+      
+      let hasAR = false;
+      let arCategory = null;
+      
+      // Check if product belongs to AR-capable category
+      Object.entries(arCapableCategories).forEach(([category, keywords]) => {
+        if (product.category.toLowerCase().includes(category.replace('-', ''))) {
+          const hasKeyword = keywords.some(keyword => 
+            product.title.toLowerCase().includes(keyword) ||
+            product.description.toLowerCase().includes(keyword) ||
+            product.tags?.some(tag => tag.toLowerCase().includes(keyword))
+          );
+          if (hasKeyword) {
+            hasAR = true;
+            arCategory = category;
+          }
+        }
+      });
+      
+      // Enhanced 3D model availability
+      const has3D = hasAR && ['electronics', 'furniture', 'sports'].includes(arCategory);
+      
+      // AR features based on category
+      const categoryFeatures = {
+        'electronics': ['360_view', 'size_comparison', 'color_options'],
+        'furniture': ['room_placement', 'size_visualization', 'material_preview'],
+        'clothing': ['virtual_try_on', 'size_fitting', 'color_matching'],
+        'home-garden': ['space_planning', 'lighting_effects', 'seasonal_preview'],
+        'sports': ['size_comparison', 'usage_demonstration', 'compatibility_check']
+      };
       
       return {
-        hasAR: hasAR && cameraAvailable,
-        has3D: hasAR, // 3D view doesn't require camera
+        hasAR: hasAR && cameraCheck.available,
+        has3D: has3D, // 3D view doesn't require camera permission
         cameraRequired: hasAR,
-        cameraAvailable,
-        arFeatures: hasAR ? ['360_view', 'size_visualization', 'room_placement'] : [],
-        modelUrl: hasAR ? `/models/${productId}.glb` : null,
+        cameraAvailable: cameraCheck.available,
+        cameraMessage: cameraCheck.message,
+        arCategory,
+        arFeatures: hasAR ? categoryFeatures[arCategory] || ['360_view'] : [],
+        modelUrl: has3D ? `/models/${arCategory}/${productId}.glb` : null,
         instructions: hasAR ? [
-          'Allow camera access for AR features',
-          'Tap to place in your space',
-          'Pinch to resize',
-          'Drag to rotate',
-          'Walk around to view from all angles'
+          'Allow camera access when prompted',
+          'Point camera at a flat surface',
+          'Tap to place the product',
+          'Pinch to resize and adjust',
+          'Drag to rotate and position',
+          'Walk around to view all angles'
         ] : null,
-        fallbackMessage: !cameraAvailable ? 'Camera access required for AR features' : null
+        fallbackMessage: !cameraCheck.available ? 
+          `AR preview requires camera access: ${cameraCheck.message}` : null,
+        compatibilityScore: hasAR ? 0.9 : 0.0 // ML confidence score
       };
     } catch (error) {
       console.error('Error checking AR capability:', error);
@@ -302,47 +680,122 @@ return { available: false, reason };
         arFeatures: [],
         modelUrl: null,
         instructions: null,
-        fallbackMessage: 'AR features unavailable'
+        fallbackMessage: 'AR capability check failed',
+        error: error.message
       };
     }
   }
 
 
-  async trackPriceDrops(products) {
+async trackPriceDrops(products, userWishlist = []) {
     await this.delay();
     
-    // Mock price drop detection
-    const priceDrops = products.filter(product => {
-      // Simulate price changes - in real app would compare with historical data
-      const hasDiscount = product.discount && product.discount > 0;
-      const randomDrop = Math.random() < 0.1; // 10% chance of price drop
-      return hasDiscount || randomDrop;
-    }).map(product => ({
-      productId: product.Id,
-      previousPrice: product.price * 1.2, // Mock previous price
-      currentPrice: product.price,
-dropPercentage: Math.round((1 - product.price / (product.price * 1.2)) * 100),
-      alertType: 'price_drop'
-    }));
+    // Enhanced price drop detection with ML-like patterns
+    const priceDrops = [];
     
+    products.forEach(product => {
+      const isWishlisted = userWishlist.some(item => item.Id === product.Id);
+      let dropProbability = 0.1; // Base 10% chance
+      
+      // Increase probability for wishlisted items
+      if (isWishlisted) dropProbability = 0.3;
+      
+      // Seasonal pricing patterns
+      const currentMonth = new Date().getMonth();
+      if ([10, 11, 0].includes(currentMonth)) dropProbability += 0.2; // Holiday sales
+      if ([6, 7].includes(currentMonth)) dropProbability += 0.15; // Summer sales
+      
+      // Category-based patterns
+      if (product.category === 'electronics') dropProbability += 0.1;
+      if (product.category === 'clothing') dropProbability += 0.15;
+      
+      // Inventory clearance simulation
+      if (product.stock && product.stock < 10) dropProbability += 0.2;
+      
+      const hasPriceDrop = Math.random() < dropProbability;
+      const hasDiscount = product.discount && product.discount > 0;
+      
+      if (hasPriceDrop || hasDiscount) {
+        const previousPrice = product.originalPrice || product.price * (1.1 + Math.random() * 0.3);
+        const dropPercentage = Math.round(((previousPrice - product.price) / previousPrice) * 100);
+        
+        if (dropPercentage > 0) {
+          priceDrops.push({
+            productId: product.Id,
+            productName: product.title,
+            previousPrice,
+            currentPrice: product.price,
+            dropPercentage,
+            alertType: 'price_drop',
+            timestamp: new Date().toISOString(),
+            isWishlisted,
+            urgency: dropPercentage > 25 ? 'high' : dropPercentage > 15 ? 'medium' : 'low'
+          });
+        }
+      }
+    });
+    
+    console.log(`💰 Detected ${priceDrops.length} price drops`);
     return priceDrops;
   }
-  async searchByBarcode(barcode) {
+async searchByBarcode(barcode) {
     await this.delay();
-    // Mock barcode lookup - in real app, this would query by barcode field
-    const mockBarcodeMap = {
-      '1234567890123': 1,
-      '9876543210987': 2,
-      '4567890123456': 3
+    
+    // Enhanced barcode lookup with product matching
+    const enhancedBarcodeMap = {
+      '1234567890123': { productId: 1, confidence: 0.95 },
+      '9876543210987': { productId: 2, confidence: 0.90 },
+      '4567890123456': { productId: 3, confidence: 0.88 },
+      '7890123456789': { productId: 4, confidence: 0.92 },
+      '3456789012345': { productId: 5, confidence: 0.87 },
+      '6789012345678': { productId: 6, confidence: 0.93 }
     };
     
-    const productId = mockBarcodeMap[barcode];
-    if (productId) {
-      const product = this.products.find(p => p.Id === productId);
-      return product ? [product] : [];
+    const barcodeData = enhancedBarcodeMap[barcode];
+    
+    if (barcodeData) {
+      const product = this.products.find(p => p.Id === barcodeData.productId);
+      if (product) {
+        // Add barcode-specific metadata
+        const enhancedProduct = {
+          ...product,
+          barcodeMatch: {
+            barcode,
+            confidence: barcodeData.confidence,
+            scanTimestamp: new Date().toISOString()
+          }
+        };
+        
+        console.log(`📊 Barcode match found: ${product.title} (${Math.round(barcodeData.confidence * 100)}% confidence)`);
+        return [enhancedProduct];
+      }
     }
     
-return [];
+    // Fallback: attempt fuzzy matching for similar products
+    const fuzzyMatches = this.products.filter(product => {
+      // Simple similarity check based on first/last digits
+      const productId = product.Id.toString();
+      const firstDigit = barcode.charAt(0);
+      const lastDigit = barcode.charAt(barcode.length - 1);
+      
+      return productId.includes(firstDigit) || productId.includes(lastDigit);
+    }).slice(0, 3);
+    
+    if (fuzzyMatches.length > 0) {
+      console.log(`🔍 Found ${fuzzyMatches.length} potential matches for barcode ${barcode}`);
+      return fuzzyMatches.map(product => ({
+        ...product,
+        barcodeMatch: {
+          barcode,
+          confidence: 0.3,
+          matchType: 'fuzzy',
+          scanTimestamp: new Date().toISOString()
+        }
+      }));
+    }
+    
+    console.log(`❌ No product found for barcode ${barcode}`);
+    return [];
   }
 
   // Get placeholder image for failed image loads
