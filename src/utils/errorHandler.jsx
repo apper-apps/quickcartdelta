@@ -165,16 +165,29 @@ static getErrorMessage(error) {
       permissions: navigator.permissions ? 'supported' : 'not supported'
     });
 
-    // Provide specific guidance for speech recognition errors
+// Provide specific guidance for speech recognition errors
     if (error.name === 'not-allowed' || error.message?.includes('not-allowed')) {
       const browserGuidance = this.getMicrophonePermissionGuidance();
       toast.error(
-        `🎤 Microphone permission denied. ${browserGuidance}`,
+        `🎤 Voice search blocked - microphone permission needed\n\n${browserGuidance}`,
         { 
-          autoClose: 8000,
-          style: { whiteSpace: 'pre-line' }
+          autoClose: 10000,
+          style: { whiteSpace: 'pre-line' },
+          toastId: 'microphone-permission-denied' // Prevent duplicate toasts
         }
       );
+      
+      // Enhanced logging for permission denial debugging
+      console.error('Speech Recognition Permission Denied:', {
+        error: error.message,
+        name: error.name,
+        context,
+        permissionsSupported: !!(navigator.permissions),
+        speechRecognitionSupported: !!(window.SpeechRecognition || window.webkitSpeechRecognition),
+        isSecure: location.protocol === 'https:',
+        hostname: location.hostname,
+        timestamp: new Date().toISOString()
+      });
     } else if (error.name === 'no-speech') {
       toast.error('🔇 No speech detected. Please speak clearly and try again.');
     } else if (error.name === 'audio-capture') {

@@ -123,20 +123,34 @@ setSpeechSupported('webkitSpeechRecognition' in window || 'SpeechRecognition' in
 recognition.onerror = (event) => {
       setIsListening(false);
       
-      // Enhanced error handling for speech recognition
+      // Enhanced error handling for speech recognition with immediate feedback
       const error = {
         name: event.error || 'SpeechRecognitionError',
         message: `Voice recognition error: ${event.error}`,
         originalError: event
       };
 
-      // Use the enhanced error handler for consistent UX
-      import('@/utils/errorHandler').then(({ ErrorHandler }) => {
-        ErrorHandler.handleSpeechRecognitionError(error, 'Voice Search');
-      }).catch(console.error);
+      // Provide immediate user feedback for permission denied
+      if (event.error === 'not-allowed') {
+        console.warn('Microphone permission denied for voice search');
+        // Show immediate feedback while ErrorHandler provides detailed guidance
+        import('@/utils/errorHandler').then(({ ErrorHandler }) => {
+          ErrorHandler.handleSpeechRecognitionError(error, 'Voice Search');
+        }).catch(console.error);
+      } else {
+        // Use the enhanced error handler for other error types
+        import('@/utils/errorHandler').then(({ ErrorHandler }) => {
+          ErrorHandler.handleSpeechRecognitionError(error, 'Voice Search');
+        }).catch(console.error);
+      }
 
-      // Provide immediate user feedback
-      console.warn('Speech recognition failed:', event.error);
+      // Enhanced logging for debugging
+      console.warn('Speech recognition failed:', {
+        error: event.error,
+        message: event.message,
+        timestamp: new Date().toISOString(),
+        userAgent: navigator.userAgent
+      });
     };
 
     recognition.onend = () => {
