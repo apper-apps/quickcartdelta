@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ApperIcon } from '@/components/ApperIcon';
+import ApperIcon from '@/components/ApperIcon';
 import { toast } from 'react-toastify';
 
 const AdminOrders = () => {
